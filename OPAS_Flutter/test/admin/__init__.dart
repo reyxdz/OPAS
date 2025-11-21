@@ -23,16 +23,16 @@ export 'flutter_test_fixtures.dart';
 export 'test_screen_navigation.dart';
 
 // Form Validation Tests
-export 'test_form_validation.dart';
+export 'test_form_validation.dart' hide main;
 
 // Error Handling Tests
-export 'test_error_handling.dart';
+export 'test_error_handling.dart' hide main;
 
 // Loading State Tests
-export 'test_loading_states.dart';
+export 'test_loading_states.dart' hide main;
 
 // Accessibility Tests
-export 'test_accessibility.dart';
+export 'test_accessibility.dart' hide main;
 
 /// Phase 5.2: Frontend Testing
 /// 

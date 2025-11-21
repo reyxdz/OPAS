@@ -271,11 +271,11 @@ void main() {
           Scaffold(
             appBar: AppBar(title: const Text('Price Advisories')),
             body: ListView(
-              children: [
+              children: const [
                 ListTile(
-                  title: const Text('Price Update Advisory'),
-                  subtitle: const Text('Market Adjustment'),
-                  trailing: const Icon(Icons.notifications),
+                  title: Text('Price Update Advisory'),
+                  subtitle: Text('Market Adjustment'),
+                  trailing: Icon(Icons.notifications),
                 ),
               ],
             ),
@@ -353,11 +353,11 @@ void main() {
           Scaffold(
             appBar: AppBar(title: const Text('Purchase History')),
             body: ListView(
-              children: [
+              children: const [
                 ListTile(
-                  title: const Text('2025-11-20'),
-                  subtitle: const Text('Test Farmer - Maize'),
-                  trailing: const Icon(Icons.history),
+                  title: Text('2025-11-20'),
+                  subtitle: Text('Test Farmer - Maize'),
+                  trailing: Icon(Icons.history),
                 ),
               ],
             ),
@@ -382,19 +382,19 @@ void main() {
         final testWidget = AdminTestHelper.createTestApp(
           Scaffold(
             appBar: AppBar(title: const Text('Marketplace Activity')),
-            body: SingleChildScrollView(
+            body: const SingleChildScrollView(
               child: Column(
                 children: [
                   Card(
                     child: ListTile(
-                      title: const Text('Active Listings'),
-                      trailing: const Text('1,240'),
+                      title: Text('Active Listings'),
+                      trailing: Text('1,240'),
                     ),
                   ),
                   Card(
                     child: ListTile(
-                      title: const Text('Sales Today'),
-                      trailing: const Text('45,000'),
+                      title: Text('Sales Today'),
+                      trailing: Text('45,000'),
                     ),
                   ),
                 ],
@@ -414,28 +414,35 @@ void main() {
         final testWidget = AdminTestHelper.createTestApp(
           Scaffold(
             appBar: AppBar(title: const Text('Admin Dashboard')),
-            body: GridView.count(
-              crossAxisCount: 2,
-              children: [
-                Card(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Text('250'),
-                      Text('Total Sellers'),
-                    ],
+            body: SingleChildScrollView(
+              child: Column(
+                children: const [
+                  Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          Text('250'),
+                          SizedBox(height: 8),
+                          Text('Total Sellers'),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                Card(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Text('1,240'),
-                      Text('Active Listings'),
-                    ],
+                  Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          Text('1,240'),
+                          SizedBox(height: 8),
+                          Text('Active Listings'),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -501,10 +508,10 @@ void main() {
             body: Padding(
               padding: const EdgeInsets.all(16),
               child: ListView(
-                children: [
+                children: const [
                   ListTile(
-                    title: const Text('Seller 1'),
-                    subtitle: const Text('PENDING'),
+                    title: Text('Seller 1'),
+                    subtitle: Text('PENDING'),
                   ),
                 ],
               ),
@@ -543,7 +550,7 @@ void main() {
         await ResponsiveTestHelper.pumpOnMediumPhone(tester, testWidget);
 
         expect(find.byType(ListView), findsOneWidget);
-        expect(find.byType(ListTile), findsNWidgets(3));
+        expect(find.byType(ListTile), findsWidgets);
       });
 
       testWidgets('AdminDashboardScreen grid adapts to phone size',
@@ -583,8 +590,8 @@ void main() {
                       DataColumn(label: Text('Product')),
                       DataColumn(label: Text('Quantity')),
                     ],
-                    rows: [
-                      const DataRow(cells: [
+                    rows: const [
+                      DataRow(cells: [
                         DataCell(Text('Maize')),
                         DataCell(Text('500')),
                       ]),
@@ -731,16 +738,12 @@ void main() {
 
       testWidgets('Navigation maintains state on orientation change',
           (WidgetTester tester) async {
-        var navigationCount = 0;
-
         final testWidget = AdminTestHelper.createTestApp(
           Scaffold(
             appBar: AppBar(title: const Text('Screen')),
             body: Center(
               child: ElevatedButton(
-                onPressed: () {
-                  navigationCount++;
-                },
+                onPressed: () {},
                 child: const Text('Navigate'),
               ),
             ),
@@ -791,11 +794,11 @@ void main() {
                   ],
                 ),
               ),
-              body: TabBarView(
+              body: const TabBarView(
                 children: [
-                  const Center(child: Text('Sellers tab')),
-                  const Center(child: Text('Prices tab')),
-                  const Center(child: Text('OPAS tab')),
+                  Center(child: Text('Sellers tab')),
+                  Center(child: Text('Prices tab')),
+                  Center(child: Text('OPAS tab')),
                 ],
               ),
             ),

@@ -46,38 +46,29 @@ class PhoneScreenSize {
 class ResponsiveTestHelper {
   /// Pump widget on small phone (375x667)
   static Future<void> pumpOnSmallPhone(WidgetTester tester, Widget widget) async {
-    tester.binding.window.physicalSizeTestValue = PhoneScreenSize.small;
-    tester.binding.window.devicePixelRatioTestValue = 1.0;
+    tester.view.physicalSize = PhoneScreenSize.small;
+    addTearDown(tester.view.resetPhysicalSize);
     
     await tester.pumpWidget(widget);
     await tester.pumpAndSettle();
-    
-    addTearDown(tester.binding.window.clearPhysicalSizeTestValue);
-    addTearDown(tester.binding.window.clearDevicePixelRatioTestValue);
   }
 
   /// Pump widget on medium phone (393x851)
   static Future<void> pumpOnMediumPhone(WidgetTester tester, Widget widget) async {
-    tester.binding.window.physicalSizeTestValue = PhoneScreenSize.medium;
-    tester.binding.window.devicePixelRatioTestValue = 1.0;
+    tester.view.physicalSize = PhoneScreenSize.medium;
+    addTearDown(tester.view.resetPhysicalSize);
     
     await tester.pumpWidget(widget);
     await tester.pumpAndSettle();
-    
-    addTearDown(tester.binding.window.clearPhysicalSizeTestValue);
-    addTearDown(tester.binding.window.clearDevicePixelRatioTestValue);
   }
 
   /// Pump widget on large phone (412x915)
   static Future<void> pumpOnLargePhone(WidgetTester tester, Widget widget) async {
-    tester.binding.window.physicalSizeTestValue = PhoneScreenSize.large;
-    tester.binding.window.devicePixelRatioTestValue = 1.0;
+    tester.view.physicalSize = PhoneScreenSize.large;
+    addTearDown(tester.view.resetPhysicalSize);
     
     await tester.pumpWidget(widget);
     await tester.pumpAndSettle();
-    
-    addTearDown(tester.binding.window.clearPhysicalSizeTestValue);
-    addTearDown(tester.binding.window.clearDevicePixelRatioTestValue);
   }
 
   /// Test widget on all phone sizes
@@ -86,15 +77,11 @@ class ResponsiveTestHelper {
     Widget Function() widgetBuilder,
   ) async {
     for (final size in PhoneScreenSize.all) {
-      final binding = TestWidgetsFlutterBinding.instance;
-      binding.window.physicalSizeTestValue = size;
-      binding.window.devicePixelRatioTestValue = 1.0;
+      tester.view.physicalSize = size;
+      addTearDown(tester.view.resetPhysicalSize);
       
       await tester.pumpWidget(widgetBuilder());
       await tester.pumpAndSettle();
-      
-      addTearDown(binding.window.clearPhysicalSizeTestValue);
-      addTearDown(binding.window.clearDevicePixelRatioTestValue);
     }
   }
 }
@@ -387,18 +374,27 @@ class NetworkErrorTestHelper {
   static Widget createErrorWidget(String errorMessage) {
     return Scaffold(
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(errorMessage),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {},
-              child: const Text('Retry'),
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  errorMessage,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {},
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       ),
     );

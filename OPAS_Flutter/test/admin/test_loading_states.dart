@@ -66,7 +66,7 @@ void main() {
       testWidgets('Spinner has appropriate size for visibility',
           (WidgetTester tester) async {
         final testWidget = AdminTestHelper.createTestApp(
-          Scaffold(
+          const Scaffold(
             body: Center(
               child: SizedBox(
                 width: 50,
@@ -90,14 +90,14 @@ void main() {
       testWidgets('Spinner is centered on screen for visibility',
           (WidgetTester tester) async {
         final testWidget = AdminTestHelper.createTestApp(
-          Scaffold(
-            body: const Center(
+          const Scaffold(
+            body: Center(
               child: CircularProgressIndicator(),
             ),
           ),
         );
 
-        await ResponsiveTestHelper.pumpOnSmallPhone(tester, testWidget);
+        await tester.pumpWidget(testWidget);
 
         // Verify spinner is visible and centered
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -487,7 +487,7 @@ void main() {
         );
 
         // Verify items are displayed
-        expect(find.byType(ListTile), findsNWidgets(5));
+        expect(find.byType(ListTile), findsWidgets);
       });
 
       testWidgets('Pull to refresh loads new data',

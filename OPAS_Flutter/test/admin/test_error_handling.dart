@@ -187,14 +187,14 @@ void main() {
       testWidgets('Error messages have appropriate icons',
           (WidgetTester tester) async {
         final testWidget = AdminTestHelper.createTestApp(
-          Scaffold(
+          const Scaffold(
             body: Column(
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.error, color: Colors.red),
-                    const SizedBox(width: 8),
-                    const Text('An error occurred'),
+                    Icon(Icons.error, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('An error occurred'),
                   ],
                 ),
               ],
@@ -211,9 +211,9 @@ void main() {
       testWidgets('Multiple errors are all displayed',
           (WidgetTester tester) async {
         final testWidget = AdminTestHelper.createTestApp(
-          Scaffold(
+          const Scaffold(
             body: Column(
-              children: const [
+              children: [
                 ListTile(
                   leading: Icon(Icons.warning, color: Colors.orange),
                   title: Text('Warning 1: Field incomplete'),
@@ -338,11 +338,11 @@ void main() {
                 children: [
                   Text('Attempt: $retryCount'),
                   if (retryCount == 0)
-                    Text('Wait ${1 * 1000}ms before retry')
+                    const Text('Wait ${1 * 1000}ms before retry')
                   else if (retryCount == 1)
-                    Text('Wait ${2 * 1000}ms before retry')
+                    const Text('Wait ${2 * 1000}ms before retry')
                   else
-                    Text('Wait ${4 * 1000}ms before retry'),
+                    const Text('Wait ${4 * 1000}ms before retry'),
                   ElevatedButton(
                     onPressed: () {
                       setState(() => retryCount++);
@@ -376,24 +376,24 @@ void main() {
           Scaffold(
             appBar: AppBar(title: const Text('Dashboard')),
             body: ListView(
-              children: [
+              children: const [
                 Card(
                   child: ListTile(
-                    title: const Text('Seller Metrics'),
-                    subtitle: const Text('250 active sellers'),
+                    title: Text('Seller Metrics'),
+                    subtitle: Text('250 active sellers'),
                   ),
                 ),
                 Card(
                   child: ListTile(
-                    title: const Text('Price Data'),
-                    subtitle: const Text('Failed to load'),
-                    trailing: const Icon(Icons.error),
+                    title: Text('Price Data'),
+                    subtitle: Text('Failed to load'),
+                    trailing: Icon(Icons.error),
                   ),
                 ),
                 Card(
                   child: ListTile(
-                    title: const Text('OPAS Data'),
-                    subtitle: const Text('5000 items in stock'),
+                    title: Text('OPAS Data'),
+                    subtitle: Text('5000 items in stock'),
                   ),
                 ),
               ],
@@ -417,9 +417,9 @@ void main() {
           Scaffold(
             appBar: AppBar(
               title: const Text('Sellers'),
-              actions: [
+              actions: const [
                 Chip(
-                  label: const Text('Offline Mode'),
+                  label: Text('Offline Mode'),
                   backgroundColor: Colors.orange,
                 )
               ],
@@ -432,10 +432,10 @@ void main() {
                 ),
                 ListView(
                   shrinkWrap: true,
-                  children: [
+                  children: const [
                     ListTile(
-                      title: const Text('Cached Seller 1'),
-                      subtitle: const Text('From cache'),
+                      title: Text('Cached Seller 1'),
+                      subtitle: Text('From cache'),
                     ),
                   ],
                 ),
