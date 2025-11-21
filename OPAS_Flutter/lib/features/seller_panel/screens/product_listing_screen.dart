@@ -1,0 +1,430 @@
+import 'package:flutter/material.dart';
+import '../models/seller_product_model.dart';
+import '../services/seller_service.dart';
+
+class ProductListingScreen extends StatefulWidget {
+  const ProductListingScreen({super.key});
+
+  @override
+  State<ProductListingScreen> createState() => _ProductListingScreenState();
+}
+
+class _ProductListingScreenState extends State<ProductListingScreen> {
+  late Future<List<SellerProduct>> _productsFuture;
+  List<SellerProduct> _allProducts = [];
+  List<SellerProduct> _filteredProducts = [];
+  String _filterStatus = 'ALL'; // ALL, ACTIVE, EXPIRED, PENDING
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _productsFuture = SellerService.getProducts();
+  }
+
+  Future<void> _refreshProducts() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final products = await SellerService.getProducts();
+      setState(() {
+        _allProducts = products;
+        _applyFilter();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error refreshing products: $e')),
+        );
+      }
+    }
+  }
+
+  void _applyFilter() {
+    if (_filterStatus == 'ALL') {
+      _filteredProducts = _allProducts;
+    } else if (_filterStatus == 'ACTIVE') {
+      _filteredProducts = _allProducts.where((p) => p.isActive).toList();
+    } else if (_filterStatus == 'EXPIRED') {
+      _filteredProducts = _allProducts.where((p) => p.isExpired).toList();
+    } else if (_filterStatus == 'PENDING') {
+      _filteredProducts = _allProducts.where((p) => p.isPending).toList();
+    }
+  }
+
+  void _onFilterChanged(String newFilter) {
+    setState(() {
+      _filterStatus = newFilter;
+      _applyFilter();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          FutureBuilder<List<SellerProduct>>(
+        future: _productsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && _allProducts.isEmpty) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error loading products',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${snapshot.error}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _refreshProducts,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          if (_allProducts.isEmpty && snapshot.hasData) {
+            _allProducts = snapshot.data ?? [];
+            _applyFilter();
+          }
+
+          return RefreshIndicator(
+            onRefresh: _refreshProducts,
+            child: _allProducts.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 64,
+                          color: Colors.grey.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No products yet',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Create your first product to get started',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  )
+                : Column(
+                    children: [
+                      // Filter header
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildFilterChip('ALL', 'All (${_allProducts.length})',
+                                  _filterStatus == 'ALL'),
+                              const SizedBox(width: 8),
+                              _buildFilterChip(
+                                'ACTIVE',
+                                'Active (${_allProducts.where((p) => p.isActive).length})',
+                                _filterStatus == 'ACTIVE',
+                              ),
+                              const SizedBox(width: 8),
+                              _buildFilterChip(
+                                'PENDING',
+                                'Pending (${_allProducts.where((p) => p.isPending).length})',
+                                _filterStatus == 'PENDING',
+                              ),
+                              const SizedBox(width: 8),
+                              _buildFilterChip(
+                                'EXPIRED',
+                                'Expired (${_allProducts.where((p) => p.isExpired).length})',
+                                _filterStatus == 'EXPIRED',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Product List
+                      Expanded(
+                        child: _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : _filteredProducts.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      'No $_filterStatus products',
+                                      style: Theme.of(context).textTheme.bodyMedium,
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 8)
+                                      .copyWith(bottom: 100),
+                                    itemCount: _filteredProducts.length,
+                                    itemBuilder: (context, index) {
+                                      final product = _filteredProducts[index];
+                                      return _buildProductCard(context, product);
+                                    },
+                                  ),
+                      ),
+                    ],
+                  ),
+          );
+        },
+      ),
+          Positioned(
+            bottom: 105,
+            right: 30,
+            child: FloatingActionButton(
+              onPressed: () {
+                Navigator.of(context).pushNamed('/seller/products/add');
+              },
+              backgroundColor: const Color(0xFF00B464),
+              elevation: 0,
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String value, String label, bool isSelected) {
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) {
+          _onFilterChanged(value);
+        }
+      },
+      backgroundColor: Colors.grey.withOpacity(0.2),
+      selectedColor: const Color(0xFF00B464).withOpacity(0.3),
+      labelStyle: TextStyle(
+        color: isSelected ? const Color(0xFF00B464) : Colors.grey,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+    );
+  }
+
+  Widget _buildProductCard(BuildContext context, SellerProduct product) {
+    final statusColor = product.isActive
+        ? Colors.green
+        : product.isExpired
+            ? Colors.red
+            : Colors.orange;
+    final statusText = product.isActive
+        ? 'ACTIVE'
+        : product.isExpired
+            ? 'EXPIRED'
+            : 'PENDING';
+
+    // Get image URL with priority: primaryImage > images array > null
+    String? imageUrl;
+    if (product.primaryImage != null && product.primaryImage!['image_url'] != null) {
+      imageUrl = product.primaryImage!['image_url'];
+    } else if (product.images != null && product.images!.isNotEmpty) {
+      imageUrl = product.images!.first;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        visualDensity: VisualDensity.compact,
+        contentPadding: const EdgeInsets.all(12),
+        leading: Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: imageUrl != null
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.image_not_supported);
+                    },
+                  ),
+                )
+              : const Icon(Icons.image, color: Colors.grey),
+        ),
+        title: Text(
+          product.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              '₱${product.price.toStringAsFixed(2)} • Stock: ${product.stockLevel} units',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (product.priceExceedsCeiling)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Price exceeds ceiling (₱${product.ceilingPrice})',
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            if (product.isLowStock)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text(
+                  'Low stock',
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        trailing: SizedBox(
+          width: 80,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              Flexible(
+                child: PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_horiz, size: 18),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      Navigator.of(context).pushNamed(
+                        '/seller/product/edit',
+                        arguments: product,
+                      );
+                    } else if (value == 'delete') {
+                      _showDeleteConfirmation(context, product);
+                    }
+                  },
+                  itemBuilder: (BuildContext context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 18),
+                          SizedBox(width: 8),
+                          Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 18, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, SellerProduct product) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Product'),
+          content: Text(
+            'Are you sure you want to delete "${product.name}"? This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _deleteProduct(product);
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteProduct(SellerProduct product) async {
+    try {
+      await SellerService.deleteProduct(product.id);
+      setState(() {
+        _allProducts.removeWhere((p) => p.id == product.id);
+        _applyFilter();
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${product.name} deleted successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting product: $e')),
+        );
+      }
+    }
+  }
+}
