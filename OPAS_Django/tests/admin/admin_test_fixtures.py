@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase, APIClient
 from rest_framework.authtoken.models import Token
 from datetime import datetime, timedelta
+import uuid
 
 from apps.users.models import User, UserRole, SellerStatus
 from apps.users.admin_models import (
@@ -32,7 +33,7 @@ class AdminUserFactory:
     def create_super_admin(email='super_admin@opas.com', **kwargs):
         """Create a Super Admin user"""
         user_data = {
-            'username': email.split('@')[0],
+            'username': email.split('@')[0] + '_' + str(uuid.uuid4())[:4],
             'email': email,
             'first_name': 'Super',
             'last_name': 'Admin',
@@ -48,7 +49,7 @@ class AdminUserFactory:
     def create_seller_manager(email='seller_manager@opas.com', **kwargs):
         """Create a Seller Manager admin"""
         user_data = {
-            'username': email.split('@')[0],
+            'username': email.split('@')[0] + '_' + str(uuid.uuid4())[:4],
             'email': email,
             'first_name': 'Seller',
             'last_name': 'Manager',
@@ -64,7 +65,7 @@ class AdminUserFactory:
     def create_price_manager(email='price_manager@opas.com', **kwargs):
         """Create a Price Manager admin"""
         user_data = {
-            'username': email.split('@')[0],
+            'username': email.split('@')[0] + '_' + str(uuid.uuid4())[:4],
             'email': email,
             'first_name': 'Price',
             'last_name': 'Manager',
@@ -80,7 +81,7 @@ class AdminUserFactory:
     def create_opas_manager(email='opas_manager@opas.com', **kwargs):
         """Create an OPAS Manager admin"""
         user_data = {
-            'username': email.split('@')[0],
+            'username': email.split('@')[0] + '_' + str(uuid.uuid4())[:4],
             'email': email,
             'first_name': 'OPAS',
             'last_name': 'Manager',
@@ -96,7 +97,7 @@ class AdminUserFactory:
     def create_analytics_manager(email='analytics_manager@opas.com', **kwargs):
         """Create an Analytics Manager admin (read-only)"""
         user_data = {
-            'username': email.split('@')[0],
+            'username': email.split('@')[0] + '_' + str(uuid.uuid4())[:4],
             'email': email,
             'first_name': 'Analytics',
             'last_name': 'Manager',
@@ -113,10 +114,33 @@ class SellerFactory:
     """Factory for creating seller users with various states"""
 
     @staticmethod
-    def create_pending_seller(email='seller_pending@opas.com', **kwargs):
-        """Create a seller with PENDING status"""
+    def create_pending_seller(email=None, business_name=None, contact_email=None, **kwargs):
+        """Create a seller with PENDING status
+        
+        Args:
+            email: Email for User account (auto-generated if not provided)
+            business_name: Business name (stored separately, not in User model)
+            contact_email: Contact email (stored separately, not in User model)
+            **kwargs: Additional User model fields
+        """
+        # Generate unique username if not explicitly provided
+        if email is None:
+            unique_id = str(uuid.uuid4())[:8]
+            email = f'seller_pending_{unique_id}@opas.com'
+        
+        # Extract non-User fields
+        extra_data = {}
+        if business_name is not None:
+            extra_data['business_name'] = business_name
+        if contact_email is not None:
+            extra_data['contact_email'] = contact_email
+        
+        # Remove these from kwargs if present (they're not User model fields)
+        kwargs.pop('business_name', None)
+        kwargs.pop('contact_email', None)
+        
         user_data = {
-            'username': email.split('@')[0],
+            'username': email.split('@')[0] + '_' + str(uuid.uuid4())[:4],
             'email': email,
             'first_name': 'Pending',
             'last_name': 'Seller',
@@ -128,10 +152,33 @@ class SellerFactory:
         return User.objects.create_user(**user_data)
 
     @staticmethod
-    def create_approved_seller(email='seller_approved@opas.com', **kwargs):
-        """Create a seller with APPROVED status"""
+    def create_approved_seller(email=None, business_name=None, contact_email=None, **kwargs):
+        """Create a seller with APPROVED status
+        
+        Args:
+            email: Email for User account (auto-generated if not provided)
+            business_name: Business name (stored separately, not in User model)
+            contact_email: Contact email (stored separately, not in User model)
+            **kwargs: Additional User model fields
+        """
+        # Generate unique username if not explicitly provided
+        if email is None:
+            unique_id = str(uuid.uuid4())[:8]
+            email = f'seller_approved_{unique_id}@opas.com'
+        
+        # Extract non-User fields
+        extra_data = {}
+        if business_name is not None:
+            extra_data['business_name'] = business_name
+        if contact_email is not None:
+            extra_data['contact_email'] = contact_email
+        
+        # Remove these from kwargs if present (they're not User model fields)
+        kwargs.pop('business_name', None)
+        kwargs.pop('contact_email', None)
+        
         user_data = {
-            'username': email.split('@')[0],
+            'username': email.split('@')[0] + '_' + str(uuid.uuid4())[:4],
             'email': email,
             'first_name': 'Approved',
             'last_name': 'Seller',
@@ -143,10 +190,33 @@ class SellerFactory:
         return User.objects.create_user(**user_data)
 
     @staticmethod
-    def create_suspended_seller(email='seller_suspended@opas.com', **kwargs):
-        """Create a seller with SUSPENDED status"""
+    def create_suspended_seller(email=None, business_name=None, contact_email=None, **kwargs):
+        """Create a seller with SUSPENDED status
+        
+        Args:
+            email: Email for User account (auto-generated if not provided)
+            business_name: Business name (stored separately, not in User model)
+            contact_email: Contact email (stored separately, not in User model)
+            **kwargs: Additional User model fields
+        """
+        # Generate unique username if not explicitly provided
+        if email is None:
+            unique_id = str(uuid.uuid4())[:8]
+            email = f'seller_suspended_{unique_id}@opas.com'
+        
+        # Extract non-User fields
+        extra_data = {}
+        if business_name is not None:
+            extra_data['business_name'] = business_name
+        if contact_email is not None:
+            extra_data['contact_email'] = contact_email
+        
+        # Remove these from kwargs if present (they're not User model fields)
+        kwargs.pop('business_name', None)
+        kwargs.pop('contact_email', None)
+        
         user_data = {
-            'username': email.split('@')[0],
+            'username': email.split('@')[0] + '_' + str(uuid.uuid4())[:4],
             'email': email,
             'first_name': 'Suspended',
             'last_name': 'Seller',
