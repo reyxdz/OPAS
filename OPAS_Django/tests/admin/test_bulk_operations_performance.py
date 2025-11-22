@@ -336,7 +336,7 @@ class BulkAuditLoggingPerformanceTests(PerformanceTestCase):
         
         def bulk_update_with_logging():
             # Simulate bulk update with audit logging
-            from apps.users.admin_models import AdminAuditLog, AdminActionType
+            from apps.users.admin_models import AdminAuditLog
             
             # Update prices
             ceiling_ids = [c.id for c in ceilings]
@@ -346,8 +346,9 @@ class BulkAuditLoggingPerformanceTests(PerformanceTestCase):
             
             # Create single audit log entry for bulk operation
             AdminAuditLog.objects.create(
-                admin_user=self.admin_user,
-                action_type=AdminActionType.PRICE_UPDATE,
+                admin=self.admin_user,
+                action_type='PRICE_UPDATE',
+                action_category='PRICE_UPDATE',
                 description=f'Bulk price update: 100 ceilings'
             )
         
@@ -363,12 +364,13 @@ class BulkAuditLoggingPerformanceTests(PerformanceTestCase):
         LargeDatasetFactory.create_sellers(count=100)
         
         def create_audit_logs():
-            from apps.users.admin_models import AdminAuditLog, AdminActionType
+            from apps.users.admin_models import AdminAuditLog
             logs = []
             for i in range(100):
                 logs.append(AdminAuditLog(
-                    admin_user=self.admin_user,
-                    action_type=AdminActionType.SELLER_APPROVAL,
+                    admin=self.admin_user,
+                    action_type='SELLER_APPROVAL',
+                    action_category='SELLER_APPROVAL',
                     description=f'Approval {i}'
                 ))
             AdminAuditLog.objects.bulk_create(logs, batch_size=50)

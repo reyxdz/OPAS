@@ -32,7 +32,7 @@ from apps.users.admin_models import (
     AdminUser, AdminRole, SellerRegistrationRequest, SellerRegistrationStatus,
     PriceCeiling, PriceHistory, PriceChangeReason, PriceNonCompliance,
     OPASPurchaseOrder, OPASInventory, OPASInventoryTransaction,
-    AdminAuditLog, AdminActionType, MarketplaceAlert
+    AdminAuditLog, MarketplaceAlert
 )
 from apps.users.seller_models import SellerProduct
 
@@ -329,12 +329,21 @@ class LargeDatasetFactory:
                 role=UserRole.OPAS_ADMIN
             )
         
-        action_types = [choice[0] for choice in AdminActionType.choices]
+        admin_user = AdminUser.objects.filter(user=admin).first()
+        if not admin_user:
+            admin_user = AdminUser.objects.create(user=admin, admin_role=AdminRole.SUPER_ADMIN)
+        
+        action_types = [
+            'SELLER_APPROVAL', 'SELLER_SUSPENSION', 'PRICE_UPDATE',
+            'OPAS_REVIEW', 'INVENTORY_ADJUSTMENT', 'ADVISORY_CREATED',
+            'ALERT_ISSUED', 'ANNOUNCEMENT', 'OTHER'
+        ]
         
         logs = [
             AdminAuditLog(
-                admin_user=admin,
+                admin=admin_user,
                 action_type=action_types[i % len(action_types)],
+                action_category=action_types[i % len(action_types)],
                 description=f'Action {i}',
                 timestamp=datetime.now() - timedelta(hours=count - i)
             )
