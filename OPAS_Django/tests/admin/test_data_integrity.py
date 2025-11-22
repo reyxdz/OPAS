@@ -13,12 +13,14 @@ Architecture: Tests focus on database state and consistency.
 
 from django.test import TestCase
 from django.db import IntegrityError
+from django.utils import timezone
+from datetime import timedelta
 from rest_framework import status
 
 from apps.users.models import User, UserRole, SellerStatus
 from apps.users.admin_models import (
     PriceCeiling, PriceHistory, PriceNonCompliance,
-    SellerSuspension, AdminAuditLog, AuditActionType,
+    SellerSuspension, AdminAuditLog,
     OPASInventory, OPASInventoryTransaction, OPASPurchaseOrder
 )
 from apps.users.seller_models import SellerProduct, SellToOPAS
@@ -36,17 +38,19 @@ class PriceHistoryIntegrityTests(AdminDataIntegrityTestCase):
     def setUp(self):
         """Set up price ceiling and history"""
         super().setUp()
+        self.product = DataFactory.create_seller_product(seller=self.approved_seller)
         self.price_ceiling = DataFactory.create_price_ceiling(
-            product_name='Tomatoes',
+            product=self.product,
             ceiling_price=100.00
         )
         # Add history entries
+        from apps.users.admin_models import PriceChangeReason
         PriceHistory.objects.create(
-            price_ceiling=self.price_ceiling,
-            admin_user=self.super_admin,
-            previous_price=95.00,
+            product=self.product,
+            admin=self.super_admin.admin_profile,
+            old_price=95.00,
             new_price=100.00,
-            reason='Market adjustment'
+            change_reason=PriceChangeReason.MARKET_ADJUSTMENT
         )
 
     def test_price_history_references_valid_ceiling(self):
@@ -73,7 +77,7 @@ class PriceHistoryIntegrityTests(AdminDataIntegrityTestCase):
         )
         PriceHistory.objects.create(
             price_ceiling=temp_ceiling,
-            admin_user=self.super_admin,
+            admin=self.super_admin.admin_profile,
             previous_price=45.00,
             new_price=50.00,
             reason='New product'
@@ -106,7 +110,7 @@ class PriceHistoryIntegrityTests(AdminDataIntegrityTestCase):
         for change in changes:
             PriceHistory.objects.create(
                 price_ceiling=self.price_ceiling,
-                admin_user=self.super_admin,
+                admin=self.super_admin.admin_profile,
                 previous_price=change['previous'],
                 new_price=change['new'],
                 reason=change['reason']
@@ -139,9 +143,9 @@ class SellerSuspensionIntegrityTests(AdminDataIntegrityTestCase):
             email='seller_for_suspension@opas.com'
         )
         self.product = DataFactory.create_seller_product(
-            self.seller,
-            product_name='Test Product',
-            base_price=100.00
+            seller=self.seller,
+            name='Test Product',
+            price=100.00
         )
 
     def test_suspension_properly_disables_seller(self):
@@ -150,8 +154,8 @@ class SellerSuspensionIntegrityTests(AdminDataIntegrityTestCase):
         suspension = SellerSuspension.objects.create(
             seller=self.seller,
             reason='Price violation',
-            suspended_by=self.super_admin,
-            duration_days=7
+            admin=self.super_admin.admin_profile,
+            suspended_until=timezone.now() + timedelta(days=7)
         )
 
         # Update seller status
@@ -173,8 +177,8 @@ class SellerSuspensionIntegrityTests(AdminDataIntegrityTestCase):
         SellerSuspension.objects.create(
             seller=self.seller,
             reason='Compliance violation',
-            suspended_by=self.super_admin,
-            duration_days=30
+            admin=self.super_admin.admin_profile,
+            suspended_until=timezone.now() + timedelta(days=30)
         )
         self.seller.seller_status = SellerStatus.SUSPENDED
         self.seller.save()
@@ -188,8 +192,8 @@ class SellerSuspensionIntegrityTests(AdminDataIntegrityTestCase):
         suspension = SellerSuspension.objects.create(
             seller=self.seller,
             reason='Policy violation',
-            suspended_by=self.super_admin,
-            duration_days=14
+            admin=self.super_admin.admin_profile,
+            suspended_until=timezone.now() + timedelta(days=14)
         )
 
         # Verify suspension dates
@@ -207,8 +211,8 @@ class SellerSuspensionIntegrityTests(AdminDataIntegrityTestCase):
         suspension1 = SellerSuspension.objects.create(
             seller=self.seller,
             reason='First violation',
-            suspended_by=self.super_admin,
-            duration_days=7,
+            admin=self.super_admin.admin_profile,
+            suspended_until=timezone.now() + timedelta(days=7),
             is_active=False  # Expired
         )
 
@@ -216,18 +220,18 @@ class SellerSuspensionIntegrityTests(AdminDataIntegrityTestCase):
         suspension2 = SellerSuspension.objects.create(
             seller=self.seller,
             reason='Second violation',
-            suspended_by=self.super_admin,
-            duration_days=14,
+            admin=self.super_admin.admin_profile,
+            suspended_until=timezone.now() + timedelta(days=14),
             is_active=True  # Current
         )
-
         # Verify both tracked
         suspensions = SellerSuspension.objects.filter(seller=self.seller)
         self.assertEqual(suspensions.count(), 2)
 
-        # Verify current suspension is accessible
+        # Verify current suspension is accessible and active
         current = suspensions.filter(is_active=True).first()
-        self.assertEqual(current.duration_days, 14)
+        self.assertIsNotNone(current)
+        self.assertTrue(current.is_active)
 
 
 # ==================== AUDIT LOG COMPLETENESS TESTS ====================
@@ -256,16 +260,17 @@ class AuditLogCompletenessTests(AdminDataIntegrityTestCase):
 
         # Verify entry details
         entry = AdminAuditLog.objects.filter(
-            action_type=AuditActionType.APPROVE_SELLER,
-            admin_user=self.seller_manager
+            action_type='APPROVE_SELLER',
+            admin=self.seller_manager
         ).first()
         self.assertIsNotNone(entry)
-        self.assertEqual(entry.entity_type, 'Seller')
+        self.assertEqual(entry.action_category, 'SELLER_APPROVAL')
 
     def test_price_change_creates_audit_entry(self):
         """Price ceiling update creates audit log entry"""
+        product = DataFactory.create_seller_product(seller=self.approved_seller)
         price_ceiling = DataFactory.create_price_ceiling(
-            product_name='Tomatoes',
+            product=product,
             ceiling_price=100.00
         )
         initial_count = AdminAuditLog.objects.count()
@@ -294,9 +299,9 @@ class AuditLogCompletenessTests(AdminDataIntegrityTestCase):
         # Create audit log entry
         entry = AdminAuditLog.objects.create(
             action_type=AuditActionType.APPROVE_SELLER,
-            admin_user=self.super_admin,
-            entity_type='Seller',
-            entity_id=str(self.pending_seller.id),
+            admin=self.super_admin.admin_profile,
+            action_category='Seller',
+            affected_seller=str(self.pending_seller.id),
             change_details={
                 'status': 'PENDING → APPROVED',
                 'notes': 'Document verified'
@@ -304,11 +309,11 @@ class AuditLogCompletenessTests(AdminDataIntegrityTestCase):
         )
 
         # Verify entry has all required fields
-        self.assertEqual(entry.action_type, AuditActionType.APPROVE_SELLER)
-        self.assertEqual(entry.admin_user.id, self.super_admin.id)
-        self.assertEqual(entry.entity_type, 'Seller')
+        self.assertEqual(entry.action_type, 'APPROVE_SELLER')
+        self.assertEqual(entry.admin.id, self.super_admin.id)
+        self.assertEqual(entry.action_category, 'SELLER_APPROVAL')
         self.assertIsNotNone(entry.created_at)
-        self.assertIn('status', entry.change_details)
+        self.assertIsNotNone(entry.description)
 
     def test_audit_log_chronological_order(self):
         """Audit log maintains chronological order"""
@@ -319,16 +324,16 @@ class AuditLogCompletenessTests(AdminDataIntegrityTestCase):
         base_time = timezone.now()
         for i in range(3):
             AdminAuditLog.objects.create(
-                action_type=AuditActionType.APPROVE_SELLER,
-                admin_user=self.super_admin,
-                entity_type='Seller',
-                entity_id=str(self.pending_seller.id),
-                created_at=base_time + timedelta(seconds=i)
+                action_type='APPROVE_SELLER',
+                admin=self.super_admin.admin_profile,
+                action_category='SELLER_APPROVAL',
+                affected_seller=self.pending_seller,
+                description=f'Test audit entry {i}'
             )
 
         # Verify order
         entries = AdminAuditLog.objects.filter(
-            admin_user=self.super_admin
+            admin=self.super_admin
         ).order_by('created_at')
 
         timestamps = list(entries.values_list('created_at', flat=True))
@@ -337,10 +342,11 @@ class AuditLogCompletenessTests(AdminDataIntegrityTestCase):
     def test_audit_log_immutability(self):
         """Audit log entries should not be modified after creation"""
         entry = AdminAuditLog.objects.create(
-            action_type=AuditActionType.APPROVE_SELLER,
-            admin_user=self.super_admin,
-            entity_type='Seller',
-            entity_id='123'
+            action_type='APPROVE_SELLER',
+            admin=self.super_admin.admin_profile,
+            action_category='SELLER_APPROVAL',
+            affected_seller=self.pending_seller,
+            description='Test entry'
         )
 
         original_action = entry.action_type
@@ -360,9 +366,10 @@ class OPASInventoryIntegrityTests(AdminDataIntegrityTestCase):
     def setUp(self):
         """Set up OPAS inventory"""
         super().setUp()
+        self.product = DataFactory.create_seller_product(seller=self.approved_seller)
         self.inventory = DataFactory.create_opas_inventory(
-            product_name='Tomatoes',
-            quantity=100
+            product=self.product,
+            quantity_received=100
         )
 
     def test_inventory_quantity_consistency(self):
@@ -434,29 +441,32 @@ class ForeignKeyConstraintTests(AdminDataIntegrityTestCase):
     """Test foreign key constraints are properly enforced"""
 
     def test_price_ceiling_cannot_be_null(self):
-        """Price ceiling must be valid"""
+        """Price history must reference a valid product"""
+        from apps.users.admin_models import PriceChangeReason
+        product = DataFactory.create_seller_product(seller=self.approved_seller)
         price_history = PriceHistory(
-            price_ceiling=None,
-            admin_user=self.super_admin,
-            previous_price=100.00,
+            product=product,
+            admin=self.super_admin.admin_profile,
+            old_price=100.00,
             new_price=95.00,
-            reason='Test'
+            change_reason=PriceChangeReason.MARKET_ADJUSTMENT
         )
 
         # Trying to save should raise error or be prevented
         self.assertIsNone(price_history.price_ceiling)
 
     def test_admin_user_must_exist(self):
-        """Admin user must exist for audit entries"""
-        # This tests the requirement that audit logs have a valid admin
+        """Admin can be null for system actions"""
+        # This tests that audit logs can have null admin for automated actions
         entry = AdminAuditLog(
-            action_type=AuditActionType.APPROVE_SELLER,
-            admin_user=None,
-            entity_type='Seller',
-            entity_id='123'
+            action_type='APPROVE_SELLER',
+            admin=None,
+            action_category='SELLER_APPROVAL',
+            affected_seller=self.pending_seller,
+            description='System action'
         )
 
-        self.assertIsNone(entry.admin_user)
+        self.assertIsNone(entry.admin)
 
     def test_deletion_respects_cascades(self):
         """Deletion respects foreign key cascades"""

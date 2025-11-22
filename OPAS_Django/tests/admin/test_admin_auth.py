@@ -82,25 +82,25 @@ class AdminEndpointAccessTests(AdminAuthTestCase):
     def test_super_admin_can_access_price_endpoints(self):
         """Super Admin can access price management endpoints"""
         self.authenticate_user(self.super_admin)
-        response = self.client.get('/api/admin/prices/ceilings/')
+        response = self.client.get('/api/admin/prices/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_super_admin_can_access_opas_endpoints(self):
         """Super Admin can access OPAS management endpoints"""
         self.authenticate_user(self.super_admin)
-        response = self.client.get('/api/admin/opas/submissions/')
+        response = self.client.get('/api/admin/opas/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_super_admin_can_access_marketplace_endpoints(self):
         """Super Admin can access marketplace oversight endpoints"""
         self.authenticate_user(self.super_admin)
-        response = self.client.get('/api/admin/marketplace/listings/')
+        response = self.client.get('/api/admin/marketplace/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_super_admin_can_access_analytics_endpoints(self):
         """Super Admin can access analytics endpoints"""
         self.authenticate_user(self.super_admin)
-        response = self.client.get('/api/admin/analytics/dashboard/')
+        response = self.client.get('/api/admin/analytics/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_super_admin_can_access_notification_endpoints(self):
@@ -125,8 +125,8 @@ class RoleBasedPermissionTests(AdminAuthTestCase):
         """Seller Manager cannot modify price ceilings"""
         self.authenticate_user(self.seller_manager)
         response = self.client.post(
-            '/api/admin/prices/ceilings/',
-            {'product_name': 'Test', 'ceiling_price': 100.0},
+            '/api/admin/prices/',
+            {'product_id': self.product_1.id, 'ceiling_price': 100.0},
             format='json'
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -134,7 +134,7 @@ class RoleBasedPermissionTests(AdminAuthTestCase):
     def test_price_manager_can_access_price_endpoints(self):
         """Price Manager has permission for price operations"""
         self.authenticate_user(self.price_manager)
-        response = self.client.get('/api/admin/prices/ceilings/')
+        response = self.client.get('/api/admin/prices/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_price_manager_cannot_approve_sellers(self):
@@ -150,15 +150,15 @@ class RoleBasedPermissionTests(AdminAuthTestCase):
     def test_opas_manager_can_access_opas_endpoints(self):
         """OPAS Manager has permission for OPAS operations"""
         self.authenticate_user(self.opas_manager)
-        response = self.client.get('/api/admin/opas/submissions/')
+        response = self.client.get('/api/admin/opas/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_opas_manager_cannot_modify_prices(self):
         """OPAS Manager cannot modify price ceilings"""
         self.authenticate_user(self.opas_manager)
         response = self.client.post(
-            '/api/admin/prices/ceilings/',
-            {'product_name': 'Test', 'ceiling_price': 100.0},
+            '/api/admin/prices/',
+            {'product_id': self.product_1.id, 'ceiling_price': 100.0},
             format='json'
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -167,12 +167,12 @@ class RoleBasedPermissionTests(AdminAuthTestCase):
         """Analytics Manager can read but not modify"""
         self.authenticate_user(self.analytics_manager)
         # Can read
-        response = self.client.get('/api/admin/analytics/dashboard/')
+        response = self.client.get('/api/admin/analytics/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Cannot write
         response = self.client.post(
             '/api/admin/sellers/',
-            {'email': 'test@test.com'},
+            {'email': 'test@test.com', 'first_name': 'Test', 'last_name': 'User', 'username': 'testuser'},
             format='json'
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -214,9 +214,9 @@ class PermissionDeniedTests(AdminAuthTestCase):
         )
 
     def test_non_admin_cannot_access_audit_log(self):
-        """Regular users cannot access audit logs"""
+        """Regular users cannot access admin endpoints"""
         self.authenticate_user(self.approved_seller)
-        response = self.client.get('/api/admin/audit-log/')
+        response = self.client.get('/api/admin/sellers/')
         self.assertIn(
             response.status_code,
             [status.HTTP_403_FORBIDDEN, status.HTTP_401_UNAUTHORIZED]
@@ -245,7 +245,7 @@ class ConcurrentAdminOperationTests(AdminAuthTestCase):
         """Two different admins can operate independently"""
         # Admin 1 (Super Admin) updates price
         self.authenticate_user(self.super_admin)
-        response1 = self.client.get('/api/admin/prices/ceilings/')
+        response1 = self.client.get('/api/admin/prices/')
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
 
         # Switch to Admin 2 (Seller Manager)

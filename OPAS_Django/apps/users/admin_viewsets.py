@@ -49,7 +49,7 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
     Handles seller approval workflow, suspensions, document verification,
     and compliance monitoring.
     """
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated, IsAdmin, CanApproveSellers]
     serializer_class = SellerManagementSerializer
     
     def get_queryset(self):
@@ -928,7 +928,19 @@ class MarketplaceOversightViewSet(viewsets.ReadOnlyModelViewSet):
     Handles listing monitoring, alert management, and compliance tracking.
     """
     permission_classes = [IsAuthenticated, IsAdmin]
-    queryset = SellerProduct.objects.all()
+    queryset = MarketplaceAlert.objects.all()
+    serializer_class = MarketplaceAlertSerializer
+    
+    def list(self, request, *args, **kwargs):
+        """List marketplace alerts and flags."""
+        alerts = MarketplaceAlert.objects.filter(
+            status__in=['OPEN', 'ACKNOWLEDGED']
+        ).select_related('affected_seller', 'affected_product').order_by('-created_at')
+        serializer = self.get_serializer(alerts, many=True)
+        return Response({
+            'count': alerts.count(),
+            'results': serializer.data
+        })
     
     @action(detail=False, methods=['get'], url_path='listings')
     def list_listings(self, request):
@@ -940,18 +952,6 @@ class MarketplaceOversightViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = ProductListingSerializer(listings, many=True)
         return Response({
             'count': listings.count(),
-            'results': serializer.data
-        })
-    
-    @action(detail=False, methods=['get'], url_path='alerts')
-    def marketplace_alerts(self, request):
-        """Get marketplace alerts and flags."""
-        alerts = MarketplaceAlert.objects.filter(
-            status__in=['OPEN', 'ACKNOWLEDGED']
-        ).select_related('affected_seller', 'affected_product').order_by('-created_at')
-        serializer = MarketplaceAlertSerializer(alerts, many=True)
-        return Response({
-            'count': alerts.count(),
             'results': serializer.data
         })
     
@@ -1040,6 +1040,17 @@ class AnalyticsReportingViewSet(viewsets.ViewSet):
     Provides dashboard statistics, trends, forecasts, and report generation.
     """
     permission_classes = [IsAuthenticated, IsAdmin]
+    
+    def list(self, request):
+        """List available analytics endpoints."""
+        return Response({
+            'available_endpoints': [
+                '/api/admin/analytics/dashboard/',
+                '/api/admin/analytics/price-trends/',
+                '/api/admin/analytics/demand-forecast/',
+                '/api/admin/analytics/sales-summary/',
+            ]
+        })
     
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard_stats(self, request):

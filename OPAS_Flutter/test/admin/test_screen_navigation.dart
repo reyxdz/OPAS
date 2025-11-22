@@ -414,9 +414,9 @@ void main() {
         final testWidget = AdminTestHelper.createTestApp(
           Scaffold(
             appBar: AppBar(title: const Text('Admin Dashboard')),
-            body: SingleChildScrollView(
+            body: const SingleChildScrollView(
               child: Column(
-                children: const [
+                children: [
                   Card(
                     child: Padding(
                       padding: EdgeInsets.all(16),

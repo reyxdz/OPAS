@@ -17,7 +17,7 @@ from apps.users.admin_models import (
     SellerDocumentVerification, DocumentVerificationStatus, SellerApprovalHistory,
     SellerSuspension, PriceCeiling, PriceChangeReason, PriceHistory,
     PriceNonCompliance, OPASPurchaseOrder, OPASInventory, OPASInventoryTransaction,
-    OPASPurchaseHistory, AdminAuditLog, AuditActionType, MarketplaceAlert,
+    OPASPurchaseHistory, AdminAuditLog, MarketplaceAlert,
     SystemNotification
 )
 from apps.users.seller_models import SellerProduct
@@ -32,75 +32,80 @@ class AdminUserFactory:
     def create_super_admin(email='super_admin@opas.com', **kwargs):
         """Create a Super Admin user"""
         user_data = {
+            'username': email.split('@')[0],
             'email': email,
             'first_name': 'Super',
             'last_name': 'Admin',
-            'role': UserRole.ADMIN,
+            'role': UserRole.OPAS_ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)
         user = User.objects.create_user(**user_data)
-        AdminUser.objects.create(user=user, role=AdminRole.SUPER_ADMIN)
+        AdminUser.objects.create(user=user, admin_role=AdminRole.SUPER_ADMIN)
         return user
 
     @staticmethod
     def create_seller_manager(email='seller_manager@opas.com', **kwargs):
         """Create a Seller Manager admin"""
         user_data = {
+            'username': email.split('@')[0],
             'email': email,
             'first_name': 'Seller',
             'last_name': 'Manager',
-            'role': UserRole.ADMIN,
+            'role': UserRole.OPAS_ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)
         user = User.objects.create_user(**user_data)
-        AdminUser.objects.create(user=user, role=AdminRole.SELLER_MANAGER)
+        AdminUser.objects.create(user=user, admin_role=AdminRole.SELLER_MANAGER)
         return user
 
     @staticmethod
     def create_price_manager(email='price_manager@opas.com', **kwargs):
         """Create a Price Manager admin"""
         user_data = {
+            'username': email.split('@')[0],
             'email': email,
             'first_name': 'Price',
             'last_name': 'Manager',
-            'role': UserRole.ADMIN,
+            'role': UserRole.OPAS_ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)
         user = User.objects.create_user(**user_data)
-        AdminUser.objects.create(user=user, role=AdminRole.PRICE_MANAGER)
+        AdminUser.objects.create(user=user, admin_role=AdminRole.PRICE_MANAGER)
         return user
 
     @staticmethod
     def create_opas_manager(email='opas_manager@opas.com', **kwargs):
         """Create an OPAS Manager admin"""
         user_data = {
+            'username': email.split('@')[0],
             'email': email,
             'first_name': 'OPAS',
             'last_name': 'Manager',
-            'role': UserRole.ADMIN,
+            'role': UserRole.OPAS_ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)
         user = User.objects.create_user(**user_data)
-        AdminUser.objects.create(user=user, role=AdminRole.OPAS_MANAGER)
+        AdminUser.objects.create(user=user, admin_role=AdminRole.OPAS_MANAGER)
         return user
 
     @staticmethod
     def create_analytics_manager(email='analytics_manager@opas.com', **kwargs):
         """Create an Analytics Manager admin (read-only)"""
         user_data = {
+            'username': email.split('@')[0],
             'email': email,
             'first_name': 'Analytics',
             'last_name': 'Manager',
-            'role': UserRole.ADMIN,
+            'role': UserRole.OPAS_ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)
         user = User.objects.create_user(**user_data)
-        AdminUser.objects.create(user=user, role=AdminRole.ANALYTICS_MANAGER)
+        AdminUser.objects.create(user=user, admin_role=AdminRole.ANALYTICS_MANAGER)
         return user
 
 
@@ -111,6 +116,7 @@ class SellerFactory:
     def create_pending_seller(email='seller_pending@opas.com', **kwargs):
         """Create a seller with PENDING status"""
         user_data = {
+            'username': email.split('@')[0],
             'email': email,
             'first_name': 'Pending',
             'last_name': 'Seller',
@@ -125,6 +131,7 @@ class SellerFactory:
     def create_approved_seller(email='seller_approved@opas.com', **kwargs):
         """Create a seller with APPROVED status"""
         user_data = {
+            'username': email.split('@')[0],
             'email': email,
             'first_name': 'Approved',
             'last_name': 'Seller',
@@ -139,6 +146,7 @@ class SellerFactory:
     def create_suspended_seller(email='seller_suspended@opas.com', **kwargs):
         """Create a seller with SUSPENDED status"""
         user_data = {
+            'username': email.split('@')[0],
             'email': email,
             'first_name': 'Suspended',
             'last_name': 'Seller',
@@ -154,37 +162,40 @@ class DataFactory:
     """Factory for creating test data (products, prices, etc.)"""
 
     @staticmethod
-    def create_seller_product(seller, product_name='Test Product', base_price=100.00, **kwargs):
+    def create_seller_product(seller, name='Test Product', price=100.00, **kwargs):
         """Create a seller product"""
         product_data = {
             'seller': seller,
-            'product_name': product_name,
+            'name': name,
             'description': 'Test product description',
-            'base_price': base_price,
-            'quantity_available': 100,
+            'price': price,
+            'stock_level': 100,
+            'product_type': 'vegetables',
+            'unit': 'kg',
         }
         product_data.update(kwargs)
         return SellerProduct.objects.create(**product_data)
 
     @staticmethod
-    def create_price_ceiling(product_name='Test Product', ceiling_price=150.00, **kwargs):
+    def create_price_ceiling(product, ceiling_price=150.00, **kwargs):
         """Create a price ceiling"""
         ceiling_data = {
-            'product_name': product_name,
+            'product': product,
             'ceiling_price': ceiling_price,
-            'effective_date': datetime.now(),
+            'effective_from': datetime.now(),
         }
         ceiling_data.update(kwargs)
         return PriceCeiling.objects.create(**ceiling_data)
 
     @staticmethod
-    def create_opas_inventory(product_name='Test Product', quantity=50, **kwargs):
+    def create_opas_inventory(product, quantity_received=50, **kwargs):
         """Create OPAS inventory"""
         inventory_data = {
-            'product_name': product_name,
-            'quantity': quantity,
-            'unit': 'kg',
-            'location': 'Storage A',
+            'product': product,
+            'quantity_received': quantity_received,
+            'quantity_on_hand': quantity_received,
+            'storage_location': 'Storage A',
+            'in_date': datetime.now(),
             'expiry_date': datetime.now() + timedelta(days=30),
         }
         inventory_data.update(kwargs)
@@ -215,13 +226,13 @@ class AdminAuthTestCase(APITestCase):
         # Create test products
         self.product_1 = DataFactory.create_seller_product(
             self.approved_seller,
-            product_name='Tomatoes',
-            base_price=50.00
+            name='Tomatoes',
+            price=50.00
         )
         self.product_2 = DataFactory.create_seller_product(
             self.approved_seller,
-            product_name='Potatoes',
-            base_price=30.00
+            name='Potatoes',
+            price=30.00
         )
 
     def authenticate_user(self, user):
@@ -252,17 +263,30 @@ class AdminWorkflowTestCase(AdminAuthTestCase):
             f"Workflow step '{step_name}' failed: {field} = {actual_value}, expected {expected_value}"
         )
 
-    def assertAuditLogCreated(self, action_type, admin_user, entity_type, entity_id):
-        """Verify audit log entry was created"""
+    def assertAuditLogCreated(self, action_type, admin_user, entity_type=None, entity_id=None):
+        """Verify audit log entry was created
+        
+        Args:
+            action_type: The action type to search for
+            admin_user: Can be a User or AdminUser instance
+            entity_type: Legacy parameter, ignored
+            entity_id: Legacy parameter, ignored
+        """
+        # Handle both User and AdminUser instances
+        if hasattr(admin_user, 'admin_profile'):
+            # It's a User with admin_profile FK
+            admin_obj = admin_user.admin_profile
+        else:
+            # Assume it's already an AdminUser
+            admin_obj = admin_user
+            
         audit_log = AdminAuditLog.objects.filter(
             action_type=action_type,
-            admin_user=admin_user,
-            entity_type=entity_type,
-            entity_id=entity_id
+            admin=admin_obj
         ).first()
         self.assertIsNotNone(
             audit_log,
-            f"Audit log not found for {action_type} on {entity_type}:{entity_id}"
+            f"Audit log not found for {action_type} by {admin_user}"
         )
         return audit_log
 
@@ -354,3 +378,4 @@ if __name__ == '__main__':
     print("            self.authenticate_user(self.super_admin)")
     print("            response = self.client.get('/api/admin/sellers/')")
     print("            self.assertEqual(response.status_code, 200)")
+
