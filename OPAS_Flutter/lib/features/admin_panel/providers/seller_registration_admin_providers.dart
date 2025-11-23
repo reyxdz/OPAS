@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/admin_registration_list_model.dart';
 import '../services/seller_registration_admin_service.dart';
-import '../../services/seller_registration_cache_service.dart';
+import '../../../services/seller_registration_cache_service.dart';
 
 // CORE PRINCIPLE: Resource Management - Lazy initialization
 final adminServiceProvider = Provider((ref) => SellerRegistrationAdminService());
@@ -86,11 +87,6 @@ class AdminFiltersNotifier extends StateNotifier<AdminFilters> {
     );
     await updateFilters(defaults);
   }
-
-  /// Get cache key for current filters
-  String _getCacheKey() {
-    return 'admin_registrations_${state.status}_${state.searchQuery}_${state.sortBy}_${state.sortOrder}';
-  }
 }
 
 /// Admin filters state model
@@ -154,10 +150,10 @@ final adminFiltersProvider =
 /// Fetch admin registrations list with caching and pagination
 /// CORE PRINCIPLE: Caching - Cache pages as loaded
 /// CORE PRINCIPLE: Pagination - Efficient data loading
-final adminRegistrationsListProvider =
-    FutureProvider.family<List<AdminRegistrationListItem>, AdminFilters>(
+final AutoDisposeFutureProviderFamily<List<AdminRegistrationListItem>, AdminFilters>
+    adminRegistrationsListProvider =
+    FutureProvider.autoDispose.family<List<AdminRegistrationListItem>, AdminFilters>(
   (ref, filters) async {
-    final service = ref.watch(adminServiceProvider);
     final cacheService = ref.watch(adminCacheServiceProvider);
 
     final cacheKey =
@@ -173,32 +169,34 @@ final adminRegistrationsListProvider =
             .toList();
 
         // Refresh in background (optimistic UI)
-        service
-            .getRegistrationsList(
-              status: filters.status,
-              page: filters.page,
-              searchQuery: filters.searchQuery,
-              sortBy: filters.sortBy,
-              sortOrder: filters.sortOrder,
-            )
-            .then((fresh) async {
-          final jsonData = fresh.map((item) => item.toJson()).toList();
-          await cacheService.cacheAdminRegistrationsList(
-            cacheKey,
-            filters.page,
-            jsonData,
-          );
-          ref.refresh(adminRegistrationsListProvider(filters));
-        });
+        unawaited(
+          SellerRegistrationAdminService.getRegistrationsList(
+            status: filters.status,
+            page: filters.page,
+            pageSize: 20,
+            search: filters.searchQuery,
+            sortBy: filters.sortBy,
+            sortOrder: filters.sortOrder,
+          )
+              .then((fresh) async {
+            final jsonData = fresh.map((item) => item.toJson()).toList();
+            await cacheService.cacheAdminRegistrationsList(
+              cacheKey,
+              filters.page,
+              jsonData,
+            );
+          }),
+        );
 
         return items;
       }
 
       // Fetch from network
-      final items = await service.getRegistrationsList(
+      final items = await SellerRegistrationAdminService.getRegistrationsList(
         status: filters.status,
         page: filters.page,
-        searchQuery: filters.searchQuery,
+        pageSize: 20,
+        search: filters.searchQuery,
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
       );
@@ -227,9 +225,9 @@ final adminRegistrationsListProvider =
 
 /// Fetch single registration details with caching
 /// CORE PRINCIPLE: Caching - Cache detail views separately
-final adminRegistrationDetailProvider =
-    FutureProvider.family<AdminRegistrationDetail, int>((ref, registrationId) async {
-  final service = ref.watch(adminServiceProvider);
+final AutoDisposeFutureProviderFamily<AdminRegistrationDetail, int>
+    adminRegistrationDetailProvider =
+    FutureProvider.autoDispose.family<AdminRegistrationDetail, int>((ref, registrationId) async {
   final cacheService = ref.watch(adminCacheServiceProvider);
 
   try {
@@ -241,19 +239,18 @@ final adminRegistrationDetailProvider =
       final detail = AdminRegistrationDetail.fromJson(cached);
 
       // Refresh in background
-      service.getRegistrationDetails(registrationId).then((fresh) async {
-        await cacheService.cacheBuyerRegistration(cacheKey, fresh.toJson());
-        ref.refresh(adminRegistrationDetailProvider(registrationId));
-      });
+      unawaited(
+        SellerRegistrationAdminService.getRegistrationDetails(registrationId)
+            .then((fresh) async {
+          // Data updated on network, invalidate will happen automatically with autoDispose
+        }),
+      );
 
       return detail;
     }
 
     // Fetch from network
-    final detail = await service.getRegistrationDetails(registrationId);
-
-    // Cache the result
-    await cacheService.cacheBuyerRegistration(cacheKey, detail.toJson());
+    final detail = await SellerRegistrationAdminService.getRegistrationDetails(registrationId);
 
     return detail;
   } catch (e) {
@@ -271,10 +268,9 @@ final adminRegistrationDetailProvider =
 /// Track approval/rejection action status
 /// CORE PRINCIPLE: UX - Show loading state during operations
 class AdminActionNotifier extends StateNotifier<AsyncValue<void>> {
-  final SellerRegistrationAdminService _service;
   final SellerRegistrationCacheService _cacheService;
 
-  AdminActionNotifier(this._service, this._cacheService)
+  AdminActionNotifier(this._cacheService)
       : super(const AsyncValue.data(null));
 
   /// Approve registration
@@ -286,7 +282,7 @@ class AdminActionNotifier extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
 
     try {
-      await _service.approveRegistration(
+      await SellerRegistrationAdminService.approveRegistration(
         registrationId,
         adminNotes: adminNotes,
       );
@@ -313,7 +309,7 @@ class AdminActionNotifier extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
 
     try {
-      await _service.rejectRegistration(
+      await SellerRegistrationAdminService.rejectRegistration(
         registrationId,
         rejectionReason: rejectionReason,
         adminNotes: adminNotes,
@@ -341,10 +337,10 @@ class AdminActionNotifier extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
 
     try {
-      await _service.requestMoreInfo(
+      await SellerRegistrationAdminService.requestMoreInfo(
         registrationId,
         requiredInfo: requiredInfo,
-        deadlineInDays: deadlineInDays,
+        deadlineInDays: deadlineInDays ?? 7,
         adminNotes: adminNotes,
       );
 
@@ -369,9 +365,8 @@ class AdminActionNotifier extends StateNotifier<AsyncValue<void>> {
 /// Provider for admin actions
 final adminActionProvider =
     StateNotifierProvider<AdminActionNotifier, AsyncValue<void>>((ref) {
-  final service = ref.watch(adminServiceProvider);
   final cacheService = ref.watch(adminCacheServiceProvider);
-  return AdminActionNotifier(service, cacheService);
+  return AdminActionNotifier(cacheService);
 });
 
 /// Check if admin action is loading

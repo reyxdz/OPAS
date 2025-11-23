@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/seller_registration_model.dart';
 import '../services/seller_registration_service.dart';
-import '../../services/seller_registration_cache_service.dart';
+import '../../../services/seller_registration_cache_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // CORE PRINCIPLE: Resource Management - Lazy initialization of services
 final sellerRegistrationServiceProvider =
@@ -13,32 +15,38 @@ final cacheServiceProvider =
 /// Fetch current user's registration with caching
 /// CORE PRINCIPLE: Caching - Return cached data if available
 /// CORE PRINCIPLE: Offline-First - Show cached data while fetching fresh
-final myRegistrationProvider =
-    FutureProvider<SellerRegistrationModel?>((ref) async {
-  final service = ref.watch(sellerRegistrationServiceProvider);
+final AutoDisposeFutureProvider<SellerRegistration?>
+    myRegistrationProvider =
+    FutureProvider.autoDispose<SellerRegistration?>((ref) async {
   final cacheService = ref.watch(cacheServiceProvider);
 
   try {
+    // Get access token from shared preferences
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access') ?? '';
+
     // Try to get cached data first
     // CORE PRINCIPLE: Offline-First - Display immediately from cache
     final cachedData = await cacheService.getFilterState('my_registration');
     if (cachedData != null) {
-      final cached = SellerRegistrationModel.fromJson(cachedData);
+      final cached = SellerRegistration.fromJson(cachedData);
       // Refresh in background (optimistic UI)
-      service.getMyRegistration().then((fresh) async {
-        if (fresh != null) {
-          await cacheService.cacheFilterState(
-            'my_registration',
-            fresh.toJson(),
-          );
-          ref.refresh(myRegistrationProvider);
-        }
-      });
+      unawaited(
+        SellerRegistrationService.getMyRegistration(token).then((fresh) async {
+          if (fresh != null) {
+            await cacheService.cacheFilterState(
+              'my_registration',
+              fresh.toJson(),
+            );
+          }
+        }),
+      );
       return cached;
     }
 
     // If no cache, fetch from network
-    final registration = await service.getMyRegistration();
+    final registration =
+        await SellerRegistrationService.getMyRegistration(token);
     if (registration != null) {
       await cacheService.cacheFilterState(
         'my_registration',
@@ -50,7 +58,7 @@ final myRegistrationProvider =
     // On error, return cached data if available
     final cachedData = await cacheService.getFilterState('my_registration');
     if (cachedData != null) {
-      return SellerRegistrationModel.fromJson(cachedData);
+      return SellerRegistration.fromJson(cachedData);
     }
     rethrow;
   }
@@ -59,7 +67,7 @@ final myRegistrationProvider =
 /// Form state notifier for managing registration form input
 /// CORE PRINCIPLE: State Preservation - Restore form state when app resumes
 class RegistrationFormNotifier
-    extends StateNotifier<SellerRegistrationModel?> {
+    extends StateNotifier<Map<String, dynamic>?> {
   final SellerRegistrationCacheService _cacheService;
 
   RegistrationFormNotifier(this._cacheService) : super(null);
@@ -68,7 +76,7 @@ class RegistrationFormNotifier
   Future<void> initializeForm() async {
     final cached = await _cacheService.getFilterState('registration_draft');
     if (cached != null) {
-      state = SellerRegistrationModel.fromJson(cached);
+      state = cached;
     }
   }
 
@@ -78,9 +86,9 @@ class RegistrationFormNotifier
     if (state == null) return;
 
     // Update in-memory state
-    final updatedData = {...state!.toJson()};
+    final updatedData = <String, dynamic>{...state!};
     _setNestedValue(updatedData, field, value);
-    state = SellerRegistrationModel.fromJson(updatedData);
+    state = updatedData;
 
     // Persist to cache immediately for offline support
     // CORE PRINCIPLE: Crash Recovery - Form data survives app crash
@@ -112,7 +120,7 @@ class RegistrationFormNotifier
 /// Provider for registration form state
 /// CORE PRINCIPLE: State Management - Preserve form across navigation
 final registrationFormProvider =
-    StateNotifierProvider<RegistrationFormNotifier, SellerRegistrationModel?>(
+    StateNotifierProvider<RegistrationFormNotifier, Map<String, dynamic>?>(
   (ref) {
     final cacheService = ref.watch(cacheServiceProvider);
     return RegistrationFormNotifier(cacheService);
@@ -122,10 +130,9 @@ final registrationFormProvider =
 /// Track registration submission status
 /// CORE PRINCIPLE: UX - Show loading state during submission
 class SubmissionStatusNotifier extends StateNotifier<AsyncValue<void>> {
-  final SellerRegistrationService _service;
   final SellerRegistrationCacheService _cacheService;
 
-  SubmissionStatusNotifier(this._service, this._cacheService)
+  SubmissionStatusNotifier(this._cacheService)
       : super(const AsyncValue.data(null));
 
   /// Submit registration form
@@ -135,17 +142,23 @@ class SubmissionStatusNotifier extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
 
     try {
-      final model = SellerRegistrationModel.fromJson(formData);
-      await _service.submitRegistration(model);
+      // Get access token
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access') ?? '';
+
+      await SellerRegistrationService.submitRegistration(
+        farmName: formData['farm_name'] as String? ?? '',
+        farmLocation: formData['farm_location'] as String? ?? '',
+        farmSize: formData['farm_size'] as String? ?? '',
+        productsGrown:
+            List<String>.from(formData['products_grown'] as List? ?? []),
+        storeName: formData['store_name'] as String? ?? '',
+        storeDescription: formData['store_description'] as String? ?? '',
+        accessToken: token,
+      );
 
       // Clear draft on successful submission
       await _cacheService.clearAllCache();
-
-      // Update my registration cache
-      await _cacheService.cacheFilterState(
-        'my_registration',
-        model.toJson(),
-      );
 
       state = const AsyncValue.data(null);
     } catch (e, st) {
@@ -157,9 +170,8 @@ class SubmissionStatusNotifier extends StateNotifier<AsyncValue<void>> {
 /// Provider for registration submission
 final registrationSubmissionProvider =
     StateNotifierProvider<SubmissionStatusNotifier, AsyncValue<void>>((ref) {
-  final service = ref.watch(sellerRegistrationServiceProvider);
   final cacheService = ref.watch(cacheServiceProvider);
-  return SubmissionStatusNotifier(service, cacheService);
+  return SubmissionStatusNotifier(cacheService);
 });
 
 /// Watch loading state of my registration

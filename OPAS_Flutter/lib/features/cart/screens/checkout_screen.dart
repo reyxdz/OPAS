@@ -23,7 +23,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressController = TextEditingController();
   String? _selectedPaymentMethod;
   bool _isLoading = false;
-  String _deliveryAddress = '';
 
   final List<String> _paymentMethods = [
     'cash_on_delivery',
@@ -42,7 +41,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final address = prefs.getString('address') ?? '';
     setState(() {
       _addressController.text = address;
-      _deliveryAddress = address;
     });
   }
 
@@ -184,7 +182,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   return null;
                 },
                 onChanged: (value) {
-                  _deliveryAddress = value;
                 },
               ),
               const SizedBox(height: 24),

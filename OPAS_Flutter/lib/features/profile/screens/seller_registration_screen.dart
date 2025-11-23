@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/seller_registration_model.dart';
 import '../providers/seller_registration_providers.dart';
 
 /// Seller Registration Screen with Provider-based state management
@@ -61,13 +60,14 @@ class _SellerRegistrationScreenState
     final formState = ref.read(registrationFormProvider);
     if (formState != null) {
       setState(() {
-        _farmNameController.text = formState.farmName ?? '';
-        _farmLocationController.text = formState.farmLocation ?? '';
-        _farmSizeController.text = formState.farmSize ?? '';
-        _storeNameController.text = formState.storeName ?? '';
+        _farmNameController.text = formState['farm_name'] as String? ?? '';
+        _farmLocationController.text = formState['farm_location'] as String? ?? '';
+        _farmSizeController.text = formState['farm_size'] as String? ?? '';
+        _storeNameController.text = formState['store_name'] as String? ?? '';
         _storeDescriptionController.text =
-            formState.storeDescription ?? '';
-        _selectedProducts.addAll(formState.productsGrown ?? []);
+            formState['store_description'] as String? ?? '';
+        final products = formState['products_grown'] as List<dynamic>? ?? [];
+        _selectedProducts.addAll(products.cast<String>());
       });
     }
   }
