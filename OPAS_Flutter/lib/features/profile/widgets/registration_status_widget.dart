@@ -257,7 +257,7 @@ class RegistrationStatusWidget extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.description, color: const Color(0xFF00B464), size: 18),
+              const Icon(Icons.description, color: Color(0xFF00B464), size: 18),
               const SizedBox(width: 8),
               Text(
                 'Documents',

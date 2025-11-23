@@ -214,7 +214,6 @@ class _RejectionFormWidgetState extends State<RejectionFormWidget> {
             DropdownButtonFormField<String>(
               value: _selectedReason,
               isExpanded: true,
-              enabled: !widget.isLoading,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -400,7 +399,6 @@ class _InfoRequestFormWidgetState extends State<InfoRequestFormWidget> {
             DropdownButtonFormField<int>(
               value: _deadlineInDays,
               isExpanded: true,
-              enabled: !widget.isLoading,
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),

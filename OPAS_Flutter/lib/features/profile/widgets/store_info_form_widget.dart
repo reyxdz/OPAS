@@ -113,7 +113,7 @@ class _StoreInfoFormWidgetState extends State<StoreInfoFormWidget> {
           decoration: InputDecoration(
             labelText: label,
             hintText: hint,
-            prefixIcon: Icon(Icons.store),
+            prefixIcon: const Icon(Icons.store),
             errorText: null,
             border: OutlineInputBorder(
               borderSide: BorderSide(

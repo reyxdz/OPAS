@@ -34,7 +34,7 @@ class _SellerRegistrationScreenState extends State<SellerRegistrationScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
   bool _acceptedTerms = false;
-  Map<String, String> _fieldErrors = {};
+  final Map<String, String> _fieldErrors = {};
   SellerRegistration? _currentRegistration;
 
   // Form Controllers
@@ -45,7 +45,7 @@ class _SellerRegistrationScreenState extends State<SellerRegistrationScreen> {
   final _storeDescriptionController = TextEditingController();
 
   List<String> _selectedProducts = [];
-  Map<String, bool> _uploadedDocuments = {
+  final Map<String, bool> _uploadedDocuments = {
     'BUSINESS_PERMIT': false,
     'VALID_GOVERNMENT_ID': false,
   };
@@ -469,7 +469,7 @@ class _SellerRegistrationScreenState extends State<SellerRegistrationScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.check, color: const Color(0xFF00B464), size: 18),
+              const Icon(Icons.check, color: Color(0xFF00B464), size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

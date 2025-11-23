@@ -187,12 +187,12 @@ class _DocumentUploadWidgetState extends State<DocumentUploadWidget> {
                       ),
                 ),
                 if (isUploaded)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
                     child: Text(
                       'Uploaded ✓',
                       style: TextStyle(
-                        color: const Color(0xFF00B464),
+                        color: Color(0xFF00B464),
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),

@@ -288,7 +288,6 @@ class _SellerRegistrationsListScreenState
                 child: DropdownButtonFormField<String>(
                   value: _sortBy,
                   isExpanded: true,
-                  enabled: !_isLoading,
                   decoration: InputDecoration(
                     labelText: 'Sort By',
                     border: OutlineInputBorder(
@@ -296,16 +295,16 @@ class _SellerRegistrationsListScreenState
                     ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
-                  items: [
-                    const DropdownMenuItem(
+                  items: const [
+                    DropdownMenuItem(
                       value: 'submitted_at',
                       child: Text('Submission Date'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'days_pending',
                       child: Text('Days Pending'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'buyer_name',
                       child: Text('Buyer Name'),
                     ),
@@ -323,7 +322,6 @@ class _SellerRegistrationsListScreenState
                 child: DropdownButtonFormField<String>(
                   value: _sortOrder,
                   isExpanded: true,
-                  enabled: !_isLoading,
                   decoration: InputDecoration(
                     labelText: 'Order',
                     border: OutlineInputBorder(
