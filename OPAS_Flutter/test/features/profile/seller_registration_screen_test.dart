@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mockito/mockito.dart';
 import 'package:opas_flutter/features/profile/screens/seller_registration_screen.dart';
-import 'package:opas_flutter/features/profile/models/seller_registration_model.dart';
-import 'package:opas_flutter/features/profile/providers/seller_registration_providers.dart';
 
 /// Flutter Widget Tests for Seller Registration Screen
 /// Tests form rendering, validation, and state management
@@ -165,7 +162,7 @@ void main() {
       // Navigate to step 2 (Store info)
       // First fill out step 1 to proceed
       final textFields = find.byType(TextField);
-      if (textFields.evaluate().length > 0) {
+      if (textFields.evaluate().isNotEmpty) {
         await tester.enterText(textFields.first, 'Test Farm');
         await tester.pumpAndSettle();
       }

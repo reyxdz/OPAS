@@ -9,6 +9,8 @@ import 'package:opas_flutter/services/seller_registration_cache_service.dart';
 /// CORE PRINCIPLE: State Preservation - Form data survives crashes
 /// CORE PRINCIPLE: Offline-First - Works with cached data
 
+// Generate mock with: mockito library
+// This allows us to create mocks of SellerRegistrationCacheService without implementing all methods
 class MockCacheService extends Mock implements SellerRegistrationCacheService {}
 
 void main() {

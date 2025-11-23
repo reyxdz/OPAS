@@ -1,0 +1,112 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-opas_production}
+      POSTGRES_USER: ${DB_USER:-opas_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opas_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # pgBouncer (Connection Pooling)
+  pgbouncer:
+    image: pgbouncer:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 1000
+      PGBOUNCER_DEFAULT_POOL_SIZE: 25
+      PGBOUNCER_MIN_POOL_SIZE: 10
+    ports:
+      - "6432:6432"
+    volumes:
+      - ./pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini
+
+  # Django Application
+  django:
+    build:
+      context: ./OPAS_Django
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DEBUG: ${DEBUG:-false}
+      SECRET_KEY: ${SECRET_KEY:-changeme}
+      DB_NAME: ${DB_NAME:-opas_production}
+      DB_USER: ${DB_USER:-opas_user}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/1
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-true}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme}
+    ports:
+      - "8000:8000"
+    volumes:
+      - django_static:/app/staticfiles
+      - django_media:/app/media
+      - django_logs:/var/log/opas
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - django
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - django_static:/app/staticfiles:ro
+      - django_media:/app/media:ro
+    command: nginx -g "daemon off;"
+
+volumes:
+  postgres_data:
+  redis_data:
+  django_static:
+  django_media:
+  django_logs:
+
+networks:
+  default:
+    name: opas-network

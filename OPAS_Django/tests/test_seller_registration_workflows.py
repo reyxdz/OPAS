@@ -15,7 +15,7 @@ from apps.users.models import (
     SellerRegistration,
     SellerRegistrationRequest,
 )
-from apps.users.serializers import (
+from apps.users.seller_serializers import (
     SellerRegistrationSubmitSerializer,
     SellerRegistrationStatusSerializer,
 )
