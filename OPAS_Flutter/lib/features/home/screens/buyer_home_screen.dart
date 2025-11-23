@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:opas_flutter/core/constants/app_dimensions.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../../profile/screens/profile_screen.dart';
+import '../../marketplace/screens/product_list_screen.dart';
+import '../../cart/screens/cart_screen.dart';
+import '../../order_management/screens/order_history_screen.dart';
+import '../models/notification_model.dart';
+import '../../products/services/buyer_api_service.dart';
 
 class BuyerHomeScreen extends StatefulWidget {
   const BuyerHomeScreen({super.key});
@@ -64,13 +69,13 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
       case 0:
         return _buildHomeTab();
       case 1:
-        return const Center(child: Text('Cart'));
+        return const CartScreen();
       case 2:
-        return const Center(child: Text('Orders'));
+        return const OrderHistoryScreen();
       case 3:
-        return const Center(child: Text('Delivery'));
+        return const ProductListScreen();
       default:
-        return const Center(child: Text('Home'));
+        return _buildHomeTab();
     }
   }
 
@@ -80,21 +85,83 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(AppDimensions.paddingMedium),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search products...',
-                prefixIcon: Icon(Icons.search),
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProductListScreen()),
+                );
+              },
+              child: TextField(
+                enabled: false,
+                decoration: InputDecoration(
+                  hintText: 'Search products...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ),
           ),
+
+          // Categories Quick Link
           Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: AppDimensions.paddingMedium),
-            child: Text(
-              'Featured Products',
-              style: Theme.of(context).textTheme.titleLarge,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Shop by Category',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 100,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _buildCategoryChip(context, 'Vegetables', Icons.eco),
+                      const SizedBox(width: 8),
+                      _buildCategoryChip(context, 'Fruits', Icons.restaurant),
+                      const SizedBox(width: 8),
+                      _buildCategoryChip(context, 'Grains', Icons.grain),
+                      const SizedBox(width: 8),
+                      _buildCategoryChip(context, 'Dairy', Icons.coffee),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Featured Products Section
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppDimensions.paddingMedium),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Featured Products',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ProductListScreen()),
+                    );
+                  },
+                  child: const Text('View All'),
+                ),
+              ],
             ),
           ),
           GridView.builder(
@@ -154,7 +221,84 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
               );
             },
           ),
+
+          // Promotional Banner
+          Padding(
+            padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00B464).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF00B464)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '🎉 Special Offers',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Get up to 20% off on selected items this week!',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ProductListScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00B464),
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Shop Now'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(
+      BuildContext context, String label, IconData icon) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ProductListScreen()),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(8),
+          color: Colors.white,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: const Color(0xFF00B464), size: 24),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
