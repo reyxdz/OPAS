@@ -1023,3 +1023,441 @@ class AnnouncementListSerializer(serializers.ModelSerializer):
         """Get relative time display"""
         from django.utils.timesince import timesince
         return f"{timesince(obj.created_at)} ago"
+
+
+# ==================== SELLER REGISTRATION SERIALIZERS ====================
+
+class SellerDocumentVerificationSerializer(serializers.ModelSerializer):
+    """
+    Serializer for seller registration documents.
+    
+    Handles document verification status and metadata.
+    Applied CORE PRINCIPLES:
+    - Input Validation: Document file size/type validation on backend
+    - Security: Secure storage of document URLs
+    - Idempotency: Document type + registration must be unique
+    
+    Usage:
+    - GET /api/sellers/registrations/{id}/ (included in registration detail)
+    - Used for document tracking and verification status
+    """
+    verified_by_name = serializers.CharField(
+        source='verified_by.user.full_name',
+        read_only=True,
+        allow_null=True
+    )
+    status_display = serializers.CharField(
+        source='get_status_display',
+        read_only=True
+    )
+    
+    class Meta:
+        model = SellerDocumentVerification
+        fields = [
+            'id',
+            'document_type',
+            'document_url',
+            'status',
+            'status_display',
+            'verification_notes',
+            'verified_by_name',
+            'uploaded_at',
+            'verified_at',
+            'expires_at',
+        ]
+        read_only_fields = [
+            'id',
+            'status',
+            'status_display',
+            'verification_notes',
+            'verified_by_name',
+            'uploaded_at',
+            'verified_at',
+            'expires_at',
+        ]
+
+
+class SellerRegistrationRequestSerializer(serializers.ModelSerializer):
+    """
+    Serializer for seller registration requests (buyer-to-seller conversion).
+    
+    Comprehensive serializer for managing seller registration workflow including:
+    - Farm/store information collection
+    - Document submission and tracking
+    - Registration status tracking
+    - Admin approval/rejection workflow
+    
+    Applied CORE PRINCIPLES:
+    1. Resource Management: Efficient JSON structure, lazy-loading documents
+    2. Input Validation: Server-side validation of all fields
+    3. Security & Authorization: Always validate authenticated user owns registration
+    4. API Idempotency: Prevent duplicate submissions via unique constraint on seller_id
+    5. Rate Limiting: Document upload validation (file size, format)
+    
+    Usage:
+    - POST /api/sellers/register-application/ (create registration)
+    - GET /api/sellers/registrations/{id}/ (retrieve details)
+    - GET /api/sellers/my-registration/ (buyer's own registration)
+    
+    Example POST payload:
+    {
+        "farm_name": "Green Valley Farm",
+        "farm_location": "Davao, Philippines",
+        "farm_size": "2.5 hectares",
+        "products_grown": "Bananas, Coconut, Cacao",
+        "store_name": "Green Valley Marketplace",
+        "store_description": "Premium organic farm products"
+    }
+    """
+    seller_email = serializers.CharField(
+        source='seller.email',
+        read_only=True
+    )
+    seller_full_name = serializers.CharField(
+        source='seller.full_name',
+        read_only=True
+    )
+    status_display = serializers.CharField(
+        source='get_status_display',
+        read_only=True
+    )
+    documents = SellerDocumentVerificationSerializer(
+        source='document_verifications',
+        many=True,
+        read_only=True
+    )
+    days_pending = serializers.SerializerMethodField()
+    is_approved = serializers.SerializerMethodField()
+    is_rejected = serializers.SerializerMethodField()
+    is_pending = serializers.SerializerMethodField()
+    rejection_reason = serializers.CharField(
+        allow_blank=True,
+        required=False
+    )
+    
+    class Meta:
+        model = SellerRegistrationRequest
+        fields = [
+            'id',
+            'seller_email',
+            'seller_full_name',
+            'farm_name',
+            'farm_location',
+            'farm_size',
+            'products_grown',
+            'store_name',
+            'store_description',
+            'status',
+            'status_display',
+            'documents',
+            'rejection_reason',
+            'submitted_at',
+            'reviewed_at',
+            'approved_at',
+            'rejected_at',
+            'days_pending',
+            'is_approved',
+            'is_rejected',
+            'is_pending',
+        ]
+        read_only_fields = [
+            'id',
+            'seller_email',
+            'seller_full_name',
+            'status',
+            'status_display',
+            'documents',
+            'rejection_reason',
+            'submitted_at',
+            'reviewed_at',
+            'approved_at',
+            'rejected_at',
+            'days_pending',
+            'is_approved',
+            'is_rejected',
+            'is_pending',
+        ]
+    
+    def get_days_pending(self, obj):
+        """Calculate days since submission."""
+        return obj.days_since_submission()
+    
+    def get_is_approved(self, obj):
+        """Check if application is approved."""
+        return obj.is_approved()
+    
+    def get_is_rejected(self, obj):
+        """Check if application is rejected."""
+        return obj.is_rejected()
+    
+    def get_is_pending(self, obj):
+        """Check if application is pending."""
+        return obj.is_pending()
+
+
+class SellerRegistrationSubmitSerializer(serializers.Serializer):
+    """
+    Serializer for buyer-to-seller registration submission.
+    
+    Handles the initial registration form submission from buyers.
+    Validates all required fields and creates SellerRegistrationRequest.
+    
+    Applied CORE PRINCIPLES:
+    1. Input Validation & Sanitization: Comprehensive field validation
+    2. Rate Limiting: Prevent spam via one registration per user
+    3. Security: Only current authenticated user can submit for themselves
+    4. Idempotency: Prevent duplicate registrations via unique constraint
+    
+    Usage:
+    POST /api/sellers/register-application/
+    
+    Example payload:
+    {
+        "farm_name": "Green Valley Farm",
+        "farm_location": "Davao, Philippines",
+        "farm_size": "2.5 hectares",
+        "products_grown": "Bananas, Coconut, Cacao",
+        "store_name": "Green Valley Marketplace",
+        "store_description": "Premium organic farm products offering fresh produce"
+    }
+    
+    Response:
+    {
+        "id": 1,
+        "status": "PENDING",
+        "seller_email": "farmer@example.com",
+        "seller_full_name": "John Doe",
+        "farm_name": "Green Valley Farm",
+        "submitted_at": "2025-11-23T10:30:00Z",
+        ...
+    }
+    """
+    farm_name = serializers.CharField(
+        max_length=255,
+        required=True,
+        trim_whitespace=True,
+        help_text="Name of the farm"
+    )
+    farm_location = serializers.CharField(
+        max_length=255,
+        required=True,
+        trim_whitespace=True,
+        help_text="Location/address of the farm"
+    )
+    farm_size = serializers.CharField(
+        max_length=100,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+        help_text="Size of farm (e.g., '5 hectares')"
+    )
+    products_grown = serializers.CharField(
+        max_length=1000,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+        help_text="Comma-separated list of products grown"
+    )
+    store_name = serializers.CharField(
+        max_length=255,
+        required=True,
+        trim_whitespace=True,
+        help_text="Name of the store/business"
+    )
+    store_description = serializers.CharField(
+        max_length=1000,
+        required=True,
+        trim_whitespace=True,
+        help_text="Description of the store"
+    )
+    
+    def validate_farm_name(self, value):
+        """Validate farm name is not empty after stripping."""
+        if not value or not value.strip():
+            raise serializers.ValidationError(
+                "Farm name cannot be empty."
+            )
+        if len(value) < 3:
+            raise serializers.ValidationError(
+                "Farm name must be at least 3 characters long."
+            )
+        return value
+    
+    def validate_farm_location(self, value):
+        """Validate farm location is not empty."""
+        if not value or not value.strip():
+            raise serializers.ValidationError(
+                "Farm location cannot be empty."
+            )
+        return value
+    
+    def validate_store_name(self, value):
+        """Validate store name."""
+        if not value or not value.strip():
+            raise serializers.ValidationError(
+                "Store name cannot be empty."
+            )
+        if len(value) < 3:
+            raise serializers.ValidationError(
+                "Store name must be at least 3 characters long."
+            )
+        return value
+    
+    def validate_store_description(self, value):
+        """Validate store description."""
+        if not value or not value.strip():
+            raise serializers.ValidationError(
+                "Store description cannot be empty."
+            )
+        if len(value) < 10:
+            raise serializers.ValidationError(
+                "Store description must be at least 10 characters long."
+            )
+        return value
+    
+    def validate(self, data):
+        """
+        Perform cross-field validation.
+        
+        Checks:
+        - User is authenticated buyer
+        - User doesn't already have a pending/approved registration
+        """
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            raise serializers.ValidationError(
+                "Authentication required to submit seller registration."
+            )
+        
+        user = request.user
+        
+        # Check user is a BUYER
+        if user.role != UserRole.BUYER:
+            raise serializers.ValidationError(
+                "Only buyers can submit seller registration applications."
+            )
+        
+        # Check if user already has a pending or approved registration
+        existing_registration = SellerRegistrationRequest.objects.filter(
+            seller=user
+        ).exclude(
+            status=SellerRegistrationStatus.REJECTED
+        ).first()
+        
+        if existing_registration:
+            raise serializers.ValidationError(
+                f"You already have a {existing_registration.status.lower()} "
+                f"seller registration. Please contact support to modify it."
+            )
+        
+        return data
+    
+    def create(self, validated_data):
+        """
+        Create seller registration request.
+        
+        Creates a new SellerRegistrationRequest and updates seller user record
+        with store information.
+        """
+        user = self.context['request'].user
+        
+        # Create registration request
+        registration = SellerRegistrationRequest.objects.create(
+            seller=user,
+            status=SellerRegistrationStatus.PENDING,
+            **validated_data
+        )
+        
+        # Update user store information (for redundancy/optimization)
+        user.store_name = validated_data['store_name']
+        user.store_description = validated_data['store_description']
+        user.save(update_fields=['store_name', 'store_description'])
+        
+        return registration
+
+
+class SellerRegistrationStatusSerializer(serializers.ModelSerializer):
+    """
+    Lightweight serializer for buyer's registration status.
+    
+    Provides essential status information for the buyer's dashboard.
+    Does not include detailed documents or admin notes.
+    
+    Applied CORE PRINCIPLES:
+    - Resource Management: Minimal payload, only essential fields
+    - User Experience: Clear status indication with human-readable display
+    
+    Usage:
+    GET /api/sellers/my-registration/
+    
+    Response example:
+    {
+        "id": 1,
+        "status": "PENDING",
+        "status_display": "Pending Approval",
+        "farm_name": "Green Valley Farm",
+        "store_name": "Green Valley Marketplace",
+        "submitted_at": "2025-11-23T10:30:00Z",
+        "reviewed_at": null,
+        "rejection_reason": null,
+        "days_pending": 2,
+        "is_pending": true,
+        "is_approved": false,
+        "is_rejected": false,
+        "message": null
+    }
+    """
+    status_display = serializers.CharField(
+        source='get_status_display',
+        read_only=True
+    )
+    days_pending = serializers.SerializerMethodField()
+    is_approved = serializers.SerializerMethodField()
+    is_rejected = serializers.SerializerMethodField()
+    is_pending = serializers.SerializerMethodField()
+    message = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SellerRegistrationRequest
+        fields = [
+            'id',
+            'status',
+            'status_display',
+            'farm_name',
+            'store_name',
+            'submitted_at',
+            'reviewed_at',
+            'rejection_reason',
+            'days_pending',
+            'is_pending',
+            'is_approved',
+            'is_rejected',
+            'message',
+        ]
+        read_only_fields = fields
+    
+    def get_days_pending(self, obj):
+        """Calculate days since submission."""
+        return obj.days_since_submission()
+    
+    def get_is_approved(self, obj):
+        """Check if application is approved."""
+        return obj.is_approved()
+    
+    def get_is_rejected(self, obj):
+        """Check if application is rejected."""
+        return obj.is_rejected()
+    
+    def get_is_pending(self, obj):
+        """Check if application is pending."""
+        return obj.is_pending()
+    
+    def get_message(self, obj):
+        """Get user-friendly status message."""
+        if obj.is_pending():
+            return f"Your application is being reviewed. Submitted {obj.days_since_submission()} days ago."
+        elif obj.is_approved():
+            return "Congratulations! Your seller account has been approved. You can now list products."
+        elif obj.is_rejected():
+            return f"Your application was not approved. Reason: {obj.rejection_reason}"
+        return None

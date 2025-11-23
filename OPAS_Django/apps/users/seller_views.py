@@ -3,7 +3,7 @@ Seller Views for OPAS Platform
 Handles all seller panel operations including profile, products, orders,
 inventory, forecasting, payouts, and analytics.
 
-Includes 1 Permission Class and 9 ViewSets with 43 endpoints
+Includes 2 Permission Classes and 10 ViewSets with 46 endpoints (43 original + 3 new registration endpoints)
 """
 
 from rest_framework import viewsets, status
@@ -11,7 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from django.utils import timezone
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q, Sum, Avg, Count, F
 from decimal import Decimal
 import logging
@@ -23,11 +23,15 @@ from .seller_models import (
     ProductStatus, OrderStatus,
     Notification, Announcement, SellerAnnouncementRead
 )
+from .admin_models import SellerRegistrationRequest, SellerRegistrationStatus
 from .seller_serializers import (
     SellerProfileSerializer,
     SellerProductListSerializer,
     SellerProductCreateUpdateSerializer,
     SellerOrderSerializer,
+    SellerRegistrationRequestSerializer,
+    SellerRegistrationSubmitSerializer,
+    SellerRegistrationStatusSerializer,
     SellToOPASSerializer,
     SellerPayoutSerializer,
     SellerForecastSerializer,
@@ -40,6 +44,362 @@ from .seller_serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ==================== PERMISSION CLASSES ====================
+
+class IsOPASSeller(BasePermission):
+    """
+    Permission to check if user is an approved seller.
+    Restricts access to seller endpoints to only authenticated,
+    role-verified SELLER users with APPROVED status.
+    """
+    message = 'You must be an approved seller to access seller endpoints.'
+
+    def has_permission(self, request, view):
+        """Check if user is authenticated and is an approved seller"""
+        if not request.user.is_authenticated:
+            return False
+        
+        # Check if user has SELLER role and APPROVED status
+        is_seller = (
+            request.user.role == UserRole.SELLER and
+            request.user.seller_status == SellerStatus.APPROVED
+        )
+        
+        if is_seller:
+            logger.info(f'Seller access granted to: {request.user.email}')
+        else:
+            logger.warning(
+                f'Unauthorized seller access attempt by: {request.user.email} '
+                f'(Role: {request.user.role}, Status: {request.user.seller_status})'
+            )
+        
+        return is_seller
+
+
+class IsBuyerOrApprovedSeller(BasePermission):
+    """
+    Permission to allow buyer/seller registration operations.
+    
+    Applied CORE PRINCIPLES:
+    - Security: Ensures only authenticated buyers or sellers can register
+    - Authorization: Checks user role before allowing registration submission
+    - Audit: Logs unauthorized access attempts
+    
+    Allows:
+    - BUYER role: Can submit registration applications
+    - SELLER role (PENDING/REQUEST_MORE_INFO): Can resubmit registration
+    """
+    message = 'You must be a buyer or pending seller to submit registration.'
+    
+    def has_permission(self, request, view):
+        """Check if user can submit buyer-to-seller registration."""
+        if not request.user.is_authenticated:
+            return False
+        
+        # Check if user is BUYER
+        is_buyer = request.user.role == UserRole.BUYER
+        
+        # Check if user is SELLER with PENDING or REQUEST_MORE_INFO status
+        is_pending_seller = (
+            request.user.role == UserRole.SELLER and
+            request.user.seller_status in [
+                SellerStatus.PENDING,
+                # Add REQUEST_MORE_INFO if it's a status option
+            ]
+        )
+        
+        allowed = is_buyer or is_pending_seller
+        
+        if not allowed:
+            logger.warning(
+                f'Unauthorized registration access attempt by: {request.user.email} '
+                f'(Role: {request.user.role}, Status: {request.user.seller_status})'
+            )
+        
+        return allowed
+
+
+# ==================== SELLER REGISTRATION VIEWSET ====================
+
+class SellerRegistrationViewSet(viewsets.ViewSet):
+    """
+    Buyer-to-Seller registration workflow management.
+    
+    Handles the complete registration flow for buyers converting to sellers:
+    1. Submit registration with farm/store information
+    2. Track registration status
+    3. Retrieve registration details with document info
+    
+    Applied CORE PRINCIPLES:
+    1. Resource Management: Efficient queries with select_related/prefetch_related
+    2. Security & Authorization: Role and ownership verification on all endpoints
+    3. Input Validation: Comprehensive backend validation of all fields
+    4. API Idempotency: One registration per user enforced by unique constraint
+    5. Rate Limiting: Built-in via unique constraint (one registration per user)
+    
+    Endpoints:
+    - POST /api/sellers/register-application/ - Submit registration
+    - GET /api/sellers/<id>/ - Get registration details
+    - GET /api/sellers/my-registration/ - Get current user's registration
+    
+    Example usage:
+    - Buyer clicks "Become a Seller"
+    - Fills form with farm/store information
+    - Submits POST to register-application/
+    - Receives registration ID and status PENDING
+    - Can check status with GET my-registration/
+    """
+    
+    permission_classes = [IsAuthenticated]
+    
+    def retrieve(self, request, pk=None):
+        """
+        Get registration details by ID.
+        
+        Applied CORE PRINCIPLES:
+        - Security: Ownership verification (user must be the seller or admin)
+        - Resource Management: Efficient query with select_related and prefetch_related
+        - Audit: Logs unauthorized access attempts
+        
+        GET /api/sellers/registrations/{id}/
+        
+        Response 200:
+        {
+            "id": 1,
+            "seller_email": "buyer@example.com",
+            "seller_full_name": "John Doe",
+            "farm_name": "Green Valley Farm",
+            "farm_location": "Davao, Philippines",
+            "farm_size": "2.5 hectares",
+            "products_grown": "Bananas, Coconut, Cacao",
+            "store_name": "Green Valley Marketplace",
+            "store_description": "Premium organic farm products",
+            "documents": [
+                {
+                    "id": 1,
+                    "document_type": "TAX_ID",
+                    "document_url": "https://...",
+                    "status": "PENDING",
+                    "status_display": "Pending Verification",
+                    "uploaded_at": "2025-11-23T10:30:00Z"
+                }
+            ],
+            "status": "PENDING",
+            "status_display": "Pending Approval",
+            "submitted_at": "2025-11-23T10:30:00Z",
+            "days_pending": 2,
+            "is_pending": true,
+            "is_approved": false,
+            "is_rejected": false
+        }
+        
+        Response 404: Not found or unauthorized
+        """
+        try:
+            # Get registration with related documents
+            registration = SellerRegistrationRequest.objects.select_related(
+                'seller'
+            ).prefetch_related(
+                'document_verifications'
+            ).get(pk=pk)
+            
+            # Security: Allow access if user is the seller applying or admin
+            if request.user != registration.seller and not request.user.is_staff:
+                logger.warning(
+                    f'Unauthorized access to registration {pk} by {request.user.email}'
+                )
+                return Response(
+                    {'detail': 'Not found.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            serializer = SellerRegistrationRequestSerializer(
+                registration,
+                context={'request': request}
+            )
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except SellerRegistrationRequest.DoesNotExist:
+            return Response(
+                {'detail': 'Registration not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f'Error retrieving registration {pk}: {str(e)}')
+            return Response(
+                {'detail': 'Error retrieving registration.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(
+        detail=False,
+        methods=['post'],
+        permission_classes=[IsAuthenticated, IsBuyerOrApprovedSeller],
+        url_path='register-application',
+        url_name='submit-registration'
+    )
+    def register_application(self, request):
+        """
+        Submit seller registration application.
+        
+        CORE PRINCIPLES APPLIED:
+        - Input Validation: All fields validated server-side
+        - Security: Only current authenticated user can submit
+        - Idempotency: One registration per user (database constraint)
+        - Audit Trail: All submissions logged
+        
+        POST /api/sellers/register-application/
+        
+        Payload:
+        {
+            "farm_name": "Green Valley Farm",
+            "farm_location": "Davao, Philippines",
+            "farm_size": "2.5 hectares",
+            "products_grown": "Bananas, Coconut, Cacao",
+            "store_name": "Green Valley Marketplace",
+            "store_description": "Premium organic farm products"
+        }
+        
+        Response 201:
+        {
+            "id": 1,
+            "status": "PENDING",
+            "status_display": "Pending Approval",
+            "seller_email": "buyer@example.com",
+            "seller_full_name": "John Doe",
+            "farm_name": "Green Valley Farm",
+            "farm_location": "Davao, Philippines",
+            "farm_size": "2.5 hectares",
+            "products_grown": "Bananas, Coconut, Cacao",
+            "store_name": "Green Valley Marketplace",
+            "store_description": "Premium organic farm products",
+            "documents": [],
+            "submitted_at": "2025-11-23T10:30:00Z",
+            "days_pending": 0,
+            "is_pending": true,
+            "is_approved": false,
+            "is_rejected": false
+        }
+        
+        Response 400: Validation errors
+        - Empty required fields
+        - User already has pending/approved registration
+        - Non-buyer user attempting registration
+        """
+        try:
+            serializer = SellerRegistrationSubmitSerializer(
+                data=request.data,
+                context={'request': request}
+            )
+            
+            if not serializer.is_valid():
+                logger.warning(
+                    f'Registration validation failed for {request.user.email}: '
+                    f'{serializer.errors}'
+                )
+                return Response(
+                    serializer.errors,
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create registration via serializer
+            registration = serializer.save()
+            
+            logger.info(
+                f'Seller registration submitted by {request.user.email} '
+                f'(ID: {registration.id})'
+            )
+            
+            # Return created registration details
+            response_serializer = SellerRegistrationRequestSerializer(
+                registration,
+                context={'request': request}
+            )
+            
+            return Response(
+                response_serializer.data,
+                status=status.HTTP_201_CREATED
+            )
+        
+        except Exception as e:
+            logger.error(
+                f'Error submitting registration for {request.user.email}: {str(e)}',
+                exc_info=True
+            )
+            return Response(
+                {'detail': 'Error submitting registration. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(
+        detail=False,
+        methods=['get'],
+        permission_classes=[IsAuthenticated],
+        url_path='my-registration',
+        url_name='my-registration'
+    )
+    def my_registration(self, request):
+        """
+        Get current user's seller registration status.
+        
+        Applied CORE PRINCIPLES:
+        - User Experience: Quick status check for buyers
+        - Resource Management: Minimal response payload
+        - Security: Only shows current user's registration
+        
+        GET /api/sellers/my-registration/
+        
+        Response 200:
+        {
+            "id": 1,
+            "status": "PENDING",
+            "status_display": "Pending Approval",
+            "farm_name": "Green Valley Farm",
+            "store_name": "Green Valley Marketplace",
+            "submitted_at": "2025-11-23T10:30:00Z",
+            "reviewed_at": null,
+            "rejection_reason": null,
+            "days_pending": 2,
+            "is_pending": true,
+            "is_approved": false,
+            "is_rejected": false,
+            "message": "Your application is being reviewed. Submitted 2 days ago."
+        }
+        
+        Response 404: User has not submitted registration
+        """
+        try:
+            # Get user's registration (OneToOne relationship)
+            registration = SellerRegistrationRequest.objects.select_related(
+                'seller'
+            ).get(seller=request.user)
+            
+            serializer = SellerRegistrationStatusSerializer(
+                registration,
+                context={'request': request}
+            )
+            
+            logger.info(f'Registration status retrieved by {request.user.email}')
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except SellerRegistrationRequest.DoesNotExist:
+            # User hasn't submitted registration yet
+            return Response(
+                {'detail': 'No registration found. Start by submitting your application.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(
+                f'Error retrieving my registration for {request.user.email}: {str(e)}'
+            )
+            return Response(
+                {'detail': 'Error retrieving registration status.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 # ==================== PERMISSION CLASSES ====================

@@ -4,8 +4,14 @@ URL Configuration for Users App - OPAS Platform
 Routes include:
 - User authentication and profile management
 - Seller upgrade functionality
+- Seller registration workflow (buyer-to-seller conversion)
 - Admin panel endpoints (dashboard, sellers, users, pricing, inventory, announcements)
 - Seller panel endpoints (profile, products, orders, forecasting, payouts, analytics)
+
+Seller Registration Router endpoints (3 new):
+- POST /api/sellers/register-application/ - Submit seller registration
+- GET /api/sellers/registrations/{id}/ - Get registration details
+- GET /api/sellers/my-registration/ - Get current user's registration status
 
 Admin Router endpoints (43 total):
 - GET/POST /api/users/admin/dashboard/stats/ - Dashboard statistics
@@ -30,7 +36,7 @@ Admin Router endpoints (43 total):
 - POST /api/users/admin/announcements/create_announcement/ - Create announcement
 - GET /api/users/admin/announcements/list_announcements/ - List announcements
 
-Seller Router endpoints (43 total):
+Seller Router endpoints (43 total + 3 new = 46):
 - Profile: GET/PUT /api/seller/profile/, POST /api/seller/profile/submit_documents/, GET /api/seller/profile/document_status/
 - Products: GET/POST /api/seller/products/, GET/PUT/DELETE /api/seller/products/{id}/, GET /api/seller/products/active/, GET /api/seller/products/expired/, POST /api/seller/products/check_ceiling_price/
 - SellToOPAS: POST /api/seller/sell-to-opas/, GET /api/seller/sell-to-opas/pending/, GET /api/seller/sell-to-opas/history/, GET /api/seller/sell-to-opas/{id}/status/
@@ -39,6 +45,7 @@ Seller Router endpoints (43 total):
 - Forecast: GET /api/seller/forecast/next_month/, GET /api/seller/forecast/product/{id}/, GET /api/seller/forecast/historical/, GET /api/seller/forecast/insights/
 - Payouts: GET /api/seller/payouts/, GET /api/seller/payouts/pending/, GET /api/seller/payouts/completed/, GET /api/seller/payouts/earnings/
 - Analytics: GET /api/seller/analytics/dashboard/, GET /api/seller/analytics/daily/, GET /api/seller/analytics/weekly/, GET /api/seller/analytics/monthly/, GET /api/seller/analytics/top_products/, GET /api/seller/analytics/forecast_vs_actual/
+- Registration: POST /api/sellers/register-application/, GET /api/sellers/registrations/{id}/, GET /api/sellers/my-registration/
 """
 
 from django.urls import path, include
@@ -66,6 +73,7 @@ from .seller_views import (
     AnalyticsViewSet,
     NotificationViewSet,
     AnnouncementViewSet as SellerAnnouncementViewSet,
+    SellerRegistrationViewSet,
 )
 
 
@@ -208,6 +216,13 @@ seller_router.register(
     r'seller/announcements',
     SellerAnnouncementViewSet,
     basename='seller-announcements'
+)
+
+# Seller Registration Router
+seller_router.register(
+    r'sellers',
+    SellerRegistrationViewSet,
+    basename='seller-registration'
 )
 
 
