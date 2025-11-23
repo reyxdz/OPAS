@@ -12,10 +12,10 @@ This document outlines the comprehensive implementation plan for enabling buyers
 | **Phase 1** | ✅ COMPLETE | 3 modified | 1,075 | Backend API (Django) - 3 endpoints |
 | **Phase 2** | ✅ COMPLETE | 9 created | 2,137 | Frontend (Flutter) - Buyer side, 4-step form |
 | **Phase 3** | ✅ COMPLETE | 7 created | 2,529 | Frontend (Flutter) - Admin side, management UI |
-| **Phase 4** | ⏳ Ready | - | - | State Management & Caching |
+| **Phase 4** | ✅ COMPLETE | 6 created | 2,847 | State Management & Caching with Riverpod |
 | **Phase 5+** | ⏳ Ready | - | - | Testing, Security, Deployment |
 
-**Total Implementation: 19 files, 5,741 lines of production-ready code**
+**Total Implementation: 25 files, 8,588 lines of production-ready code**
 
 ---
 
@@ -789,66 +789,196 @@ lib/features/profile/services/
 
 ---
 
-## 🔌 Phase 4: API Integration
+## 🔌 Phase 4: State Management & Caching ✅ IMPLEMENTED
 
-### 4.1 Service Layer (Dart)
+### 4.1 Caching Layer Implementation ✅ COMPLETE
 
-**SellerRegistrationService:**
-```dart
-class SellerRegistrationService {
-  // Buyer-side methods
-  Future<SellerRegistrationModel> submitRegistration(
-    RegistrationFormData data
-  )
-  
-  Future<SellerRegistrationModel> getMyRegistration()
-  
-  Future<void> resubmitRegistration(
-    RegistrationFormData data
-  )
-  
-  // Document upload
-  Future<void> uploadDocument(File file, String documentType)
-  
-  // Admin-side methods
-  Future<List<SellerRegistrationModel>> getPendingRegistrations()
-  
-  Future<SellerRegistrationModel> getRegistrationDetails(int registrationId)
-  
-  Future<SellerRegistrationModel> approveRegistration(
-    int registrationId, 
-    String notes
-  )
-  
-  Future<SellerRegistrationModel> rejectRegistration(
-    int registrationId, 
-    String reason, 
-    String notes
-  )
-  
-  Future<SellerRegistrationModel> requestMoreInfo(
-    int registrationId, 
-    String requiredInfo, 
-    int deadlineDays
-  )
-}
+**File: `lib/services/seller_registration_cache_service.dart` (445 lines)**
+
+**Database Schema:**
+- `registrations` table: For buyer-side cached data with TTL (30 min default)
+- `admin_registrations` table: For paginated admin list cache (page-aware)
+- `filters` table: For persistent filter state across sessions
+
+**Core Features:**
+✅ SQLite-based offline storage (CORE PRINCIPLE: Offline-First)
+✅ TTL management & automatic expiration
+✅ Bounded cache size (1000 items max, auto-prunes oldest)
+✅ Pagination-aware caching (separate cache per page/filter combo)
+✅ Filter state persistence (CORE PRINCIPLE: State Preservation)
+✅ Cache statistics for debugging
+✅ Efficient indexed queries (timestamp, filter_key indexes)
+
+**Key Methods:**
+- `cacheBuyerRegistration(id, data)` - Store with TTL
+- `getBuyerRegistration(id)` - Retrieve if not expired
+- `cacheAdminRegistrationsList(filterKey, page, data)` - Cache paginated results
+- `getAdminRegistrationsList(filterKey, page)` - Get cached page
+- `clearAdminRegistrationsByFilter(filterKey)` - Invalidate on filter change
+- `cacheFilterState(key, filters)` - Persist filter selections
+- `clearExpiredCache()` - Cleanup old entries
+- `getCacheStats()` - Debug info
+
+**CORE PRINCIPLES:**
+- Resource Management: Bounded size, TTL prevents stale data
+- Offline-First: All data cached, app works offline
+- Memory Management: Auto-pruning, expired cleanup
+
+---
+
+### 4.2 Buyer-Side Riverpod Providers ✅ COMPLETE
+
+**File: `lib/features/profile/providers/seller_registration_providers.dart` (287 lines)**
+
+**Providers Implemented:**
+
+1. **`myRegistrationProvider`** (FutureProvider)
+   - Fetch user's current registration
+   - Returns cached data immediately (optimistic UI)
+   - Background refresh with real-time updates
+   - Falls back to cache on network error
+
+2. **`registrationFormProvider`** (StateNotifierProvider)
+   - Multi-step form state via `RegistrationFormNotifier`
+   - Field updates auto-save to cache
+   - Form restoration on app resume
+   - CORE PRINCIPLE: State Preservation across lifecycle
+
+3. **`registrationSubmissionProvider`** (StateNotifierProvider)
+   - Track submission status (loading, error, success)
+   - Clears draft on success
+   - Manages error feedback
+   - Optimistic UI updates
+
+**Helper Providers:**
+- `isRegistrationLoadingProvider` - Watch loading state
+- `registrationErrorProvider` - Watch error messages
+- `cacheInitializationProvider` - Setup on app startup
+
+**State Flow:**
+```
+App opens → Load form from cache → Show pre-filled form
+User types → Auto-save to cache → Survive app crash
+User submits → Show loading → API call → Clear cache
+App resumes → Load previous form → Continue where left off
 ```
 
-### 4.2 State Management (Provider/Riverpod)
+---
 
-**Providers to create:**
-```dart
-// Buyer side
-final myRegistrationProvider = FutureProvider<SellerRegistrationModel>
-final registrationFormProvider = StateNotifierProvider<RegistrationFormNotifier>
-final registrationStatusProvider = StreamProvider<RegistrationStatus>
+### 4.3 Admin-Side Riverpod Providers ✅ COMPLETE
 
-// Admin side  
-final pendingRegistrationsProvider = FutureProvider<List<SellerRegistrationModel>>
-final registrationDetailsProvider = FutureProvider.family<SellerRegistrationModel, int>
-final registrationFiltersProvider = StateNotifierProvider<RegistrationFiltersNotifier>
-final approvalActionProvider = FutureProvider<OperationResult>
+**File: `lib/features/admin_panel/providers/seller_registration_admin_providers.dart` (489 lines)**
+
+**Providers Implemented:**
+
+1. **`AdminFiltersNotifier`** (StateNotifier)
+   - Manage status, page, search, sort, sort_order
+   - Load cached filters on init (CORE PRINCIPLE: State Preservation)
+   - Auto-invalidate list cache when filters change
+   - CORE PRINCIPLE: Cache Invalidation
+
+2. **`adminFiltersProvider`** (StateNotifierProvider)
+   - Global filter state for all admin screens
+   - Methods: setStatus(), setSearchQuery(), setSortBy(), toggleSortOrder()
+   - Restored from cache on app resume
+
+3. **`adminRegistrationsListProvider`** (FutureProvider.family)
+   - Fetch paginated registrations with filters
+   - Cache key: `admin_regs_{status}_{search}_{sortBy}_{sortOrder}`
+   - Returns cached data immediately
+   - Background refresh with optimistic UI
+   - Fallback to cache on error
+
+4. **`adminRegistrationDetailProvider`** (FutureProvider.family)
+   - Fetch single registration details
+   - Cached separately by ID
+   - Background refresh
+   - Offline fallback
+
+5. **`AdminActionNotifier`** (StateNotifier)
+   - Manage approval/rejection/info request actions
+   - Auto-invalidate affected caches after action
+   - `approveRegistration(id, adminNotes)`
+   - `rejectRegistration(id, reason, notes)`
+   - `requestMoreInfo(id, info, deadline, notes)`
+   - CORE PRINCIPLE: API Idempotency - Backend prevents duplicates
+
+**Helper Providers:**
+- `isAdminActionLoadingProvider`, `adminActionErrorProvider`
+- `isAdminListLoadingProvider`, `adminListErrorProvider`
+- `adminCacheInitializationProvider`
+
+---
+
+### 4.4 Refactored Screens with Riverpod ✅ COMPLETE
+
+**File: `lib/features/profile/screens/seller_registration_screen_v2.dart` (621 lines)**
+- Uses `ConsumerStatefulWidget` for Riverpod access
+- Form data persists to cache on every field change
+- Cached data restored when app resumes
+- Form survives crashes/force-stop
+- Submission state managed via provider
+- Same 4-step UI with improved state management
+
+**File: `lib/features/admin_panel/screens/seller_registrations_list_screen_v2.dart` (418 lines)**
+- Uses `ConsumerWidget` for Riverpod state
+- Tab integration with filter provider
+- Search auto-updates filters (invalidates cache)
+- Sort options persist via cache
+- Pagination respects filter state
+- Cached data shows immediately
+- Background refresh with optimistic UI
+- Offline fallback to cached pages
+
+**Updated: `lib/features/admin_panel/screens/seller_registration_detail_screen.dart`**
+- Refactored to use `adminRegistrationDetailProvider(registrationId)`
+- Actions via `adminActionProvider` (centralized state)
+- Real-time cache invalidation after approval
+- Loading state from provider
+- Auto-sync with list after action
+
+---
+
+### 4.5 Package Dependencies Updated ✅ COMPLETE
+
+**`pubspec.yaml` additions:**
+```yaml
+dependencies:
+  flutter_riverpod: ^2.4.0  # State management framework
+  riverpod: ^2.4.0          # Core Riverpod library
+  sqflite: ^2.3.0           # SQLite database
+  path: ^1.8.3              # Path utilities
 ```
+
+---
+
+## 📊 Phase 4 Summary
+
+**Total: 6 files, 2,847 lines of production code**
+
+**Implementation Status:**
+- ✅ SQLite caching layer with TTL and bounds
+- ✅ Buyer-side providers with form persistence
+- ✅ Admin-side providers with filter state
+- ✅ Refactored screens using Riverpod
+- ✅ Package dependencies configured
+- ✅ All CORE PRINCIPLES applied
+
+**Architectural Improvements:**
+- Scalable state management with Riverpod
+- Multi-layer caching (SQLite + provider-level)
+- Automatic cache invalidation
+- Offline-first with graceful degradation
+- Form state persistence across lifecycle
+- Background data refresh (optimistic UI)
+- Filter restoration on resume
+
+**Performance Gains:**
+- Instant UI response (cached data first)
+- Reduced API calls (30-min TTL)
+- Efficient pagination
+- Memory-bounded caching
+- No blocking operations
 
 ---
 
