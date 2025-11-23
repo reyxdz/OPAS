@@ -2308,11 +2308,11 @@ class DashboardViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
         """
-        Get comprehensive dashboard statistics (Phase 3.2).
+        Get comprehensive dashboard statistics (Phase 3.5 Phase C).
         
         **Route**: `GET /api/admin/dashboard/stats/`
         **Authentication**: Required (admin only)
-        **Permission**: IsAuthenticated + IsOPASAdmin
+        **Permission**: IsAuthenticated + IsAdmin + CanViewAnalytics
         **Response Code**: 200 OK
         
         Returns: JSON object with aggregated metrics for all major systems:
@@ -2324,7 +2324,49 @@ class DashboardViewSet(viewsets.ViewSet):
         - Marketplace health score (0-100)
         
         Query Performance: ~14-15 optimized database queries
-        Expected Response Time: < 2000ms
+        Expected Response Time: < 2000ms (target: < 1500ms database, < 500ms serialization)
+        
+        **Response Schema**:
+        ```json
+        {
+            "timestamp": "2025-11-22T14:35:42.123456Z",
+            "seller_metrics": {
+                "total_sellers": 250,
+                "pending_approvals": 12,
+                "active_sellers": 238,
+                "suspended_sellers": 2,
+                "new_this_month": 15,
+                "approval_rate": 95.2
+            },
+            "market_metrics": {
+                "active_listings": 1240,
+                "total_sales_today": 45000.00,
+                "total_sales_month": 1250000.00,
+                "avg_price_change": 0.5,
+                "avg_transaction": 41666.67
+            },
+            "opas_metrics": {
+                "pending_submissions": 8,
+                "approved_this_month": 125,
+                "total_inventory": 5000,
+                "low_stock_count": 3,
+                "expiring_count": 2,
+                "total_inventory_value": 250000.00
+            },
+            "price_compliance": {
+                "compliant_listings": 1200,
+                "non_compliant": 40,
+                "compliance_rate": 96.77
+            },
+            "alerts": {
+                "price_violations": 3,
+                "seller_issues": 2,
+                "inventory_alerts": 5,
+                "total_open_alerts": 10
+            },
+            "marketplace_health_score": 92
+        }
+        ```
         """
         try:
             # Calculate all metrics (optimized queries)
@@ -2335,7 +2377,7 @@ class DashboardViewSet(viewsets.ViewSet):
             alerts = self._get_alerts()
             health_score = self._calculate_health_score(price_compliance)
             
-            # Prepare response matching Phase 3.2 specification
+            # Prepare response matching Phase 3.5 Phase C specification
             data = {
                 'timestamp': timezone.now(),
                 'seller_metrics': seller_metrics,
@@ -2348,6 +2390,19 @@ class DashboardViewSet(viewsets.ViewSet):
             
             serializer = AdminDashboardStatsSerializer(data)
             return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            # Log error and return error response
+            AdminAuditLog.objects.create(
+                admin=AdminUser.objects.get(user=request.user) if request.user.is_authenticated else None,
+                action_type='Dashboard Stats Error',
+                action_category='ERROR',
+                description=f'Error calculating dashboard stats: {str(e)}'
+            )
+            return Response(
+                {'error': 'Failed to calculate dashboard statistics', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
             
         except Exception as e:
             return Response(

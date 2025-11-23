@@ -701,6 +701,166 @@ __all__ = [
     'SystemNotificationSerializer',
     'SystemNotificationBulkCreateSerializer',
     'AnnouncementSerializer',
+    'SellerMetricsSerializer',
+    'MarketMetricsSerializer',
+    'OPASMetricsSerializer',
+    'PriceComplianceSerializer',
+    'AlertsSerializer',
+    'AdminDashboardStatsSerializer',
 ]
+
+
+# ==================== DASHBOARD METRICS SERIALIZERS ====================
+
+class SellerMetricsSerializer(serializers.Serializer):
+    """
+    Serializer for seller marketplace metrics.
+    
+    Metrics:
+    - total_sellers: Total count of sellers
+    - pending_approvals: Sellers awaiting approval
+    - active_sellers: Approved sellers
+    - suspended_sellers: Suspended sellers
+    - new_this_month: Sellers registered this month
+    - approval_rate: Percentage of approvals vs rejections
+    """
+    total_sellers = serializers.IntegerField(min_value=0, read_only=True)
+    pending_approvals = serializers.IntegerField(min_value=0, read_only=True)
+    active_sellers = serializers.IntegerField(min_value=0, read_only=True)
+    suspended_sellers = serializers.IntegerField(min_value=0, read_only=True)
+    new_this_month = serializers.IntegerField(min_value=0, read_only=True)
+    approval_rate = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        min_value=0,
+        max_value=100,
+        read_only=True
+    )
+
+
+class MarketMetricsSerializer(serializers.Serializer):
+    """
+    Serializer for marketplace trading metrics.
+    
+    Metrics:
+    - active_listings: Non-deleted, active products
+    - total_sales_today: Sum of sales since midnight
+    - total_sales_month: Sum of sales since month start
+    - avg_price_change: Average daily price movement percentage
+    - avg_transaction: Average order value
+    """
+    active_listings = serializers.IntegerField(min_value=0, read_only=True)
+    total_sales_today = serializers.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        min_value=0,
+        read_only=True
+    )
+    total_sales_month = serializers.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        min_value=0,
+        read_only=True
+    )
+    avg_price_change = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        read_only=True
+    )
+    avg_transaction = serializers.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        min_value=0,
+        read_only=True
+    )
+
+
+class OPASMetricsSerializer(serializers.Serializer):
+    """
+    Serializer for OPAS bulk purchase program metrics.
+    
+    Metrics:
+    - pending_submissions: Pending SellToOPAS requests
+    - approved_this_month: Approved submissions this month
+    - total_inventory: Sum of inventory quantity
+    - low_stock_count: Inventory below threshold
+    - expiring_count: Inventory expiring within 7 days
+    - total_inventory_value: Sum of (quantity * unit_price)
+    """
+    pending_submissions = serializers.IntegerField(min_value=0, read_only=True)
+    approved_this_month = serializers.IntegerField(min_value=0, read_only=True)
+    total_inventory = serializers.IntegerField(min_value=0, read_only=True)
+    low_stock_count = serializers.IntegerField(min_value=0, read_only=True)
+    expiring_count = serializers.IntegerField(min_value=0, read_only=True)
+    total_inventory_value = serializers.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        min_value=0,
+        read_only=True
+    )
+
+
+class PriceComplianceSerializer(serializers.Serializer):
+    """
+    Serializer for price compliance metrics.
+    
+    Metrics:
+    - compliant_listings: Products within price ceiling
+    - non_compliant: Products exceeding ceiling
+    - compliance_rate: Percentage of compliant listings
+    """
+    compliant_listings = serializers.IntegerField(min_value=0, read_only=True)
+    non_compliant = serializers.IntegerField(min_value=0, read_only=True)
+    compliance_rate = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        min_value=0,
+        max_value=100,
+        read_only=True
+    )
+
+
+class AlertsSerializer(serializers.Serializer):
+    """
+    Serializer for marketplace alerts and system health.
+    
+    Metrics:
+    - price_violations: Open price non-compliance alerts
+    - seller_issues: Seller-related issues and alerts
+    - inventory_alerts: Inventory problems (low stock, expiring)
+    - total_open_alerts: All unresolved alerts
+    """
+    price_violations = serializers.IntegerField(min_value=0, read_only=True)
+    seller_issues = serializers.IntegerField(min_value=0, read_only=True)
+    inventory_alerts = serializers.IntegerField(min_value=0, read_only=True)
+    total_open_alerts = serializers.IntegerField(min_value=0, read_only=True)
+
+
+class AdminDashboardStatsSerializer(serializers.Serializer):
+    """
+    Serializer for comprehensive admin dashboard statistics.
+    
+    Combines all metric groups into a single dashboard response.
+    
+    Response includes:
+    - timestamp: When the metrics were calculated
+    - seller_metrics: Seller marketplace metrics
+    - market_metrics: Overall marketplace trading metrics
+    - opas_metrics: OPAS bulk purchase program metrics
+    - price_compliance: Price ceiling compliance metrics
+    - alerts: Open alerts and system health indicators
+    - marketplace_health_score: Overall health score (0-100)
+    """
+    timestamp = serializers.DateTimeField(read_only=True)
+    seller_metrics = SellerMetricsSerializer(read_only=True)
+    market_metrics = MarketMetricsSerializer(read_only=True)
+    opas_metrics = OPASMetricsSerializer(read_only=True)
+    price_compliance = PriceComplianceSerializer(read_only=True)
+    alerts = AlertsSerializer(read_only=True)
+    marketplace_health_score = serializers.IntegerField(
+        min_value=0,
+        max_value=100,
+        read_only=True
+    )
 
 
