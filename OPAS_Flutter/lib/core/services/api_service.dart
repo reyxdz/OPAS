@@ -18,7 +18,7 @@ class ApiService {
         Uri.parse('$baseUrl/auth/token/refresh/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refresh': refreshToken}),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -40,7 +40,7 @@ class ApiService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode(userData),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
@@ -63,7 +63,7 @@ class ApiService {
             body:
                 jsonEncode({'phone_number': phoneNumber, 'password': password}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -100,7 +100,7 @@ class ApiService {
           'store_name': storeName,
           'store_description': storeDescription,
         }),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 30));
 
       // If token expired, try to refresh and retry
       if (response.statusCode == 401) {

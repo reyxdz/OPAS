@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/auth_text_field.dart';
+import '../../../core/services/api_service.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -157,17 +158,35 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       });
 
       try {
+        final signupData = {
+          'email': '${_phoneNumberController.text}@opas.app',
+          'username': _phoneNumberController.text,
+          'first_name': _firstNameController.text,
+          'last_name': _lastNameController.text,
+          'phone_number': _phoneNumberController.text,
+          'password': _passwordController.text,
+          'address': _addressController.text,
+          'role': 'BUYER',
+        };
+
+        await ApiService.registerUser(signupData);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Registration successful!')),
+            const SnackBar(
+              content: Text('Registration successful!'),
+              backgroundColor: Colors.green,
+            ),
           );
-          Navigator.pop(context);
+          Navigator.pop(context, true);
         }
       } catch (e) {
-        // Debug print
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${e.toString()}')),
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       } finally {

@@ -32,9 +32,8 @@ class CustomBottomNavBar extends StatelessWidget {
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            const SizedBox(width: 30),
             _NavItem(
               icon: Icons.home_outlined,
               filledIcon: Icons.home,
@@ -42,7 +41,6 @@ class CustomBottomNavBar extends StatelessWidget {
               onTap: () => onTap(0),
               iconSize: iconSize,
             ),
-            const SizedBox(width: 40),
             _NavItem(
               icon: Icons.shopping_cart_outlined,
               filledIcon: Icons.shopping_cart,
@@ -50,7 +48,6 @@ class CustomBottomNavBar extends StatelessWidget {
               onTap: () => onTap(1),
               iconSize: iconSize,
             ),
-            const SizedBox(width: 40),
             _NavItem(
               icon: Icons.description_outlined,
               filledIcon: Icons.description,
@@ -58,7 +55,6 @@ class CustomBottomNavBar extends StatelessWidget {
               onTap: () => onTap(2),
               iconSize: iconSize,
             ),
-            const SizedBox(width: 40),
             _NavItem(
               icon: Icons.local_shipping_outlined,
               filledIcon: Icons.local_shipping,
@@ -66,7 +62,6 @@ class CustomBottomNavBar extends StatelessWidget {
               onTap: () => onTap(3),
               iconSize: iconSize,
             ),
-            const SizedBox(width: 30),
           ],
         ),
       ),

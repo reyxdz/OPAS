@@ -160,12 +160,8 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'redis.Redis',
-            'CONNECTION_POOL_KWARGS': {'max_connections': 50},
-        },
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
         'KEY_PREFIX': 'opas_cache',
         'TIMEOUT': 300,  # Default cache timeout: 5 minutes
     },

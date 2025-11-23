@@ -16,11 +16,16 @@ Includes 10 serializers across different seller operation categories:
 
 from rest_framework import serializers
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 from .models import User, UserRole, SellerStatus
 from .seller_models import (
     SellerProduct, SellerOrder, SellToOPAS, 
     SellerPayout, SellerForecast, ProductStatus, OrderStatus, ProductImage,
     Notification, Announcement, SellerAnnouncementRead
+)
+from .admin_models import (
+    SellerRegistrationRequest, SellerDocumentVerification,
+    SellerApprovalHistory, DocumentVerificationStatus, SellerRegistrationStatus
 )
 
 

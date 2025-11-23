@@ -123,13 +123,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _showFilterBottomSheet,
-                  icon: const Icon(Icons.filter_list),
-                  label: const Text('Filter'),
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                Flexible(
+                  child: ElevatedButton.icon(
+                    onPressed: _showFilterBottomSheet,
+                    icon: const Icon(Icons.filter_list),
+                    label: const Text('Filter'),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ),
