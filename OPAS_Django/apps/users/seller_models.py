@@ -23,6 +23,62 @@ class ProductStatus(models.TextChoices):
     REJECTED = 'REJECTED', 'Rejected'
 
 
+class SellerProductQuerySet(models.QuerySet):
+    """Custom QuerySet for SellerProduct model"""
+    
+    def active(self):
+        """Get only non-deleted, active products"""
+        return self.filter(is_deleted=False, status=ProductStatus.ACTIVE)
+    
+    def deleted(self):
+        """Get deleted products"""
+        return self.filter(is_deleted=True)
+    
+    def not_deleted(self):
+        """Get non-deleted products"""
+        return self.filter(is_deleted=False)
+    
+    def by_seller(self, seller):
+        """Filter products by seller"""
+        return self.filter(seller=seller)
+    
+    def compliant(self):
+        """Get products within price ceiling"""
+        from django.db.models import Q
+        return self.filter(Q(ceiling_price__isnull=True) | Q(price__lte=models.F('ceiling_price')))
+    
+    def non_compliant(self):
+        """Get products exceeding price ceiling"""
+        return self.filter(price__gt=models.F('ceiling_price'), ceiling_price__isnull=False)
+
+
+class SellerProductManager(models.Manager):
+    """Manager for SellerProduct model"""
+    
+    def get_queryset(self):
+        return SellerProductQuerySet(self.model, using=self._db)
+    
+    def active(self):
+        """Get active products"""
+        return self.get_queryset().active()
+    
+    def deleted(self):
+        """Get deleted products"""
+        return self.get_queryset().deleted()
+    
+    def not_deleted(self):
+        """Get non-deleted products"""
+        return self.get_queryset().not_deleted()
+    
+    def compliant(self):
+        """Get compliant products"""
+        return self.get_queryset().compliant()
+    
+    def non_compliant(self):
+        """Get non-compliant products"""
+        return self.get_queryset().non_compliant()
+
+
 class OrderStatus(models.TextChoices):
     """Order status choices"""
     PENDING = 'PENDING', 'Pending'
@@ -129,6 +185,20 @@ class SellerProduct(models.Model):
         default=ProductStatus.PENDING,
         help_text='Current product listing status'
     )
+    is_deleted = models.BooleanField(
+        default=False,
+        help_text='Soft delete flag for product listing'
+    )
+    deleted_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text='When the product was deleted'
+    )
+    deletion_reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Reason for deletion'
+    )
     
     # ==================== EXPIRY ====================
     listed_date = models.DateTimeField(
@@ -160,12 +230,16 @@ class SellerProduct(models.Model):
             models.Index(fields=['seller', 'status']),
             models.Index(fields=['product_type']),
             models.Index(fields=['expiry_date']),
+            models.Index(fields=['is_deleted']),
+            models.Index(fields=['seller', 'is_deleted']),
         ]
+    
+    objects = SellerProductManager()
     
     @property
     def is_active(self):
-        """Check if product is active"""
-        return self.status == ProductStatus.ACTIVE
+        """Check if product is active and not deleted"""
+        return self.status == ProductStatus.ACTIVE and not self.is_deleted
     
     @property
     def is_expired(self):
@@ -183,6 +257,20 @@ class SellerProduct(models.Model):
     def is_low_stock(self):
         """Check if stock is below minimum"""
         return self.stock_level < self.minimum_stock
+    
+    def soft_delete(self, reason=''):
+        """Soft delete the product"""
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.deletion_reason = reason
+        self.save()
+    
+    def restore(self):
+        """Restore a soft-deleted product"""
+        self.is_deleted = False
+        self.deleted_at = None
+        self.deletion_reason = ''
+        self.save()
     
     def __str__(self):
         return f"{self.name} ({self.seller.email})"
@@ -271,6 +359,17 @@ class SellerOrder(models.Model):
         help_text='Expected delivery date'
     )
     
+    # ==================== FULFILLMENT TRACKING ====================
+    on_time = models.BooleanField(
+        default=True,
+        help_text='Whether order was fulfilled on time'
+    )
+    fulfillment_days = models.IntegerField(
+        blank=True,
+        null=True,
+        help_text='Number of days from creation to delivery'
+    )
+    
     # ==================== TIMESTAMPS ====================
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -346,6 +445,29 @@ class SellerOrder(models.Model):
     def can_be_delivered(self):
         """Check if order can be marked delivered"""
         return self.status == OrderStatus.FULFILLED
+    
+    def mark_delivered(self):
+        """Mark order as delivered and calculate fulfillment metrics"""
+        self.status = OrderStatus.DELIVERED
+        self.delivered_at = timezone.now()
+        
+        # Calculate fulfillment days
+        if self.created_at:
+            self.fulfillment_days = (self.delivered_at - self.created_at).days
+        
+        # Check if delivered on time
+        if self.delivery_date and self.delivered_at:
+            self.on_time = self.delivered_at <= self.delivery_date
+        
+        self.save()
+    
+    def get_fulfillment_status(self):
+        """Get detailed fulfillment status"""
+        return {
+            'on_time': self.on_time,
+            'fulfillment_days': self.fulfillment_days,
+            'was_late': not self.on_time if self.on_time is not None else None,
+        }
     
     def __str__(self):
         return f"Order {self.order_number} - {self.seller.email}"

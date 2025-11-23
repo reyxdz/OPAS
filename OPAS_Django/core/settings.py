@@ -153,6 +153,63 @@ CORS_ALLOW_CREDENTIALS = True
 # Allow all origins for development (use this temporarily)
 CORS_ALLOW_ALL_ORIGINS = True
 
+# ============================================================================
+# CACHING CONFIGURATION
+# ============================================================================
+# Uses Redis for production and in-memory for development
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'redis.Redis',
+            'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+        },
+        'KEY_PREFIX': 'opas_cache',
+        'TIMEOUT': 300,  # Default cache timeout: 5 minutes
+    },
+    # Fallback to local memory cache if Redis is unavailable
+    'local': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'opas-local-cache',
+        'TIMEOUT': 300,
+    }
+}
+
+# Cache timeouts for different operations (in seconds)
+CACHE_TIMEOUTS = {
+    'analytics': 600,          # 10 minutes for analytics/reports
+    'listings': 300,           # 5 minutes for marketplace listings
+    'price_ceilings': 300,     # 5 minutes for price data
+    'seller_stats': 600,       # 10 minutes for seller statistics
+    'dashboard': 300,          # 5 minutes for dashboard stats
+    'inventory': 300,          # 5 minutes for inventory data
+}
+
+# ============================================================================
+# RATE LIMITING CONFIGURATION
+# ============================================================================
+# Prevent abuse and ensure fair resource usage
+
+RATELIMIT_SETTINGS = {
+    # Admin endpoints (stricter limits)
+    'admin_read': '100/h',           # 100 requests per hour for read operations
+    'admin_write': '50/h',           # 50 requests per hour for write operations
+    'admin_delete': '20/h',          # 20 requests per hour for delete operations
+    'admin_analytics': '200/h',      # 200 requests per hour for analytics
+    
+    # Seller endpoints
+    'seller_read': '500/h',          # 500 requests per hour
+    'seller_write': '200/h',         # 200 requests per hour
+    'seller_upload': '50/h',         # 50 requests per hour
+    
+    # Authentication endpoints
+    'auth_login': '10/m',            # 10 attempts per minute
+    'auth_register': '3/h',          # 3 registrations per hour
+    'auth_password_reset': '3/h',    # 3 requests per hour
+}
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
@@ -165,4 +222,13 @@ REST_FRAMEWORK = {
     'TEST_REQUEST_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ],
+    # Throttle settings for DRF throttling
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+    }
 }

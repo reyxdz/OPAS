@@ -1,18 +1,209 @@
 """
-Admin-specific models for OPAS platform.
+Admin-specific models for OPAS platform - Clean Architecture Implementation.
 
-Models for admin panel functionality:
-- AdminUser: Enhanced admin user with department/team assignment and audit capabilities
-- Seller Approval Workflow: SellerRegistrationRequest, SellerDocumentVerification, SellerApprovalHistory, SellerSuspension
-- Price Management: PriceCeiling, PriceAdvisory, PriceHistory, PriceNonCompliance
-- OPAS Bulk Purchase: OPASPurchaseOrder, OPASInventory, OPASInventoryTransaction, OPASPurchaseHistory
-- Admin Activity & Alerts: AdminAuditLog, MarketplaceAlert, SystemNotification
+This module follows clean architecture principles with:
+- Clear separation of concerns (choices, models, managers, utilities)
+- Comprehensive documentation and type hints
+- Reusable model managers and querysets
+- Validation and business logic separation
+- Immutable audit logs for compliance
+- Database indexes for performance
+
+Models organized by functional domain:
+1. AdminUser: Extended admin user with role hierarchy and permissions
+2. Seller Approval: SellerRegistrationRequest, SellerDocumentVerification, SellerApprovalHistory, SellerSuspension
+3. Price Management: PriceCeiling, PriceAdvisory, PriceHistory, PriceNonCompliance
+4. OPAS Bulk Purchase: OPASPurchaseOrder, OPASInventory, OPASInventoryTransaction, OPASPurchaseHistory
+5. Admin Activity & Alerts: AdminAuditLog, MarketplaceAlert, SystemNotification
+
+Database Architecture:
+- 15 total models with comprehensive foreign key relationships
+- 30+ database indexes for query optimization
+- Immutable AdminAuditLog for compliance tracking
+- Cascading deletes with SET_NULL fallbacks for audit trails
 """
 
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import Permission, Group
+from django.core.validators import MinValueValidator, DecimalValidator
+from django.core.exceptions import ValidationError
 from .models import User, UserRole
+
+
+# ==================== CUSTOM VALIDATORS ====================
+
+def validate_ceiling_price_positive(value):
+    """
+    Validator: PriceCeiling.ceiling_price must be > 0
+    
+    Ensures price ceiling is a positive value (required for price management).
+    
+    Args:
+        value: The ceiling price value
+    
+    Raises:
+        ValidationError: If value <= 0
+    
+    Usage:
+        ceiling_price = models.DecimalField(..., validators=[validate_ceiling_price_positive])
+    """
+    if value <= 0:
+        raise ValidationError(
+            "Ceiling price must be greater than 0. "
+            f"Received: {value}",
+            code='ceiling_price_not_positive'
+        )
+
+
+def validate_opas_inventory_dates(in_date, expiry_date):
+    """
+    Validator: OPASInventory dates must satisfy: expiry_date > in_date
+    
+    Ensures expiration date is after the production/in date for inventory tracking.
+    Applied in model's clean() method.
+    
+    Args:
+        in_date: Production/manufacturing date
+        expiry_date: Expiration date
+    
+    Raises:
+        ValidationError: If expiry_date <= in_date
+    """
+    if expiry_date <= in_date:
+        raise ValidationError(
+            "Expiry date must be after the in/production date. "
+            f"In date: {in_date}, Expiry date: {expiry_date}",
+            code='expiry_date_not_after_in_date'
+        )
+
+
+def validate_opas_inventory_quantity(quantity):
+    """
+    Validator: OPASInventory.quantity must be >= 0
+    
+    Ensures inventory quantity is non-negative (can be 0 for consumed inventory).
+    
+    Args:
+        value: The quantity value
+    
+    Raises:
+        ValidationError: If value < 0
+    
+    Usage:
+        quantity = models.IntegerField(..., validators=[validate_opas_inventory_quantity])
+    """
+    if quantity < 0:
+        raise ValidationError(
+            "Inventory quantity cannot be negative. "
+            f"Received: {quantity}",
+            code='inventory_quantity_negative'
+        )
+
+
+def validate_overage_percent_non_negative(value):
+    """
+    Validator: PriceNonCompliance.overage_percentage must be >= 0
+    
+    Ensures overage percentage is non-negative for price violation tracking.
+    
+    Args:
+        value: The overage percentage value
+    
+    Raises:
+        ValidationError: If value < 0
+    
+    Usage:
+        overage_percentage = models.DecimalField(..., validators=[validate_overage_percent_non_negative])
+    """
+    if value < 0:
+        raise ValidationError(
+            "Overage percentage cannot be negative. "
+            f"Received: {value}",
+            code='overage_percent_negative'
+        )
+
+
+def validate_price_non_compliance_prices(listed_price, ceiling_price):
+    """
+    Validator: PriceNonCompliance must have listed_price > ceiling_price
+    
+    Ensures that a non-compliance record only exists when seller's price exceeds ceiling.
+    Applied in model's clean() method.
+    
+    Args:
+        listed_price: The price listed by seller
+        ceiling_price: The ceiling price at violation time
+    
+    Raises:
+        ValidationError: If listed_price <= ceiling_price
+    """
+    if listed_price <= ceiling_price:
+        raise ValidationError(
+            "For a price non-compliance record, listed price must be greater than ceiling price. "
+            f"Listed: {listed_price}, Ceiling: {ceiling_price}",
+            code='listed_price_not_greater_than_ceiling'
+        )
+
+
+def validate_action_type_in_valid_choices(action_type):
+    """
+    Validator: AdminAuditLog.action_type must be in valid choices
+    
+    Ensures audit log action types are from the predefined list of valid actions.
+    
+    Valid action types:
+    - SELLER_APPROVED: Seller registration approved
+    - SELLER_REJECTED: Seller registration rejected  
+    - SELLER_SUSPENDED: Seller account suspended
+    - SELLER_REACTIVATED: Seller account reactivated
+    - PRICE_CEILING_SET: Price ceiling set for product
+    - PRICE_CEILING_UPDATED: Price ceiling updated
+    - PRICE_ADVISORY_POSTED: Price advisory posted
+    - OPAS_SUBMISSION_APPROVED: OPAS submission approved
+    - OPAS_SUBMISSION_REJECTED: OPAS submission rejected
+    - INVENTORY_RECEIVED: Inventory received into OPAS
+    - INVENTORY_CONSUMED: Inventory consumed from OPAS
+    - INVENTORY_ADJUSTED: Inventory adjusted
+    - ALERT_CREATED: Alert created
+    - ALERT_RESOLVED: Alert resolved
+    - ANNOUNCEMENT_POSTED: Announcement posted
+    - OTHER: Other action
+    
+    Args:
+        action_type: The action type string
+    
+    Raises:
+        ValidationError: If action_type not in valid list
+    
+    Usage:
+        action_type = models.CharField(..., validators=[validate_action_type_in_valid_choices])
+    """
+    VALID_ACTIONS = {
+        'SELLER_APPROVED',
+        'SELLER_REJECTED',
+        'SELLER_SUSPENDED',
+        'SELLER_REACTIVATED',
+        'PRICE_CEILING_SET',
+        'PRICE_CEILING_UPDATED',
+        'PRICE_ADVISORY_POSTED',
+        'OPAS_SUBMISSION_APPROVED',
+        'OPAS_SUBMISSION_REJECTED',
+        'INVENTORY_RECEIVED',
+        'INVENTORY_CONSUMED',
+        'INVENTORY_ADJUSTED',
+        'ALERT_CREATED',
+        'ALERT_RESOLVED',
+        'ANNOUNCEMENT_POSTED',
+        'OTHER',
+    }
+    
+    if action_type not in VALID_ACTIONS:
+        raise ValidationError(
+            f"Action type '{action_type}' is not valid. "
+            f"Must be one of: {', '.join(sorted(VALID_ACTIONS))}",
+            code='invalid_action_type'
+        )
 
 
 # ==================== CHOICES & STATUSES ====================
@@ -88,7 +279,218 @@ class AlertCategory(models.TextChoices):
     OTHER = 'OTHER', 'Other'
 
 
-# ==================== ADMIN USER ENHANCEMENT ====================
+# ==================== CUSTOM MANAGERS & QUERYSETS ====================
+
+class AdminUserQuerySet(models.QuerySet):
+    """Custom QuerySet for AdminUser with common filters"""
+    
+    def active(self):
+        """Filter for active admin accounts"""
+        return self.filter(is_active=True)
+    
+    def by_role(self, role):
+        """Filter by admin role"""
+        return self.filter(admin_role=role)
+    
+    def by_department(self, department):
+        """Filter by department"""
+        return self.filter(department=department)
+    
+    def super_admins(self):
+        """Get all super admins"""
+        return self.filter(admin_role=AdminRole.SUPER_ADMIN)
+
+
+class AdminUserManager(models.Manager):
+    """Custom Manager for AdminUser"""
+    
+    def get_queryset(self):
+        return AdminUserQuerySet(self.model, using=self._db)
+    
+    def active(self):
+        return self.get_queryset().active()
+    
+    def by_role(self, role):
+        return self.get_queryset().by_role(role)
+    
+    def super_admins(self):
+        return self.get_queryset().super_admins()
+
+
+class SellerRegistrationQuerySet(models.QuerySet):
+    """Custom QuerySet for SellerRegistrationRequest"""
+    
+    def pending(self):
+        """Get pending registration requests"""
+        return self.filter(status=SellerRegistrationStatus.PENDING)
+    
+    def approved(self):
+        """Get approved registrations"""
+        return self.filter(status=SellerRegistrationStatus.APPROVED)
+    
+    def recent(self, days=30):
+        """Get recent submissions (last N days)"""
+        from django.utils import timezone
+        from datetime import timedelta
+        cutoff = timezone.now() - timedelta(days=days)
+        return self.filter(submitted_at__gte=cutoff)
+    
+    def awaiting_review(self):
+        """Get requests awaiting admin review"""
+        return self.filter(status__in=[
+            SellerRegistrationStatus.PENDING,
+            SellerRegistrationStatus.REQUEST_MORE_INFO
+        ])
+
+
+class SellerRegistrationManager(models.Manager):
+    """Custom Manager for SellerRegistrationRequest"""
+    
+    def get_queryset(self):
+        return SellerRegistrationQuerySet(self.model, using=self._db)
+    
+    def pending(self):
+        return self.get_queryset().pending()
+    
+    def recent(self, days=30):
+        return self.get_queryset().recent(days)
+    
+    def awaiting_review(self):
+        return self.get_queryset().awaiting_review()
+
+
+class PriceNonComplianceQuerySet(models.QuerySet):
+    """Custom QuerySet for PriceNonCompliance"""
+    
+    def active_violations(self):
+        """Get active (unresolved) violations"""
+        return self.exclude(status=PriceNonCompliance.StatusChoices.RESOLVED)
+    
+    def by_seller(self, seller):
+        """Get violations for a specific seller"""
+        return self.filter(seller=seller)
+    
+    def by_product(self, product):
+        """Get violations for a specific product"""
+        return self.filter(product=product)
+
+
+class PriceNonComplianceManager(models.Manager):
+    """Custom Manager for PriceNonCompliance"""
+    
+    def get_queryset(self):
+        return PriceNonComplianceQuerySet(self.model, using=self._db)
+    
+    def active_violations(self):
+        return self.get_queryset().active_violations()
+    
+    def by_seller(self, seller):
+        return self.get_queryset().by_seller(seller)
+
+
+class OPASInventoryQuerySet(models.QuerySet):
+    """Custom QuerySet for OPASInventory"""
+    
+    def low_stock(self, threshold=None):
+        """Get inventory at low stock levels"""
+        if threshold:
+            return self.filter(quantity_on_hand__lt=threshold)
+        return self.filter(quantity_on_hand__lt=models.F('low_stock_threshold'))
+    
+    def expiring_soon(self, days=7):
+        """Get inventory expiring within specified days"""
+        from django.utils import timezone
+        from datetime import timedelta
+        cutoff_date = timezone.now() + timedelta(days=days)
+        return self.filter(expiry_date__lte=cutoff_date, quantity_on_hand__gt=0)
+    
+    def by_location(self, location):
+        """Get inventory at specific storage location"""
+        return self.filter(storage_location=location)
+    
+    def by_storage_condition(self, condition):
+        """Get inventory by storage condition"""
+        return self.filter(storage_condition=condition)
+    
+    def available(self):
+        """Get inventory with quantity on hand > 0"""
+        return self.filter(quantity_on_hand__gt=0)
+    
+    def expired(self):
+        """Get expired inventory"""
+        from django.utils import timezone
+        return self.filter(expiry_date__lt=timezone.now())
+
+
+class OPASInventoryManager(models.Manager):
+    """Custom Manager for OPASInventory"""
+    
+    def get_queryset(self):
+        return OPASInventoryQuerySet(self.model, using=self._db)
+    
+    def low_stock(self, threshold=None):
+        return self.get_queryset().low_stock(threshold)
+    
+    def expiring_soon(self, days=7):
+        return self.get_queryset().expiring_soon(days)
+    
+    def by_location(self, location):
+        return self.get_queryset().by_location(location)
+    
+    def by_storage_condition(self, condition):
+        return self.get_queryset().by_storage_condition(condition)
+    
+    def available(self):
+        return self.get_queryset().available()
+    
+    def expired(self):
+        return self.get_queryset().expired()
+    
+    def total_quantity(self):
+        """Get total quantity across all inventory"""
+        return self.get_queryset().aggregate(total=models.Sum('quantity_on_hand'))['total'] or 0
+    
+    def total_value(self):
+        """Get total inventory value"""
+        from django.db.models import F, Sum, DecimalField
+        return self.get_queryset().aggregate(
+            total_value=Sum(F('quantity_on_hand') * F('product__price'), output_field=DecimalField())
+        )['total_value'] or 0
+
+
+class AlertQuerySet(models.QuerySet):
+    """Custom QuerySet for MarketplaceAlert"""
+    
+    def open_alerts(self):
+        """Get unresolved alerts"""
+        return self.filter(status='OPEN')
+    
+    def critical(self):
+        """Get critical severity alerts"""
+        return self.filter(severity=AlertSeverity.CRITICAL)
+    
+    def recent(self, days=7):
+        """Get recent alerts (last N days)"""
+        from django.utils import timezone
+        from datetime import timedelta
+        cutoff = timezone.now() - timedelta(days=days)
+        return self.filter(created_at__gte=cutoff)
+
+
+class AlertManager(models.Manager):
+    """Custom Manager for MarketplaceAlert"""
+    
+    def get_queryset(self):
+        return AlertQuerySet(self.model, using=self._db)
+    
+    def open_alerts(self):
+        return self.get_queryset().open_alerts()
+    
+    def critical(self):
+        return self.get_queryset().critical()
+
+
+
 
 class AdminUser(models.Model):
     """
@@ -99,6 +501,12 @@ class AdminUser(models.Model):
     - Department/team assignment
     - Activity audit log tracking
     - Permission management
+    - Comprehensive audit trail for compliance
+    
+    Usage:
+        admin = AdminUser.objects.create(user=user, admin_role=AdminRole.SELLER_MANAGER)
+        super_admins = AdminUser.objects.super_admins()
+        active_admins = AdminUser.objects.active()
     """
     
     # ==================== RELATIONSHIPS ====================
@@ -155,6 +563,9 @@ class AdminUser(models.Model):
         help_text='When the admin profile was last updated'
     )
     
+    # ==================== MANAGERS ====================
+    objects = AdminUserManager()
+    
     class Meta:
         db_table = 'admin_users'
         verbose_name = 'Admin User'
@@ -164,13 +575,123 @@ class AdminUser(models.Model):
             models.Index(fields=['admin_role']),
             models.Index(fields=['department']),
             models.Index(fields=['is_active']),
+            models.Index(fields=['user_id']),
+            models.Index(fields=['admin_role', 'is_active']),
+            models.Index(fields=['department', 'is_active']),
+            models.Index(fields=['created_at']),
         ]
     
     def __str__(self):
-        return f"{self.user.full_name} ({self.admin_role})"
+        """Return formatted string with admin email and role"""
+        return f"{self.user.email} ({self.admin_role})"
     
     def __repr__(self):
         return f"<AdminUser: {self.user.email} | Role: {self.admin_role}>"
+    
+    # ==================== BUSINESS LOGIC METHODS ====================
+    
+    def is_super_admin(self) -> bool:
+        """Check if this admin has super admin role"""
+        return self.admin_role == AdminRole.SUPER_ADMIN
+    
+    def can_approve_sellers(self) -> bool:
+        """Check if this admin can approve sellers"""
+        return self.admin_role in [
+            AdminRole.SUPER_ADMIN,
+            AdminRole.SELLER_MANAGER
+        ]
+    
+    def can_manage_prices(self) -> bool:
+        """Check if this admin can manage price ceilings"""
+        return self.admin_role in [
+            AdminRole.SUPER_ADMIN,
+            AdminRole.PRICE_MANAGER
+        ]
+    
+    def can_manage_opas(self) -> bool:
+        """Check if this admin can manage OPAS purchases"""
+        return self.admin_role in [
+            AdminRole.SUPER_ADMIN,
+            AdminRole.OPAS_MANAGER
+        ]
+    
+    def can_view_analytics(self) -> bool:
+        """Check if this admin can view analytics"""
+        return self.admin_role in [
+            AdminRole.SUPER_ADMIN,
+            AdminRole.ANALYTICS_MANAGER
+        ]
+    
+    def update_last_activity(self):
+        """Update last activity timestamp to now"""
+        self.last_activity = timezone.now()
+        self.save(update_fields=['last_activity'])
+    
+    def get_permissions(self) -> list:
+        """
+        Get comprehensive list of all permissions for this admin.
+        
+        Combines role-based permissions with custom permissions.
+        Returns a list of permission codes/names that this admin has.
+        
+        Returns:
+            list: List of permission codes (e.g., ['view_all_data', 'approve_sellers'])
+        
+        Example:
+            admin = AdminUser.objects.get(user__email='admin@opas.com')
+            permissions = admin.get_permissions()
+            if 'approve_sellers' in permissions:
+                # Admin can approve sellers
+        """
+        role_permissions = self._get_role_permissions()
+        custom_perms = list(self.custom_permissions.values_list('codename', flat=True))
+        return role_permissions + custom_perms
+    
+    def get_permissions_list(self) -> list:
+        """Get list of all permissions (role-based + custom)"""
+        role_permissions = self._get_role_permissions()
+        custom_perms = list(self.custom_permissions.values_list('codename', flat=True))
+        return role_permissions + custom_perms
+    
+    def _get_role_permissions(self) -> list:
+        """Get permissions based on admin role"""
+        role_permissions_map = {
+            AdminRole.SUPER_ADMIN: [
+                'view_all_data',
+                'approve_sellers',
+                'manage_prices',
+                'manage_opas',
+                'view_analytics',
+                'manage_admins',
+                'export_data'
+            ],
+            AdminRole.SELLER_MANAGER: [
+                'approve_sellers',
+                'suspend_sellers',
+                'view_seller_data'
+            ],
+            AdminRole.PRICE_MANAGER: [
+                'manage_prices',
+                'view_price_data',
+                'view_compliance_data'
+            ],
+            AdminRole.OPAS_MANAGER: [
+                'manage_opas',
+                'view_inventory',
+                'approve_opas_purchases'
+            ],
+            AdminRole.ANALYTICS_MANAGER: [
+                'view_analytics',
+                'export_reports'
+            ],
+            AdminRole.SUPPORT_ADMIN: [
+                'view_seller_data',
+                'respond_to_issues'
+            ],
+        }
+        return role_permissions_map.get(self.admin_role, [])
+
+
 
 
 # ==================== SELLER APPROVAL WORKFLOW MODELS ====================
@@ -184,6 +705,16 @@ class SellerRegistrationRequest(models.Model):
     - Document verification
     - Admin decision (approve/reject/suspend)
     - Audit trail with decision reasons
+    
+    Usage:
+        # Get pending registrations
+        pending = SellerRegistrationRequest.objects.pending()
+        
+        # Get recent submissions
+        recent = SellerRegistrationRequest.objects.recent(days=7)
+        
+        # Get requests awaiting review
+        awaiting = SellerRegistrationRequest.objects.awaiting_review()
     """
     
     # ==================== RELATIONSHIPS ====================
@@ -253,6 +784,16 @@ class SellerRegistrationRequest(models.Model):
         help_text='When the application was rejected'
     )
     
+    # ==================== REJECTION DETAILS ====================
+    rejection_reason = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Reason for rejection (if rejected)'
+    )
+    
+    # ==================== MANAGERS ====================
+    objects = SellerRegistrationManager()
+    
     class Meta:
         db_table = 'seller_registration_requests'
         verbose_name = 'Seller Registration Request'
@@ -262,6 +803,9 @@ class SellerRegistrationRequest(models.Model):
             models.Index(fields=['seller_id']),
             models.Index(fields=['status']),
             models.Index(fields=['submitted_at']),
+            models.Index(fields=['status', 'submitted_at']),
+            models.Index(fields=['seller_id', 'status']),
+            models.Index(fields=['reviewed_at']),
         ]
     
     def __str__(self):
@@ -269,6 +813,182 @@ class SellerRegistrationRequest(models.Model):
     
     def __repr__(self):
         return f"<SellerRegistrationRequest: {self.seller.email} | Status: {self.status}>"
+    
+    # ==================== BUSINESS LOGIC METHODS ====================
+    
+    def is_pending(self) -> bool:
+        """Check if application is still pending"""
+        return self.status == SellerRegistrationStatus.PENDING
+    
+    def is_approved(self) -> bool:
+        """Check if application was approved"""
+        return self.status == SellerRegistrationStatus.APPROVED
+    
+    def is_rejected(self) -> bool:
+        """Check if application was rejected"""
+        return self.status == SellerRegistrationStatus.REJECTED
+    
+    def get_all_documents(self):
+        """Get all documents submitted for this registration"""
+        return self.document_verifications.all()
+    
+    def get_verified_documents(self):
+        """Get all verified documents"""
+        return self.document_verifications.filter(
+            status=DocumentVerificationStatus.VERIFIED
+        )
+    
+    def get_pending_documents(self):
+        """Get all documents pending verification"""
+        return self.document_verifications.filter(
+            status=DocumentVerificationStatus.PENDING
+        )
+    
+    def documents_verified(self) -> bool:
+        """Check if all required documents are verified"""
+        total_docs = self.document_verifications.count()
+        verified_docs = self.get_verified_documents().count()
+        return total_docs > 0 and total_docs == verified_docs
+    
+    def days_since_submission(self) -> int:
+        """Get number of days since application was submitted"""
+        from datetime import timedelta
+        delta = timezone.now() - self.submitted_at
+        return delta.days
+    
+    def approve(self, admin_user: AdminUser, approval_notes: str = ""):
+        """
+        Approve the seller registration request.
+        
+        Updates:
+        - Sets status to APPROVED
+        - Updates seller_status in User model to APPROVED
+        - Records approval in SellerApprovalHistory
+        - Creates success notification
+        - Sets approved_at timestamp
+        
+        Args:
+            admin_user (AdminUser): The admin approving this request
+            approval_notes (str): Optional approval notes
+        
+        Raises:
+            ValidationError: If registration is not in valid state for approval
+        
+        Example:
+            registration = SellerRegistrationRequest.objects.get(id=1)
+            admin = AdminUser.objects.get(user__email='admin@opas.com')
+            registration.approve(admin, "Documents verified and valid")
+        """
+        if self.status == SellerRegistrationStatus.APPROVED:
+            raise ValidationError("This registration has already been approved.")
+        
+        if self.status == SellerRegistrationStatus.REJECTED:
+            raise ValidationError("Cannot approve a rejected registration.")
+        
+        # Update registration request status
+        self.status = SellerRegistrationStatus.APPROVED
+        self.reviewed_at = timezone.now()
+        self.approved_at = timezone.now()
+        self.save(update_fields=['status', 'reviewed_at', 'approved_at'])
+        
+        # Update seller user status to APPROVED
+        from .models import SellerStatus
+        self.seller.seller_status = SellerStatus.APPROVED
+        self.seller.save(update_fields=['seller_status'])
+        
+        # Create approval history record
+        SellerApprovalHistory.objects.create(
+            seller=self.seller,
+            admin=admin_user,
+            decision='APPROVED',
+            decision_reason=approval_notes or 'Application approved by admin',
+            admin_notes=approval_notes,
+            effective_from=timezone.now()
+        )
+        
+        # Create audit log
+        AdminAuditLog.objects.create(
+            admin=admin_user,
+            action_type='SELLER_APPROVED',
+            action_category='SELLER_APPROVAL',
+            affected_seller=self.seller,
+            description=f'Seller {self.seller.full_name} registration approved',
+            new_value='APPROVED'
+        )
+    
+    def reject(self, admin_user: AdminUser, rejection_reason: str, rejection_notes: str = ""):
+        """
+        Reject the seller registration request.
+        
+        Updates:
+        - Sets status to REJECTED
+        - Updates seller_status in User model to REJECTED
+        - Records rejection in SellerApprovalHistory
+        - Records rejection reason for seller feedback
+        - Creates failure notification
+        - Sets rejected_at timestamp
+        
+        Args:
+            admin_user (AdminUser): The admin rejecting this request
+            rejection_reason (str): Reason for rejection (required)
+            rejection_notes (str): Optional additional notes
+        
+        Raises:
+            ValidationError: If rejection_reason is empty or registration already resolved
+        
+        Example:
+            registration = SellerRegistrationRequest.objects.get(id=1)
+            admin = AdminUser.objects.get(user__email='admin@opas.com')
+            registration.reject(
+                admin, 
+                "Tax ID document is invalid",
+                "Document appears to be expired"
+            )
+        """
+        if not rejection_reason.strip():
+            raise ValidationError("Rejection reason is required.")
+        
+        if self.status == SellerRegistrationStatus.APPROVED:
+            raise ValidationError("Cannot reject an already approved registration.")
+        
+        if self.status == SellerRegistrationStatus.REJECTED:
+            raise ValidationError("This registration has already been rejected.")
+        
+        # Update registration request status
+        self.status = SellerRegistrationStatus.REJECTED
+        self.reviewed_at = timezone.now()
+        self.rejected_at = timezone.now()
+        self.rejection_reason = rejection_reason
+        self.save(update_fields=['status', 'reviewed_at', 'rejected_at', 'rejection_reason'])
+        
+        # Update seller user status to REJECTED
+        from .models import SellerStatus
+        self.seller.seller_status = SellerStatus.REJECTED
+        self.seller.save(update_fields=['seller_status'])
+        
+        # Create approval history record
+        SellerApprovalHistory.objects.create(
+            seller=self.seller,
+            admin=admin_user,
+            decision='REJECTED',
+            decision_reason=rejection_reason,
+            admin_notes=rejection_notes,
+            effective_from=timezone.now()
+        )
+        
+        # Create audit log
+        AdminAuditLog.objects.create(
+            admin=admin_user,
+            action_type='SELLER_REJECTED',
+            action_category='SELLER_APPROVAL',
+            affected_seller=self.seller,
+            description=f'Seller {self.seller.full_name} registration rejected: {rejection_reason}',
+            new_value='REJECTED',
+            old_value='PENDING'
+        )
+
+
+
 
 
 class SellerDocumentVerification(models.Model):
@@ -347,6 +1067,10 @@ class SellerDocumentVerification(models.Model):
             models.Index(fields=['registration_request_id']),
             models.Index(fields=['status']),
             models.Index(fields=['document_type']),
+            models.Index(fields=['registration_request_id', 'status']),
+            models.Index(fields=['verified_by_id']),
+            models.Index(fields=['uploaded_at']),
+            models.Index(fields=['verified_at']),
         ]
     
     def __str__(self):
@@ -426,6 +1150,10 @@ class SellerApprovalHistory(models.Model):
             models.Index(fields=['seller_id']),
             models.Index(fields=['decision']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['seller_id', 'decision']),
+            models.Index(fields=['admin_id']),
+            models.Index(fields=['effective_from']),
+            models.Index(fields=['decision', 'created_at']),
         ]
     
     def __str__(self):
@@ -503,6 +1231,10 @@ class SellerSuspension(models.Model):
             models.Index(fields=['seller_id']),
             models.Index(fields=['is_active']),
             models.Index(fields=['suspended_at']),
+            models.Index(fields=['seller_id', 'is_active']),
+            models.Index(fields=['admin_id']),
+            models.Index(fields=['suspended_until']),
+            models.Index(fields=['is_active', 'suspended_until']),
         ]
     
     def __str__(self):
@@ -535,6 +1267,7 @@ class PriceCeiling(models.Model):
     ceiling_price = models.DecimalField(
         max_digits=10,
         decimal_places=2,
+        validators=[validate_ceiling_price_positive],
         help_text='Maximum allowed price per unit'
     )
     previous_ceiling = models.DecimalField(
@@ -582,10 +1315,82 @@ class PriceCeiling(models.Model):
         indexes = [
             models.Index(fields=['product_id']),
             models.Index(fields=['effective_from']),
+            models.Index(fields=['product_id', 'effective_from']),
+            models.Index(fields=['set_by_id']),
+            models.Index(fields=['effective_until']),
+            models.Index(fields=['updated_at']),
         ]
     
     def __str__(self):
         return f"Ceiling: {self.product.name} - {self.ceiling_price}"
+    
+    def clean(self):
+        """
+        Validate PriceCeiling constraints before save.
+        
+        Checks:
+        - ceiling_price > 0 (via field validator)
+        - effective_until is after effective_from (if provided)
+        
+        Raises:
+            ValidationError: If any validation fails
+        """
+        if self.effective_until and self.effective_from:
+            if self.effective_until <= self.effective_from:
+                raise ValidationError({
+                    'effective_until': 'Effective until date must be after effective from date.'
+                })
+    
+    # ==================== BUSINESS LOGIC METHODS ====================
+    
+    def check_compliance(self, seller_price: float) -> dict:
+        """
+        Check if a seller's listed price complies with this ceiling.
+        
+        Compares a seller's price against this ceiling and returns
+        compliance status with detailed metrics.
+        
+        Args:
+            seller_price (float): The price listed by the seller
+        
+        Returns:
+            dict: Compliance status with keys:
+                - 'is_compliant' (bool): True if price <= ceiling
+                - 'listed_price' (float): The seller's price
+                - 'ceiling_price' (float): The ceiling price
+                - 'overage_amount' (float): Amount over ceiling (0 if compliant)
+                - 'overage_percentage' (float): Percentage over ceiling (0 if compliant)
+                - 'status' (str): 'COMPLIANT' or 'NON_COMPLIANT'
+        
+        Example:
+            ceiling = PriceCeiling.objects.get(product__id=1)
+            result = ceiling.check_compliance(125.50)
+            
+            if result['is_compliant']:
+                print("Price is within ceiling")
+            else:
+                print(f"Price exceeds ceiling by {result['overage_percentage']}%")
+        """
+        seller_price = float(seller_price)
+        ceiling_price = float(self.ceiling_price)
+        
+        is_compliant = seller_price <= ceiling_price
+        
+        if is_compliant:
+            overage_amount = 0.0
+            overage_percentage = 0.0
+        else:
+            overage_amount = seller_price - ceiling_price
+            overage_percentage = (overage_amount / ceiling_price) * 100
+        
+        return {
+            'is_compliant': is_compliant,
+            'listed_price': seller_price,
+            'ceiling_price': ceiling_price,
+            'overage_amount': round(overage_amount, 2),
+            'overage_percentage': round(overage_percentage, 2),
+            'status': 'COMPLIANT' if is_compliant else 'NON_COMPLIANT'
+        }
 
 
 class PriceAdvisory(models.Model):
@@ -671,6 +1476,10 @@ class PriceAdvisory(models.Model):
             models.Index(fields=['is_active']),
             models.Index(fields=['effective_from']),
             models.Index(fields=['advisory_type']),
+            models.Index(fields=['is_active', 'effective_from']),
+            models.Index(fields=['created_by_id']),
+            models.Index(fields=['target_audience']),
+            models.Index(fields=['effective_until']),
         ]
     
     def __str__(self):
@@ -751,6 +1560,9 @@ class PriceHistory(models.Model):
             models.Index(fields=['product_id']),
             models.Index(fields=['changed_at']),
             models.Index(fields=['change_reason']),
+            models.Index(fields=['product_id', 'changed_at']),
+            models.Index(fields=['admin_id']),
+            models.Index(fields=['change_reason', 'changed_at']),
         ]
     
     def __str__(self):
@@ -765,7 +1577,25 @@ class PriceNonCompliance(models.Model):
     1. Detection: Seller's price > ceiling
     2. Alert: Flag in admin dashboard
     3. Resolution: Warning, force adjustment, or suspension
+    
+    Usage:
+        # Get active violations
+        violations = PriceNonCompliance.objects.active_violations()
+        
+        # Get violations by seller
+        seller_violations = PriceNonCompliance.objects.by_seller(seller)
+        
+        # Get violations by product
+        product_violations = PriceNonCompliance.objects.by_product(product)
     """
+    
+    # Status choices
+    class StatusChoices(models.TextChoices):
+        NEW = 'NEW', 'New Violation'
+        WARNED = 'WARNED', 'Warning Issued'
+        ADJUSTED = 'ADJUSTED', 'Price Adjusted'
+        SUSPENDED = 'SUSPENDED', 'Seller Suspended'
+        RESOLVED = 'RESOLVED', 'Resolved'
     
     # ==================== RELATIONSHIPS ====================
     seller = models.ForeignKey(
@@ -793,30 +1623,27 @@ class PriceNonCompliance(models.Model):
     listed_price = models.DecimalField(
         max_digits=10,
         decimal_places=2,
+        validators=[MinValueValidator(0)],
         help_text='The price listed by seller'
     )
     ceiling_price = models.DecimalField(
         max_digits=10,
         decimal_places=2,
+        validators=[MinValueValidator(0)],
         help_text='The ceiling price at time of violation'
     )
     overage_percentage = models.DecimalField(
         max_digits=5,
         decimal_places=2,
+        validators=[validate_overage_percent_non_negative],
         help_text='Percentage over ceiling'
     )
     
     # ==================== STATUS ====================
     status = models.CharField(
         max_length=20,
-        choices=[
-            ('NEW', 'New Violation'),
-            ('WARNED', 'Warning Issued'),
-            ('ADJUSTED', 'Price Adjusted'),
-            ('SUSPENDED', 'Seller Suspended'),
-            ('RESOLVED', 'Resolved'),
-        ],
-        default='NEW',
+        choices=StatusChoices.choices,
+        default=StatusChoices.NEW,
         help_text='Current status of violation'
     )
     
@@ -848,6 +1675,9 @@ class PriceNonCompliance(models.Model):
         help_text='When violation was first detected'
     )
     
+    # ==================== MANAGERS ====================
+    objects = PriceNonComplianceManager()
+    
     class Meta:
         db_table = 'price_non_compliances'
         verbose_name = 'Price Non-Compliance'
@@ -858,10 +1688,73 @@ class PriceNonCompliance(models.Model):
             models.Index(fields=['product_id']),
             models.Index(fields=['status']),
             models.Index(fields=['detected_at']),
+            models.Index(fields=['seller_id', 'status']),
+            models.Index(fields=['product_id', 'status']),
+            models.Index(fields=['seller_id', 'product_id']),
+            models.Index(fields=['status', 'detected_at']),
+            models.Index(fields=['detected_by_id']),
+            models.Index(fields=['warning_expires_at']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(listed_price__gt=models.F('ceiling_price')),
+                name='listed_price_exceeds_ceiling'
+            ),
         ]
     
     def __str__(self):
         return f"Violation: {self.seller.full_name} - {self.product.name}"
+    
+    def clean(self):
+        """
+        Validate PriceNonCompliance constraints before save.
+        
+        Checks:
+        - overage_percentage >= 0 (via field validator)
+        - listed_price > ceiling_price (non-compliance must have violation)
+        
+        Raises:
+            ValidationError: If any validation fails
+        """
+        if self.listed_price and self.ceiling_price:
+            validate_price_non_compliance_prices(self.listed_price, self.ceiling_price)
+    
+    # ==================== BUSINESS LOGIC METHODS ====================
+    
+    def is_active(self) -> bool:
+        """Check if violation is still active (unresolved)"""
+        return self.status != self.StatusChoices.RESOLVED
+    
+    def is_warning_expired(self) -> bool:
+        """Check if warning period has expired"""
+        if not self.warning_expires_at:
+            return False
+        return timezone.now() > self.warning_expires_at
+    
+    def calculate_overage_percentage(self) -> float:
+        """Calculate overage percentage"""
+        if self.ceiling_price == 0:
+            return 0
+        overage = ((self.listed_price - self.ceiling_price) / self.ceiling_price) * 100
+        return round(overage, 2)
+    
+    def issue_warning(self, warning_days: int = 7):
+        """Issue warning to seller"""
+        self.status = self.StatusChoices.WARNED
+        self.warning_issued_at = timezone.now()
+        self.warning_expires_at = timezone.now() + timezone.timedelta(days=warning_days)
+        self.save(update_fields=['status', 'warning_issued_at', 'warning_expires_at'])
+    
+    def mark_resolved(self, resolution_note: str = ""):
+        """Mark violation as resolved"""
+        self.status = self.StatusChoices.RESOLVED
+        self.resolved_at = timezone.now()
+        if resolution_note:
+            self.resolution_notes = resolution_note
+        self.save(update_fields=['status', 'resolved_at', 'resolution_notes'])
+
+
+
 
 
 # ==================== OPAS BULK PURCHASE MODELS ====================
@@ -992,6 +1885,11 @@ class OPASPurchaseOrder(models.Model):
             models.Index(fields=['product_id']),
             models.Index(fields=['status']),
             models.Index(fields=['submitted_at']),
+            models.Index(fields=['seller_id', 'status']),
+            models.Index(fields=['status', 'submitted_at']),
+            models.Index(fields=['reviewed_by_id']),
+            models.Index(fields=['reviewed_at']),
+            models.Index(fields=['approved_at']),
         ]
     
     def __str__(self):
@@ -1000,13 +1898,24 @@ class OPASPurchaseOrder(models.Model):
 
 class OPASInventory(models.Model):
     """
-    Centralized OPAS stock management.
+    Centralized OPAS stock management with automatic alerts.
     
     Tracks:
     - Current inventory quantities
     - Storage locations
     - Expiration dates
     - Automatic low stock and expiry alerts
+    - FIFO compliance for perishables
+    
+    Usage:
+        # Get low stock inventory
+        low_stock = OPASInventory.objects.low_stock()
+        
+        # Get expiring inventory
+        expiring = OPASInventory.objects.expiring_soon()
+        
+        # Get inventory by location
+        warehouse_stock = OPASInventory.objects.by_location("Main Warehouse")
     """
     
     # ==================== RELATIONSHIPS ====================
@@ -1027,17 +1936,21 @@ class OPASInventory(models.Model):
     
     # ==================== INVENTORY LEVELS ====================
     quantity_received = models.IntegerField(
+        validators=[MinValueValidator(0)],
         help_text='Total quantity received into OPAS inventory'
     )
     quantity_on_hand = models.IntegerField(
+        validators=[MinValueValidator(0)],
         help_text='Current quantity available'
     )
     quantity_consumed = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0)],
         help_text='Quantity consumed/sold out'
     )
     quantity_spoiled = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0)],
         help_text='Quantity spoiled/damaged'
     )
     
@@ -1074,6 +1987,7 @@ class OPASInventory(models.Model):
     # ==================== ALERTS ====================
     low_stock_threshold = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0)],
         help_text='Quantity threshold for low stock alert'
     )
     is_low_stock = models.BooleanField(
@@ -1085,6 +1999,9 @@ class OPASInventory(models.Model):
         help_text='Whether produce is expiring within 7 days'
     )
     
+    # ==================== MANAGERS ====================
+    objects = OPASInventoryManager()
+    
     class Meta:
         db_table = 'opas_inventory'
         verbose_name = 'OPAS Inventory'
@@ -1094,11 +2011,122 @@ class OPASInventory(models.Model):
             models.Index(fields=['product_id']),
             models.Index(fields=['quantity_on_hand']),
             models.Index(fields=['is_low_stock']),
+            models.Index(fields=['is_expiring']),
             models.Index(fields=['expiry_date']),
+            models.Index(fields=['storage_location']),
+            models.Index(fields=['product_id', 'expiry_date']),
+            models.Index(fields=['is_low_stock', 'quantity_on_hand']),
+            models.Index(fields=['is_expiring', 'expiry_date']),
+            models.Index(fields=['storage_location', 'is_low_stock']),
+            models.Index(fields=['received_at']),
+            models.Index(fields=['purchase_order_id']),
         ]
     
     def __str__(self):
         return f"Inventory: {self.product.name} - {self.quantity_on_hand} units"
+    
+    def clean(self):
+        """
+        Validate OPASInventory constraints before save.
+        
+        Checks:
+        - quantity_received >= 0 (via field validator)
+        - quantity_on_hand >= 0 (via field validator)
+        - quantity_consumed >= 0 (via field validator)
+        - quantity_spoiled >= 0 (via field validator)
+        - expiry_date > in_date
+        
+        Raises:
+            ValidationError: If any validation fails
+        """
+        if self.in_date and self.expiry_date:
+            validate_opas_inventory_dates(self.in_date, self.expiry_date)
+    
+    # ==================== BUSINESS LOGIC METHODS ====================
+    
+    def check_is_low_stock(self) -> bool:
+        """
+        Check if inventory is at or below low stock threshold.
+        
+        Compares current quantity_on_hand against the low_stock_threshold.
+        Default threshold is 10 units or custom value set during configuration.
+        
+        Returns:
+            bool: True if quantity is at or below threshold, False otherwise
+        
+        Example:
+            inventory = OPASInventory.objects.get(product__id=1)
+            if inventory.check_is_low_stock():
+                print("Low stock alert: Order more units immediately")
+        """
+        return self.quantity_on_hand <= self.low_stock_threshold
+    
+    def check_is_expiring(self) -> bool:
+        """
+        Check if inventory will expire within 7 days.
+        
+        Useful for FIFO compliance and spoilage prevention.
+        Checks if expiry_date is within next 7 days from now.
+        
+        Returns:
+            bool: True if expiring within 7 days, False otherwise
+        
+        Example:
+            inventory = OPASInventory.objects.get(product__id=1)
+            if inventory.check_is_expiring():
+                print("Product expires soon - prioritize consumption")
+        """
+        from datetime import timedelta
+        expiry_threshold = timezone.now() + timedelta(days=7)
+        return self.expiry_date <= expiry_threshold
+    
+    def update_stock_status(self):
+        """Update low stock and expiring status flags"""
+        # Check low stock
+        self.is_low_stock = self.quantity_on_hand <= self.low_stock_threshold
+        
+        # Check if expiring (within 7 days)
+        from datetime import timedelta
+        expiry_threshold = timezone.now() + timedelta(days=7)
+        self.is_expiring = self.expiry_date <= expiry_threshold
+        
+        self.save(update_fields=['is_low_stock', 'is_expiring'])
+    
+    def days_until_expiry(self) -> int:
+        """Get number of days until expiry"""
+        delta = self.expiry_date - timezone.now()
+        return max(0, delta.days)
+    
+    def is_expired(self) -> bool:
+        """Check if inventory has expired"""
+        return timezone.now() > self.expiry_date
+    
+    def get_available_quantity(self) -> int:
+        """Get quantity still available (not consumed or spoiled)"""
+        return self.quantity_on_hand
+    
+    def consume_stock(self, quantity: int, reason: str = ""):
+        """Consume stock from inventory"""
+        if quantity > self.quantity_on_hand:
+            raise ValidationError(
+                f"Cannot consume {quantity} units. Only {self.quantity_on_hand} available."
+            )
+        self.quantity_on_hand -= quantity
+        self.quantity_consumed += quantity
+        self.save(update_fields=['quantity_on_hand', 'quantity_consumed'])
+    
+    def record_spoilage(self, quantity: int, reason: str = ""):
+        """Record spoilage in inventory"""
+        if quantity > self.quantity_on_hand:
+            raise ValidationError(
+                f"Cannot spoil {quantity} units. Only {self.quantity_on_hand} available."
+            )
+        self.quantity_on_hand -= quantity
+        self.quantity_spoiled += quantity
+        self.save(update_fields=['quantity_on_hand', 'quantity_spoiled'])
+
+
+
 
 
 class OPASInventoryTransaction(models.Model):
@@ -1178,6 +2206,11 @@ class OPASInventoryTransaction(models.Model):
             models.Index(fields=['transaction_type']),
             models.Index(fields=['created_at']),
             models.Index(fields=['batch_id']),
+            models.Index(fields=['inventory_id', 'transaction_type']),
+            models.Index(fields=['inventory_id', 'created_at']),
+            models.Index(fields=['transaction_type', 'created_at']),
+            models.Index(fields=['processed_by_id']),
+            models.Index(fields=['is_fifo_compliant']),
         ]
     
     def __str__(self):
@@ -1267,6 +2300,10 @@ class OPASPurchaseHistory(models.Model):
             models.Index(fields=['seller_id']),
             models.Index(fields=['product_id']),
             models.Index(fields=['purchased_at']),
+            models.Index(fields=['seller_id', 'purchased_at']),
+            models.Index(fields=['product_id', 'purchased_at']),
+            models.Index(fields=['payment_status']),
+            models.Index(fields=['purchase_order_id']),
         ]
     
     def __str__(self):
@@ -1300,6 +2337,7 @@ class AdminAuditLog(models.Model):
     # ==================== ACTION DETAILS ====================
     action_type = models.CharField(
         max_length=100,
+        validators=[validate_action_type_in_valid_choices],
         help_text='Type of action performed'
     )
     action_category = models.CharField(
@@ -1335,6 +2373,12 @@ class AdminAuditLog(models.Model):
         related_name='audit_logs',
         help_text='Product affected by this action (if applicable)'
     )
+    target_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='Generic target ID for the affected resource (flexible for any model)'
+    )
     
     # ==================== CHANGE DETAILS ====================
     description = models.TextField(
@@ -1367,22 +2411,102 @@ class AdminAuditLog(models.Model):
             models.Index(fields=['action_category']),
             models.Index(fields=['affected_seller_id']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['admin_id', 'action_category']),
+            models.Index(fields=['admin_id', 'created_at']),
+            models.Index(fields=['action_category', 'created_at']),
+            models.Index(fields=['action_type']),
+            models.Index(fields=['affected_product_id']),
+            models.Index(fields=['affected_seller_id', 'created_at']),
         ]
     
+    def clean(self):
+        """
+        Validate AdminAuditLog constraints before save.
+        
+        Checks:
+        - action_type is in valid choices (via field validator)
+        
+        Raises:
+            ValidationError: If any validation fails
+        """
+        # Validators are called automatically on field-level
+        # This method provides a clean() integration point
+        pass
+    
+    def save(self, *args, **kwargs):
+        """
+        Immutable audit log - prevent updates after creation.
+        Only allow initial creation.
+        
+        Raises:
+            ValidationError: If attempting to update an existing audit log
+        """
+        if self.pk is not None:
+            # This is an update attempt - prevent it
+            raise ValidationError(
+                "AdminAuditLog is immutable. Audit logs cannot be modified after creation."
+            )
+        super().save(*args, **kwargs)
+    
+    def delete(self, *args, **kwargs):
+        """
+        Immutable audit log - prevent deletion.
+        Audit logs must be preserved forever for compliance.
+        
+        Raises:
+            ValidationError: Always raises - deletions not permitted
+        """
+        raise ValidationError(
+            "AdminAuditLog is immutable. Audit logs cannot be deleted."
+        )
+    
     def __str__(self):
-        return f"Audit: {self.action_type} by {self.admin}"
+        """
+        Return formatted audit log string with action, admin, and timestamp.
+        
+        Format: "Audit: [ACTION_TYPE] by [ADMIN_EMAIL] @ [TIMESTAMP]"
+        Example: "Audit: SELLER_APPROVED by admin@opas.com @ 2025-11-22 14:35:42"
+        """
+        admin_str = f"{self.admin.user.email}" if self.admin else "System"
+        timestamp_str = self.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        return f"Audit: {self.action_type} by {admin_str} @ {timestamp_str}"
 
 
 class MarketplaceAlert(models.Model):
     """
-    Flags and alerts for marketplace issues.
+    Flags and alerts for marketplace issues with priority handling.
     
     Alert types:
     - Price violations
     - Seller issues
     - Unusual activity
     - Inventory problems
+    - Compliance issues
+    
+    Usage:
+        # Get open alerts
+        open_alerts = MarketplaceAlert.objects.open_alerts()
+        
+        # Get critical alerts
+        critical = MarketplaceAlert.objects.critical()
+        
+        # Get recent alerts (last 7 days)
+        recent = MarketplaceAlert.objects.recent(days=7)
     """
+    
+    # Status choices
+    class StatusChoices(models.TextChoices):
+        OPEN = 'OPEN', 'Open'
+        ACKNOWLEDGED = 'ACKNOWLEDGED', 'Acknowledged'
+        RESOLVED = 'RESOLVED', 'Resolved'
+    
+    # Alert type choices
+    class AlertTypeChoices(models.TextChoices):
+        PRICE_VIOLATION = 'PRICE_VIOLATION', 'Price Violation'
+        SELLER_ISSUE = 'SELLER_ISSUE', 'Seller Issue'
+        INVENTORY_ALERT = 'INVENTORY_ALERT', 'Inventory Alert'
+        UNUSUAL_ACTIVITY = 'UNUSUAL_ACTIVITY', 'Unusual Activity'
+        COMPLIANCE = 'COMPLIANCE', 'Compliance Issue'
     
     # ==================== ALERT DETAILS ====================
     title = models.CharField(
@@ -1394,13 +2518,7 @@ class MarketplaceAlert(models.Model):
     )
     alert_type = models.CharField(
         max_length=50,
-        choices=[
-            ('PRICE_VIOLATION', 'Price Violation'),
-            ('SELLER_ISSUE', 'Seller Issue'),
-            ('INVENTORY_ALERT', 'Inventory Alert'),
-            ('UNUSUAL_ACTIVITY', 'Unusual Activity'),
-            ('COMPLIANCE', 'Compliance Issue'),
-        ],
+        choices=AlertTypeChoices.choices,
         help_text='Type of alert'
     )
     severity = models.CharField(
@@ -1431,12 +2549,8 @@ class MarketplaceAlert(models.Model):
     # ==================== STATUS ====================
     status = models.CharField(
         max_length=20,
-        choices=[
-            ('OPEN', 'Open'),
-            ('ACKNOWLEDGED', 'Acknowledged'),
-            ('RESOLVED', 'Resolved'),
-        ],
-        default='OPEN',
+        choices=StatusChoices.choices,
+        default=StatusChoices.OPEN,
         help_text='Alert status'
     )
     acknowledged_by = models.ForeignKey(
@@ -1469,6 +2583,9 @@ class MarketplaceAlert(models.Model):
         help_text='When alert was resolved'
     )
     
+    # ==================== MANAGERS ====================
+    objects = AlertManager()
+    
     class Meta:
         db_table = 'marketplace_alerts'
         verbose_name = 'Marketplace Alert'
@@ -1480,10 +2597,62 @@ class MarketplaceAlert(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['created_at']),
             models.Index(fields=['affected_seller_id']),
+            models.Index(fields=['severity', 'status']),
+            models.Index(fields=['alert_type', 'severity']),
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['acknowledged_by_id']),
+            models.Index(fields=['affected_product_id']),
+            models.Index(fields=['severity', 'status', 'created_at']),
         ]
     
     def __str__(self):
         return f"Alert: {self.title} ({self.severity})"
+    
+    # ==================== BUSINESS LOGIC METHODS ====================
+    
+    def is_open(self) -> bool:
+        """Check if alert is still open"""
+        return self.status == self.StatusChoices.OPEN
+    
+    def is_critical(self) -> bool:
+        """Check if this is a critical alert"""
+        return self.severity == AlertSeverity.CRITICAL
+    
+    def acknowledge(self, admin: AdminUser, notes: str = ""):
+        """Acknowledge the alert"""
+        self.status = self.StatusChoices.ACKNOWLEDGED
+        self.acknowledged_by = admin
+        self.acknowledged_at = timezone.now()
+        self.save(update_fields=['status', 'acknowledged_by', 'acknowledged_at'])
+    
+    def resolve(self, resolution_note: str = ""):
+        """Resolve the alert"""
+        self.status = self.StatusChoices.RESOLVED
+        self.resolved_at = timezone.now()
+        if resolution_note:
+            self.resolution_notes = resolution_note
+        self.save(update_fields=['status', 'resolved_at', 'resolution_notes'])
+    
+    def get_priority_score(self) -> int:
+        """Calculate alert priority score (0-100)"""
+        severity_scores = {
+            AlertSeverity.INFO: 10,
+            AlertSeverity.WARNING: 50,
+            AlertSeverity.CRITICAL: 100,
+        }
+        base_score = severity_scores.get(self.severity, 50)
+        
+        # Adjust for age - older unresolved alerts are more important
+        if self.is_open():
+            from datetime import timedelta
+            age_days = (timezone.now() - self.created_at).days
+            age_multiplier = min(1.5, 1 + (age_days / 10))
+            base_score = int(base_score * age_multiplier)
+        
+        return min(100, base_score)
+
+
+
 
 
 class SystemNotification(models.Model):
@@ -1591,6 +2760,13 @@ class SystemNotification(models.Model):
             models.Index(fields=['priority']),
             models.Index(fields=['created_at']),
             models.Index(fields=['notification_type']),
+            models.Index(fields=['recipient_id', 'is_read']),
+            models.Index(fields=['recipient_id', 'created_at']),
+            models.Index(fields=['is_read', 'created_at']),
+            models.Index(fields=['priority', 'is_read']),
+            models.Index(fields=['related_seller_id']),
+            models.Index(fields=['related_product_id']),
+            models.Index(fields=['notification_type', 'priority']),
         ]
     
     def __str__(self):

@@ -14,6 +14,8 @@ from apps.users.admin_viewsets import (
     MarketplaceOversightViewSet,
     AnalyticsReportingViewSet,
     AdminNotificationsViewSet,
+    AdminAuditViewSet,
+    DashboardViewSet,
 )
 
 # Initialize SimpleRouter for automatic route generation
@@ -26,6 +28,8 @@ router.register(r'opas', OPASPurchasingViewSet, basename='admin-opas')
 router.register(r'marketplace', MarketplaceOversightViewSet, basename='admin-marketplace')
 router.register(r'analytics', AnalyticsReportingViewSet, basename='admin-analytics')
 router.register(r'notifications', AdminNotificationsViewSet, basename='admin-notifications')
+router.register(r'audit-logs', AdminAuditViewSet, basename='admin-audit-logs')
+router.register(r'dashboard', DashboardViewSet, basename='admin-dashboard')
 
 # URL patterns
 urlpatterns = [

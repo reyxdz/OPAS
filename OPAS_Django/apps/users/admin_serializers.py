@@ -502,8 +502,161 @@ UserManagementSerializer = SellerDetailsSerializer
 SellerApplicationDetailSerializer = SellerApplicationSerializer
 
 
+# ==================== ADMIN USER MANAGEMENT SERIALIZERS ====================
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Serializer for admin user details."""
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+    
+    class Meta:
+        model = AdminUser
+        fields = [
+            'id', 'user_email', 'user_name', 'admin_role', 'is_active',
+            'permissions_customized', 'notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class AdminUserCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating admin users."""
+    user_id = serializers.IntegerField()
+    
+    class Meta:
+        model = AdminUser
+        fields = ['user_id', 'admin_role', 'permissions_customized', 'notes']
+
+
+# ==================== AUDIT LOG SERIALIZERS ====================
+
+class AdminAuditLogDetailedSerializer(serializers.ModelSerializer):
+    """Detailed serializer for audit logs with full context."""
+    admin_name = serializers.CharField(source='admin.user.full_name', read_only=True)
+    admin_email = serializers.CharField(source='admin.user.email', read_only=True)
+    seller_name = serializers.CharField(source='affected_seller.full_name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = AdminAuditLog
+        fields = [
+            'id', 'admin_name', 'admin_email', 'action_type', 'action_category',
+            'description', 'affected_seller_name', 'seller_name', 'old_value',
+            'new_value', 'ip_address', 'user_agent', 'status', 'error_message',
+            'created_at'
+        ]
+        read_only_fields = fields
+
+
+# ==================== DASHBOARD METRICS SERIALIZERS ====================
+
+class SellerMetricsSerializer(serializers.Serializer):
+    """Serializer for seller-related metrics."""
+    total_sellers = serializers.IntegerField()
+    pending_approvals = serializers.IntegerField()
+    active_sellers = serializers.IntegerField()
+    suspended_sellers = serializers.IntegerField()
+    new_this_month = serializers.IntegerField()
+    approval_rate = serializers.FloatField()
+
+
+class MarketMetricsSerializer(serializers.Serializer):
+    """Serializer for market/marketplace metrics."""
+    active_listings = serializers.IntegerField()
+    total_sales_today = serializers.FloatField()
+    total_sales_month = serializers.FloatField()
+    avg_price_change = serializers.FloatField()
+    avg_transaction = serializers.FloatField()
+
+
+class OPASMetricsSerializer(serializers.Serializer):
+    """Serializer for OPAS purchasing metrics."""
+    pending_submissions = serializers.IntegerField()
+    approved_this_month = serializers.IntegerField()
+    total_inventory = serializers.IntegerField()
+    low_stock_count = serializers.IntegerField()
+    expiring_count = serializers.IntegerField()
+    total_inventory_value = serializers.FloatField()
+
+
+class PriceComplianceMetricsSerializer(serializers.Serializer):
+    """Serializer for price compliance metrics."""
+    compliant_listings = serializers.IntegerField()
+    non_compliant = serializers.IntegerField()
+    compliance_rate = serializers.FloatField()
+
+
+class AlertsMetricsSerializer(serializers.Serializer):
+    """Serializer for marketplace alerts metrics."""
+    price_violations = serializers.IntegerField()
+    seller_issues = serializers.IntegerField()
+    inventory_alerts = serializers.IntegerField()
+    total_open_alerts = serializers.IntegerField()
+
+
+class AdminDashboardStatsSerializer(serializers.Serializer):
+    """Comprehensive serializer for admin dashboard stats per Phase 3.2 specification."""
+    timestamp = serializers.DateTimeField()
+    seller_metrics = SellerMetricsSerializer()
+    market_metrics = MarketMetricsSerializer()
+    opas_metrics = OPASMetricsSerializer()
+    price_compliance = PriceComplianceMetricsSerializer()
+    alerts = AlertsMetricsSerializer()
+    marketplace_health_score = serializers.IntegerField()
+
+
+class SellerPerformanceMetricsSerializer(serializers.Serializer):
+    """Serializer for seller performance analysis."""
+    seller_id = serializers.IntegerField()
+    seller_name = serializers.CharField()
+    total_listings = serializers.IntegerField()
+    average_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    compliance_score = serializers.FloatField()
+    violations_count = serializers.IntegerField()
+    customer_rating = serializers.FloatField()
+    orders_fulfilled = serializers.IntegerField()
+    total_revenue = serializers.DecimalField(max_digits=15, decimal_places=2)
+
+
+class PriceComplianceReportDetailedSerializer(serializers.Serializer):
+    """Detailed serializer for price compliance reports."""
+    report_date = serializers.DateField()
+    total_products_monitored = serializers.IntegerField()
+    violations = serializers.ListField(child=serializers.DictField())
+    compliance_percentage = serializers.FloatField()
+    top_violators = serializers.ListField(child=serializers.DictField())
+    trends = serializers.DictField()
+
+
+# ==================== ALERT AND NOTIFICATION SERIALIZERS ====================
+
+class MarketplaceAlertDetailSerializer(serializers.ModelSerializer):
+    """Detailed serializer for marketplace alerts."""
+    seller_name = serializers.CharField(source='affected_seller.full_name', read_only=True)
+    product_name = serializers.CharField(source='affected_product.name', read_only=True)
+    acknowledged_by_name = serializers.CharField(source='acknowledged_by.user.full_name', read_only=True)
+    
+    class Meta:
+        model = MarketplaceAlert
+        fields = [
+            'id', 'title', 'description', 'alert_type', 'severity', 'status',
+            'seller_name', 'product_name', 'acknowledged_by_name',
+            'resolution_notes', 'created_at', 'acknowledged_at', 'resolved_at'
+        ]
+        read_only_fields = fields
+
+
+class SystemNotificationBulkCreateSerializer(serializers.Serializer):
+    """Serializer for bulk creating system notifications."""
+    title = serializers.CharField(max_length=255)
+    message = serializers.CharField()
+    notification_type = serializers.CharField(max_length=50)
+    target_audience = serializers.ChoiceField(choices=['ALL', 'SELLERS', 'BUYERS', 'ADMINS'])
+    priority = serializers.ChoiceField(choices=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
+    expires_in_days = serializers.IntegerField(default=7, min_value=1)
+
+
 __all__ = [
     'AdminUserSerializer',
+    'AdminUserCreateSerializer',
     'SellerApprovalHistorySerializer',
     'SellerDocumentVerificationSerializer',
     'SellerManagementListSerializer',
@@ -529,13 +682,24 @@ __all__ = [
     'ProductListingSerializer',
     'ProductListingFlagSerializer',
     'MarketplaceAlertSerializer',
+    'MarketplaceAlertDetailSerializer',
     'DashboardStatsSerializer',
+    'AdminDashboardStatsSerializer',
+    'SellerMetricsSerializer',
+    'MarketMetricsSerializer',
+    'OPASMetricsSerializer',
+    'PriceComplianceMetricsSerializer',
+    'AlertsMetricsSerializer',
     'PriceTrendSerializer',
     'SalesReportSerializer',
     'OPASReportSerializer',
     'SellerParticipationReportSerializer',
     'AdminAuditLogSerializer',
+    'AdminAuditLogDetailedSerializer',
+    'SellerPerformanceMetricsSerializer',
+    'PriceComplianceReportDetailedSerializer',
     'SystemNotificationSerializer',
+    'SystemNotificationBulkCreateSerializer',
     'AnnouncementSerializer',
 ]
 

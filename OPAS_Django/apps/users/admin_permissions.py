@@ -305,9 +305,181 @@ class IsAdminAndCanManageNotifications(permissions.BasePermission):
         return is_admin.has_permission(request, view) and can_manage.has_permission(request, view)
 
 
+# ==================== ADDITIONAL PERMISSIONS ====================
+
+class IsActiveAdmin(permissions.BasePermission):
+    """
+    Permission check: User must be an active admin account.
+    Specifically checks that admin status is active (not disabled).
+    """
+    message = "This admin account is not active. Contact Super Admin."
+    
+    def has_permission(self, request, view):
+        """Check if admin account is active."""
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            admin_user = AdminUser.objects.get(user=request.user)
+            return admin_user.is_active
+        except AdminUser.DoesNotExist:
+            return False
+
+
+class CanViewSellerDetails(permissions.BasePermission):
+    """
+    Permission check: User can view detailed seller information.
+    Required roles: Super Admin, Seller Manager, Analytics Manager
+    """
+    message = "You do not have permission to view seller details."
+    
+    def has_permission(self, request, view):
+        """Check if user can view seller details."""
+        if request.method not in permissions.SAFE_METHODS:
+            return False
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            admin_user = AdminUser.objects.get(user=request.user)
+            if not admin_user.is_active:
+                return False
+            allowed_roles = ['SUPER_ADMIN', 'SELLER_MANAGER', 'ANALYTICS_MANAGER']
+            return admin_user.admin_role in allowed_roles
+        except AdminUser.DoesNotExist:
+            return False
+
+
+class CanEditSellerInfo(permissions.BasePermission):
+    """
+    Permission check: User can edit seller information.
+    Required roles: Super Admin, Seller Manager
+    """
+    message = "You do not have permission to edit seller information. Seller Manager role required."
+    
+    def has_permission(self, request, view):
+        """Check if user can edit seller info."""
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            admin_user = AdminUser.objects.get(user=request.user)
+            if not admin_user.is_active:
+                return False
+            allowed_roles = ['SUPER_ADMIN', 'SELLER_MANAGER']
+            return admin_user.admin_role in allowed_roles
+        except AdminUser.DoesNotExist:
+            return False
+
+
+class CanViewComplianceReports(permissions.BasePermission):
+    """
+    Permission check: User can view compliance and audit reports.
+    Required roles: Super Admin, Analytics Manager, Marketplace Monitor
+    """
+    message = "You do not have permission to view compliance reports."
+    
+    def has_permission(self, request, view):
+        """Check if user can view compliance reports."""
+        if request.method not in permissions.SAFE_METHODS:
+            return False
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            admin_user = AdminUser.objects.get(user=request.user)
+            if not admin_user.is_active:
+                return False
+            allowed_roles = ['SUPER_ADMIN', 'ANALYTICS_MANAGER', 'MARKETPLACE_MONITOR']
+            return admin_user.admin_role in allowed_roles
+        except AdminUser.DoesNotExist:
+            return False
+
+
+class CanExportData(permissions.BasePermission):
+    """
+    Permission check: User can export data (CSV, JSON, etc.).
+    Required roles: Super Admin, Analytics Manager
+    """
+    message = "You do not have permission to export data. Analytics Manager role required."
+    
+    def has_permission(self, request, view):
+        """Check if user can export data."""
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            admin_user = AdminUser.objects.get(user=request.user)
+            if not admin_user.is_active:
+                return False
+            allowed_roles = ['SUPER_ADMIN', 'ANALYTICS_MANAGER']
+            return admin_user.admin_role in allowed_roles
+        except AdminUser.DoesNotExist:
+            return False
+
+
+class CanAccessAuditLogs(permissions.BasePermission):
+    """
+    Permission check: User can access and search audit logs.
+    Required roles: Super Admin, Compliance Manager
+    """
+    message = "You do not have permission to access audit logs."
+    
+    def has_permission(self, request, view):
+        """Check if user can access audit logs."""
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            admin_user = AdminUser.objects.get(user=request.user)
+            if not admin_user.is_active:
+                return False
+            allowed_roles = ['SUPER_ADMIN', 'COMPLIANCE_MANAGER']
+            return admin_user.admin_role in allowed_roles
+        except AdminUser.DoesNotExist:
+            return False
+
+
+class CanBroadcastAnnouncements(permissions.BasePermission):
+    """
+    Permission check: User can create and broadcast announcements.
+    Required roles: Super Admin, Support Admin
+    """
+    message = "You do not have permission to broadcast announcements. Support Admin role required."
+    
+    def has_permission(self, request, view):
+        """Check if user can broadcast announcements."""
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            admin_user = AdminUser.objects.get(user=request.user)
+            if not admin_user.is_active:
+                return False
+            allowed_roles = ['SUPER_ADMIN', 'SUPPORT_ADMIN']
+            return admin_user.admin_role in allowed_roles
+        except AdminUser.DoesNotExist:
+            return False
+
+
+class CanModerateAlerts(permissions.BasePermission):
+    """
+    Permission check: User can moderate and resolve marketplace alerts.
+    Required roles: Super Admin, Marketplace Monitor, Compliance Manager
+    """
+    message = "You do not have permission to moderate alerts. Marketplace Monitor role required."
+    
+    def has_permission(self, request, view):
+        """Check if user can moderate alerts."""
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            admin_user = AdminUser.objects.get(user=request.user)
+            if not admin_user.is_active:
+                return False
+            allowed_roles = ['SUPER_ADMIN', 'MARKETPLACE_MONITOR', 'COMPLIANCE_MANAGER']
+            return admin_user.admin_role in allowed_roles
+        except AdminUser.DoesNotExist:
+            return False
+
+
 __all__ = [
     'IsAdmin',
     'IsSuperAdmin',
+    'IsActiveAdmin',
     'CanApproveSellers',
     'CanManagePrices',
     'CanManageOPAS',
@@ -316,6 +488,13 @@ __all__ = [
     'CanManageNotifications',
     'CanViewAdminData',
     'CanViewAuditLog',
+    'CanViewSellerDetails',
+    'CanEditSellerInfo',
+    'CanViewComplianceReports',
+    'CanExportData',
+    'CanAccessAuditLogs',
+    'CanBroadcastAnnouncements',
+    'CanModerateAlerts',
     'IsAdminAndCanApproveSellers',
     'IsAdminAndCanManagePrices',
     'IsAdminAndCanManageOPAS',
