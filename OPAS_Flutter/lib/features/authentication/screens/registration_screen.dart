@@ -14,6 +14,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _phoneNumberController = TextEditingController();
   final _passwordController = TextEditingController();
   
@@ -73,6 +74,21 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    AuthTextField(
+                      label: 'Username',
+                      controller: _usernameController,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a username';
+                        }
+                        if (value.length < 3) {
+                          return 'Username must be at least 3 characters';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     
@@ -306,7 +322,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       try {
         final address = '$_selectedBarangay, $_selectedMunicipality, Biliran';
         final signupData = {
-          'username': _phoneNumberController.text,
+          'username': _usernameController.text,
           'first_name': _firstNameController.text,
           'last_name': _lastNameController.text,
           'phone_number': _phoneNumberController.text,
@@ -353,6 +369,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _usernameController.dispose();
     _phoneNumberController.dispose();
     _passwordController.dispose();
     super.dispose();
