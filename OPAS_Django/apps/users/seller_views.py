@@ -551,8 +551,16 @@ class ProductManagementViewSet(viewsets.ViewSet):
     def list(self, request):
         """List all seller products"""
         try:
-            products = SellerProduct.objects.filter(seller=request.user).order_by('-created_at')
-            serializer = SellerProductListSerializer(products, many=True)
+            # Optimize query with select_related to avoid N+1 queries
+            products = SellerProduct.objects.filter(
+                seller=request.user
+            ).select_related('seller').order_by('-created_at')
+            
+            serializer = SellerProductListSerializer(
+                products, 
+                many=True,
+                context={'request': request}
+            )
             logger.info(f'Product list retrieved by: {request.user.email}')
             return Response(serializer.data, status=status.HTTP_200_OK)
         

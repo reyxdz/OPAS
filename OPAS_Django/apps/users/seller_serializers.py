@@ -132,16 +132,16 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     - Product basics (name, price, stock)
     - Status information
     - Quick reference fields
-    - Primary image URL and all images
+    - Minimal data to avoid N+1 queries
+    
+    NOTE: Images are NOT included in list view to avoid performance issues.
+    Use SellerProductDetailSerializer for full product data including images.
     """
     seller_name = serializers.CharField(source='seller.full_name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_active = serializers.SerializerMethodField(read_only=True)
     is_low_stock = serializers.SerializerMethodField(read_only=True)
     price_exceeds_ceiling = serializers.SerializerMethodField(read_only=True)
-    image_url = serializers.SerializerMethodField(read_only=True)
-    primary_image = serializers.SerializerMethodField(read_only=True)
-    images = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SellerProduct
@@ -155,9 +155,6 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'stock_level',
             'minimum_stock',
             'quality_grade',
-            'image_url',
-            'primary_image',
-            'images',
             'status',
             'status_display',
             'is_active',
@@ -176,8 +173,6 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'updated_at',
             'status_display',
             'seller_name',
-            'primary_image',
-            'images',
         ]
 
     def get_is_active(self, obj):
@@ -191,31 +186,6 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     def get_price_exceeds_ceiling(self, obj):
         """Check if price exceeds ceiling"""
         return obj.price_exceeds_ceiling
-    
-    def get_primary_image(self, obj):
-        """Get primary product image"""
-        primary = obj.product_images.filter(is_primary=True).first()
-        if primary:
-            return ProductImageSerializer(primary, context=self.context).data
-        return None
-    
-    def get_image_url(self, obj):
-        """Get primary image URL for quick access"""
-        primary = obj.product_images.filter(is_primary=True).first()
-        if primary and primary.image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(primary.image.url)
-            else:
-                return f"http://10.113.93.34:8000{primary.image.url}"
-        return None
-    
-    def get_images(self, obj):
-        """Get all product images"""
-        images = obj.product_images.all().order_by('order', '-uploaded_at')
-        if images.exists():
-            return ProductImageSerializer(images, many=True, context=self.context).data
-        return []
 
 
 class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):

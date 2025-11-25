@@ -60,13 +60,13 @@ class SellerService {
 
       http.Response response;
       if (method == 'GET') {
-        response = await http.get(url, headers: headers).timeout(const Duration(seconds: 15));
+        response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
       } else if (method == 'POST') {
-        response = await http.post(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+        response = await http.post(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
       } else if (method == 'PUT') {
-        response = await http.put(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+        response = await http.put(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
       } else if (method == 'DELETE') {
-        response = await http.delete(url, headers: headers).timeout(const Duration(seconds: 15));
+        response = await http.delete(url, headers: headers).timeout(const Duration(seconds: 30));
       } else {
         throw Exception('Unsupported HTTP method: $method');
       }
@@ -78,13 +78,13 @@ class SellerService {
         headers['Authorization'] = 'Bearer $newToken';
 
         if (method == 'GET') {
-          response = await http.get(url, headers: headers).timeout(const Duration(seconds: 15));
+          response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
         } else if (method == 'POST') {
-          response = await http.post(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+          response = await http.post(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
         } else if (method == 'PUT') {
-          response = await http.put(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+          response = await http.put(url, headers: headers, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
         } else if (method == 'DELETE') {
-          response = await http.delete(url, headers: headers).timeout(const Duration(seconds: 15));
+          response = await http.delete(url, headers: headers).timeout(const Duration(seconds: 30));
         }
       }
 
