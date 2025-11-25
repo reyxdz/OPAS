@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/auth_text_field.dart';
 import '../../../core/services/api_service.dart';
+import '../models/location_data.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -13,10 +14,11 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _addressController = TextEditingController();
   final _phoneNumberController = TextEditingController();
   final _passwordController = TextEditingController();
   
+  String? _selectedMunicipality;
+  String? _selectedBarangay;
   bool _isLoading = false;
 
   @override
@@ -72,15 +74,69 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     ),
                     const SizedBox(height: 16),
                     
-                    AuthTextField(
-                      label: 'Address',
-                      controller: _addressController,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your address';
-                        }
-                        return null;
-                      },
+                    // Municipality Dropdown
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          hint: const Text('Select Municipality'),
+                          value: _selectedMunicipality,
+                          items: LocationData.municipalities
+                              .map((municipality) => DropdownMenuItem(
+                                    value: municipality,
+                                    child: Text(municipality),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedMunicipality = value;
+                              _selectedBarangay = null; // Reset barangay
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Barangay Dropdown
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          hint: const Text('Select Barangay'),
+                          value: _selectedBarangay,
+                          items: _selectedMunicipality == null
+                              ? []
+                              : LocationData.getBarangays(_selectedMunicipality!)
+                                  .map((barangay) => DropdownMenuItem(
+                                        value: barangay,
+                                        child: Text(barangay),
+                                      ))
+                                  .toList(),
+                          onChanged: _selectedMunicipality == null
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    _selectedBarangay = value;
+                                  });
+                                },
+                          disabledHint: const Text('Please select municipality first'),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     
@@ -152,12 +208,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   void _handleSignUp() async {
+    if (_selectedMunicipality == null || _selectedBarangay == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select both municipality and barangay'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (_formKey.currentState?.validate() ?? false) {
       setState(() {
         _isLoading = true;
       });
 
       try {
+        final address = '$_selectedBarangay, $_selectedMunicipality, Biliran';
         final signupData = {
           'email': '${_phoneNumberController.text}@opas.app',
           'username': _phoneNumberController.text,
@@ -165,7 +232,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           'last_name': _lastNameController.text,
           'phone_number': _phoneNumberController.text,
           'password': _passwordController.text,
-          'address': _addressController.text,
+          'address': address,
           'role': 'BUYER',
         };
 
@@ -203,7 +270,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _addressController.dispose();
     _phoneNumberController.dispose();
     _passwordController.dispose();
     super.dispose();
