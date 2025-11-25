@@ -4,12 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/error_handler.dart';
 import '../../../core/services/connectivity_service.dart';
 import '../../../core/services/retry_service.dart';
+import '../../../core/services/api_service.dart';
 
 /// Enhanced Seller Service with Error Handling & Caching
 /// Wraps the base SellerService with comprehensive error handling,
 /// retry logic with exponential backoff, and offline caching
 class EnhancedSellerService {
-  static const String baseUrl = 'http://10.113.93.34:8000/api';
+  static String get baseUrl => ApiService.baseUrl;
   static const int maxRetries = 3;
   static const int initialDelayMs = 1000;
 

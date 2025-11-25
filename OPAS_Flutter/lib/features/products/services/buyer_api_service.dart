@@ -2,6 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/models/price_trend_model.dart';
+import '../../../core/services/api_service.dart';
 import '../models/product_model.dart';
 import '../models/review_model.dart';
 import '../../cart/models/cart_item_model.dart';
@@ -9,7 +10,7 @@ import '../../order_management/models/order_model.dart';
 import '../../home/models/notification_model.dart';
 
 class BuyerApiService {
-  static const String baseUrl = 'http://10.113.93.34:8000/api';
+  static String get baseUrl => ApiService.baseUrl;
 
   /// ==================== PRODUCT BROWSING ====================
   /// Get all products with optional filtering

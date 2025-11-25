@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/api_service.dart';
 import '../models/admin_registration_list_model.dart';
 
 /// Admin Registration Service
@@ -14,7 +15,7 @@ import '../models/admin_registration_list_model.dart';
 /// - Request more information from sellers
 /// - CORE PRINCIPLES: Resource Management, Input Validation, Authorization, Idempotency
 class SellerRegistrationAdminService {
-  static const String _baseUrl = 'http://10.113.93.34:8000/api';
+  static String get _baseUrl => ApiService.baseUrl;
   static const String _endpoint = '/admin/sellers/registrations';
   static const Duration _timeout = Duration(seconds: 30);
 

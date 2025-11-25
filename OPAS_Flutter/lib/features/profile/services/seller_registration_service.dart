@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/api_service.dart';
 import '../models/seller_registration_model.dart';
 
 /// Seller Registration Service
@@ -13,8 +14,8 @@ import '../models/seller_registration_model.dart';
 /// - Idempotency: OneToOne constraint prevents duplicate registrations
 /// - Rate Limiting: One registration per user enforced by backend
 class SellerRegistrationService {
-  static const String baseUrl = 'http://10.113.93.34:8000/api';
-  static const String registrationEndpoint = '$baseUrl/users/sellers';
+  static String get baseUrl => ApiService.baseUrl;
+  static String get registrationEndpoint => '$baseUrl/users/sellers';
 
   /// Submit seller registration application
   /// 

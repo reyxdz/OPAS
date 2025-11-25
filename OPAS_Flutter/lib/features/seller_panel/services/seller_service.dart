@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 // ignore: unused_import
 import '../models/index.dart';
+import '../../../core/services/api_service.dart';
 
 /// Seller Service
 /// Handles all seller-related API calls with comprehensive endpoint coverage
 /// Total: 43 endpoints across 9 categories
 class SellerService {
-  static const String baseUrl = 'http://10.113.93.34:8000/api';
+  // Use dynamic baseUrl from ApiService instead of hardcoded IP
+  static String get baseUrl => ApiService.baseUrl;
 
   /// Get access token from SharedPreferences
   static Future<String> _getAccessToken() async {
