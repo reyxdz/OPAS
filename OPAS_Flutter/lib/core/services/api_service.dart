@@ -11,7 +11,7 @@ class ApiService {
     'http://localhost:8000/api',      // Web/localhost
     'http://127.0.0.1:8000/api',      // Fallback localhost
     'http://10.0.2.2:8000/api',       // Android emulator special IP
-    'http://10.107.31.34:8000/api',   // Current network IP
+    'http://10.198.118.34:8000/api',  // Current network IP (your machine)
     'http://192.168.1.1:8000/api',    // Common router IP
     'http://192.168.1.100:8000/api',  // Common local network
     'http://172.16.0.1:8000/api',     // Docker/VM network
@@ -106,7 +106,7 @@ class ApiService {
       Map<String, dynamic> userData) async {
     try {
       final response = await http.post(
-        Uri.parse('${baseUrl}/auth/signup/'),
+        Uri.parse('$baseUrl/auth/signup/'),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -133,7 +133,7 @@ class ApiService {
           
           // Retry with working URL
           final retryResponse = await http.post(
-            Uri.parse('${workingUrl}/auth/signup/'),
+            Uri.parse('$workingUrl/auth/signup/'),
             headers: {
               'Content-Type': 'application/json',
             },
@@ -161,7 +161,7 @@ class ApiService {
     try {
       final response = await http
           .post(
-            Uri.parse('${baseUrl}/auth/login/'),
+            Uri.parse('$baseUrl/auth/login/'),
             headers: {'Content-Type': 'application/json'},
             body:
                 jsonEncode({'phone_number': phoneNumber, 'password': password}),
@@ -181,21 +181,24 @@ class ApiService {
         }
       }
     } catch (e) {
-      // Check if this is a connection error (socket exception, etc)
+      // Check if this is a connection error (socket exception, timeout, etc)
       final errorStr = e.toString();
+      debugPrint('❌ Login error: $errorStr');
+      
       if (errorStr.contains('Connection refused') || 
           errorStr.contains('SocketException') ||
+          errorStr.contains('TimeoutException') ||
           errorStr.contains('Network is unreachable') ||
           errorStr.contains('ClientException')) {
         
-        debugPrint('⚠️ Connection to $baseUrl failed, trying to find working backend...');
+        debugPrint('⚠️ Connection to $baseUrl ($baseUrl) failed, trying to find working backend...');
         try {
           final workingUrl = await _findWorkingUrl();
           
           // Retry with working URL
           final retryResponse = await http
               .post(
-                Uri.parse('${workingUrl}/auth/login/'),
+                Uri.parse('$workingUrl/auth/login/'),
                 headers: {'Content-Type': 'application/json'},
                 body:
                     jsonEncode({'phone_number': phoneNumber, 'password': password}),
@@ -328,7 +331,7 @@ class ApiService {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode(requestBody),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 30));
 
       // If token expired, try to refresh and retry
       if (response.statusCode == 401) {
@@ -350,7 +353,7 @@ class ApiService {
                 'Authorization': 'Bearer $token',
               },
               body: jsonEncode(requestBody),
-            ).timeout(const Duration(seconds: 15));
+            ).timeout(const Duration(seconds: 30));
 
             if (retryResponse.statusCode == 201 || retryResponse.statusCode == 200) {
               return jsonDecode(retryResponse.body) as Map<String, dynamic>;
