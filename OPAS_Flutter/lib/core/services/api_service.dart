@@ -11,8 +11,10 @@ class ApiService {
     'http://localhost:8000/api',      // Web/localhost
     'http://127.0.0.1:8000/api',      // Fallback localhost
     'http://10.0.2.2:8000/api',       // Android emulator special IP
+    'http://10.107.31.34:8000/api',   // Current network IP
     'http://192.168.1.1:8000/api',    // Common router IP
-    // Add current network IP - will be determined at runtime
+    'http://192.168.1.100:8000/api',  // Common local network
+    'http://172.16.0.1:8000/api',     // Docker/VM network
   ];
 
   static String? _cachedBaseUrl; // Cache the working URL
@@ -30,9 +32,9 @@ class ApiService {
       return _cachedBaseUrl!;
     }
 
-    // For mobile, return the most likely IP based on network
+    // For mobile, start with network IP since localhost won't work
     // This will be validated on first API call
-    _cachedBaseUrl = _possibleBaseUrls[0]; // Start with localhost
+    _cachedBaseUrl = _possibleBaseUrls[3]; // Start with current known network IP
     return _cachedBaseUrl!;
   }
 
@@ -113,32 +115,44 @@ class ApiService {
 
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
-      } else if (response.statusCode == 0 || response.body.isEmpty) {
-        // Connection failed, try to find working URL
-        debugPrint('⚠️ Initial connection failed, trying to find working backend...');
-        final workingUrl = await _findWorkingUrl();
-        
-        // Retry with working URL
-        final retryResponse = await http.post(
-          Uri.parse('${workingUrl}/auth/signup/'),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(userData),
-        ).timeout(const Duration(seconds: 30));
-
-        if (retryResponse.statusCode == 201) {
-          return jsonDecode(retryResponse.body);
-        } else {
-          final errorData = jsonDecode(retryResponse.body);
-          throw Exception(errorData.toString());
-        }
       } else {
         final errorData = jsonDecode(response.body);
         throw Exception(errorData.toString());
       }
     } catch (e) {
-      throw Exception('Failed to register: $e');
+      // Check if this is a connection error (socket exception, etc)
+      final errorStr = e.toString();
+      if (errorStr.contains('Connection refused') || 
+          errorStr.contains('SocketException') ||
+          errorStr.contains('Network is unreachable') ||
+          errorStr.contains('ClientException')) {
+        
+        debugPrint('⚠️ Connection to $baseUrl failed, trying to find working backend...');
+        try {
+          final workingUrl = await _findWorkingUrl();
+          
+          // Retry with working URL
+          final retryResponse = await http.post(
+            Uri.parse('${workingUrl}/auth/signup/'),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(userData),
+          ).timeout(const Duration(seconds: 30));
+
+          if (retryResponse.statusCode == 201) {
+            debugPrint('✅ Registration successful with $workingUrl');
+            return jsonDecode(retryResponse.body);
+          } else {
+            final errorData = jsonDecode(retryResponse.body);
+            throw Exception(errorData.toString());
+          }
+        } catch (retryError) {
+          throw Exception('Failed to register: $retryError');
+        }
+      } else {
+        throw Exception('Failed to register: $e');
+      }
     }
   }
 
@@ -156,32 +170,6 @@ class ApiService {
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
-      } else if (response.statusCode == 0 || response.body.isEmpty) {
-        // Connection failed, try to find working URL
-        debugPrint('⚠️ Initial connection failed, trying to find working backend...');
-        final workingUrl = await _findWorkingUrl();
-        
-        // Retry with working URL
-        final retryResponse = await http
-            .post(
-              Uri.parse('${workingUrl}/auth/login/'),
-              headers: {'Content-Type': 'application/json'},
-              body:
-                  jsonEncode({'phone_number': phoneNumber, 'password': password}),
-            )
-            .timeout(const Duration(seconds: 30));
-
-        if (retryResponse.statusCode == 200) {
-          return jsonDecode(retryResponse.body) as Map<String, dynamic>;
-        } else {
-          try {
-            final errorData = jsonDecode(retryResponse.body);
-            throw Exception(errorData.toString());
-          } catch (_) {
-            throw Exception(
-                'Login failed: ${retryResponse.statusCode} ${retryResponse.body}');
-          }
-        }
       } else {
         // try to decode error body, otherwise use raw body
         try {
@@ -193,7 +181,45 @@ class ApiService {
         }
       }
     } catch (e) {
-      throw Exception('Failed to login: $e');
+      // Check if this is a connection error (socket exception, etc)
+      final errorStr = e.toString();
+      if (errorStr.contains('Connection refused') || 
+          errorStr.contains('SocketException') ||
+          errorStr.contains('Network is unreachable') ||
+          errorStr.contains('ClientException')) {
+        
+        debugPrint('⚠️ Connection to $baseUrl failed, trying to find working backend...');
+        try {
+          final workingUrl = await _findWorkingUrl();
+          
+          // Retry with working URL
+          final retryResponse = await http
+              .post(
+                Uri.parse('${workingUrl}/auth/login/'),
+                headers: {'Content-Type': 'application/json'},
+                body:
+                    jsonEncode({'phone_number': phoneNumber, 'password': password}),
+              )
+              .timeout(const Duration(seconds: 30));
+
+          if (retryResponse.statusCode == 200) {
+            debugPrint('✅ Login successful with $workingUrl');
+            return jsonDecode(retryResponse.body) as Map<String, dynamic>;
+          } else {
+            try {
+              final errorData = jsonDecode(retryResponse.body);
+              throw Exception(errorData.toString());
+            } catch (_) {
+              throw Exception(
+                  'Login failed: ${retryResponse.statusCode} ${retryResponse.body}');
+            }
+          }
+        } catch (retryError) {
+          throw Exception('Failed to login: $retryError');
+        }
+      } else {
+        throw Exception('Failed to login: $e');
+      }
     }
   }
 
