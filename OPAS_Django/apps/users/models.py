@@ -38,24 +38,37 @@ class User(AbstractUser):
     """
     
     # ==================== IDENTITY FIELDS ====================
-    email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
-    phone_number = models.CharField(max_length=15, blank=True)
+    phone_number = models.CharField(max_length=15, unique=True, help_text='Phone number used for authentication')
     address = models.TextField(blank=True, null=True)
     
-    # ==================== LOCATION FIELDS ====================
+    # ==================== LOCATION FIELDS (RESIDENCE) ====================
     municipality = models.CharField(
         max_length=50,
         blank=True,
         null=True,
-        help_text='Municipality of the user (Biliran)'
+        help_text='Municipality of residence (Biliran)'
     )
     barangay = models.CharField(
         max_length=100,
         blank=True,
         null=True,
-        help_text='Barangay of the user within the selected municipality'
+        help_text='Barangay of residence within the selected municipality'
+    )
+    
+    # ==================== FARM LOCATION FIELDS (SELLERS ONLY) ====================
+    farm_municipality = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text='Municipality where the farm is located (Biliran)'
+    )
+    farm_barangay = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Barangay where the farm is located within the selected municipality'
     )
     
     # ==================== ROLE & PERMISSIONS ====================
@@ -132,7 +145,7 @@ class User(AbstractUser):
         help_text='Last update timestamp'
     )
     
-    USERNAME_FIELD = 'email'
+    USERNAME_FIELD = 'phone_number'
     REQUIRED_FIELDS = ['username']
 
     class Meta:
@@ -141,13 +154,15 @@ class User(AbstractUser):
         verbose_name_plural = 'Users'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['email']),
             models.Index(fields=['phone_number']),
             models.Index(fields=['role']),
             models.Index(fields=['seller_status']),
             models.Index(fields=['municipality']),
             models.Index(fields=['barangay']),
             models.Index(fields=['municipality', 'barangay']),
+            models.Index(fields=['farm_municipality']),
+            models.Index(fields=['farm_barangay']),
+            models.Index(fields=['farm_municipality', 'farm_barangay']),
         ]
 
     # ==================== PROPERTIES ====================

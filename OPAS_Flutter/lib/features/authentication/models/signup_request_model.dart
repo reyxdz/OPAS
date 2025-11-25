@@ -1,5 +1,4 @@
 class SignupRequestModel {
-  final String email;
   final String username;
   final String firstName;
   final String lastName;
@@ -8,9 +7,10 @@ class SignupRequestModel {
   final String address;
   final String municipality;
   final String barangay;
+  final String? farmMunicipality;
+  final String? farmBarangay;
 
   SignupRequestModel({
-    required this.email,
     required this.username,
     required this.firstName,
     required this.lastName,
@@ -19,11 +19,12 @@ class SignupRequestModel {
     required this.address,
     required this.municipality,
     required this.barangay,
+    this.farmMunicipality,
+    this.farmBarangay,
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'email': email,
       'username': username,
       'first_name': firstName,
       'last_name': lastName,
@@ -32,6 +33,8 @@ class SignupRequestModel {
       'address': address,
       'municipality': municipality,
       'barangay': barangay,
+      'farm_municipality': farmMunicipality,
+      'farm_barangay': farmBarangay,
     };
   }
 }

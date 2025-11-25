@@ -5,27 +5,30 @@ from .seller_models import SellerProduct, SellerOrder, SellToOPAS, SellerPayout,
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ('email', 'username', 'first_name', 'last_name', 'phone_number', 'municipality', 'barangay', 'role', 'created_at')
-    search_fields = ('email', 'username', 'first_name', 'last_name', 'phone_number', 'municipality', 'barangay')
-    list_filter = ('role', 'municipality', 'created_at')
+    list_display = ('phone_number', 'username', 'first_name', 'last_name', 'municipality', 'barangay', 'farm_municipality', 'farm_barangay', 'role', 'created_at')
+    search_fields = ('phone_number', 'username', 'first_name', 'last_name', 'municipality', 'barangay', 'farm_municipality', 'farm_barangay')
+    list_filter = ('role', 'municipality', 'farm_municipality', 'created_at')
     ordering = ('-created_at',)
     
     fieldsets = (
-        (None, {'fields': ('email', 'username', 'password')}),
-        ('Personal Info', {'fields': ('first_name', 'last_name', 'phone_number', 'address')}),
-        ('Location', {'fields': ('municipality', 'barangay')}),
+        (None, {'fields': ('username', 'phone_number', 'password')}),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'address')}),
+        ('Residence Location', {'fields': ('municipality', 'barangay')}),
+        ('Farm Location', {'fields': ('farm_municipality', 'farm_barangay')}),
+        ('Seller Info', {'fields': ('store_name', 'store_description', 'seller_status', 'seller_approval_date')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
-        ('User Role', {'fields': ('role',)}),
+        ('User Role', {'fields': ('role', 'admin_role')}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
     )
     
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'username', 'password1', 'password2'),
+            'fields': ('username', 'phone_number', 'password1', 'password2'),
         }),
-        ('Personal Info', {'fields': ('first_name', 'last_name', 'phone_number', 'address')}),
-        ('Location', {'fields': ('municipality', 'barangay')}),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'address')}),
+        ('Residence Location', {'fields': ('municipality', 'barangay')}),
+        ('Farm Location', {'fields': ('farm_municipality', 'farm_barangay')}),
         ('User Role', {'fields': ('role',)}),
     )
 

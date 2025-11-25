@@ -5,6 +5,8 @@ class UserProfile {
   final String address;
   final String? municipality;
   final String? barangay;
+  final String? farmMunicipality;
+  final String? farmBarangay;
 
   UserProfile({
     required this.firstName,
@@ -13,6 +15,8 @@ class UserProfile {
     required this.address,
     this.municipality,
     this.barangay,
+    this.farmMunicipality,
+    this.farmBarangay,
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -23,6 +27,8 @@ class UserProfile {
       address: json['address'] ?? '',
       municipality: json['municipality'],
       barangay: json['barangay'],
+      farmMunicipality: json['farm_municipality'],
+      farmBarangay: json['farm_barangay'],
     );
   }
 
@@ -33,5 +39,7 @@ class UserProfile {
     'address': address,
     'municipality': municipality,
     'barangay': barangay,
+    'farm_municipality': farmMunicipality,
+    'farm_barangay': farmBarangay,
   };
 }

@@ -19,6 +19,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   
   String? _selectedMunicipality;
   String? _selectedBarangay;
+  String? _selectedFarmMunicipality;
+  String? _selectedFarmBarangay;
   bool _isLoading = false;
 
   @override
@@ -140,6 +142,84 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     ),
                     const SizedBox(height: 16),
                     
+                    // Farm Location Section
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        'Farm Location (Optional)',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Farm Municipality Dropdown
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          hint: const Text('Select Farm Municipality'),
+                          value: _selectedFarmMunicipality,
+                          items: LocationData.municipalities
+                              .map((municipality) => DropdownMenuItem(
+                                    value: municipality,
+                                    child: Text(municipality),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedFarmMunicipality = value;
+                              _selectedFarmBarangay = null; // Reset farm barangay
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Farm Barangay Dropdown
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          hint: const Text('Select Farm Barangay'),
+                          value: _selectedFarmBarangay,
+                          items: _selectedFarmMunicipality == null
+                              ? []
+                              : LocationData.getBarangays(_selectedFarmMunicipality!)
+                                  .map((barangay) => DropdownMenuItem(
+                                        value: barangay,
+                                        child: Text(barangay),
+                                      ))
+                                  .toList(),
+                          onChanged: _selectedFarmMunicipality == null
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    _selectedFarmBarangay = value;
+                                  });
+                                },
+                          disabledHint: const Text('Please select farm municipality first'),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
                     AuthTextField(
                       label: 'Phone Number',
                       controller: _phoneNumberController,
@@ -211,7 +291,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     if (_selectedMunicipality == null || _selectedBarangay == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select both municipality and barangay'),
+          content: Text('Please select both residence municipality and barangay'),
           backgroundColor: Colors.red,
         ),
       );
@@ -226,7 +306,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       try {
         final address = '$_selectedBarangay, $_selectedMunicipality, Biliran';
         final signupData = {
-          'email': '${_phoneNumberController.text}@opas.app',
           'username': _phoneNumberController.text,
           'first_name': _firstNameController.text,
           'last_name': _lastNameController.text,
@@ -235,6 +314,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           'address': address,
           'municipality': _selectedMunicipality,
           'barangay': _selectedBarangay,
+          'farm_municipality': _selectedFarmMunicipality,
+          'farm_barangay': _selectedFarmBarangay,
           'role': 'BUYER',
         };
 

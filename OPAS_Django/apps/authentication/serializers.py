@@ -6,7 +6,8 @@ class SignUpSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'email', 'username', 'first_name', 'last_name', 'password', 'phone_number', 'address', 'role')
+        fields = ('id', 'username', 'first_name', 'last_name', 'password', 'phone_number', 'address', 
+                  'municipality', 'barangay', 'role')
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
@@ -23,10 +24,14 @@ class LoginSerializer(serializers.Serializer):
 class UpgradeToSellerSerializer(serializers.Serializer):
     store_name = serializers.CharField(max_length=255)
     store_description = serializers.CharField(required=False, allow_blank=True)
+    farm_municipality = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    farm_barangay = serializers.CharField(max_length=100, required=False, allow_blank=True)
 
     def update(self, instance, validated_data):
         instance.role = 'SELLER'
         instance.store_name = validated_data.get('store_name', instance.store_name)
         instance.store_description = validated_data.get('store_description', instance.store_description)
+        instance.farm_municipality = validated_data.get('farm_municipality', instance.farm_municipality)
+        instance.farm_barangay = validated_data.get('farm_barangay', instance.farm_barangay)
         instance.save()
         return instance
