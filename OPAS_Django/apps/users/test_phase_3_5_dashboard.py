@@ -50,7 +50,7 @@ class SellerMetricsTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         self.client.force_authenticate(user=self.admin_user)
@@ -162,7 +162,7 @@ class MarketMetricsTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         self.client.force_authenticate(user=self.admin_user)
@@ -332,7 +332,7 @@ class OPASMetricsTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         self.client.force_authenticate(user=self.admin_user)
@@ -463,7 +463,7 @@ class PriceComplianceTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         self.client.force_authenticate(user=self.admin_user)
@@ -586,7 +586,7 @@ class AlertsTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         self.client.force_authenticate(user=self.admin_user)
@@ -713,7 +713,7 @@ class DashboardAuthorizationTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         
@@ -768,7 +768,7 @@ class DashboardResponseFormatTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         self.client.force_authenticate(user=self.admin_user)
@@ -905,7 +905,7 @@ class DashboardPerformanceTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         self.client.force_authenticate(user=self.admin_user)
@@ -971,7 +971,7 @@ class DashboardEdgeCasesTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         self.client.force_authenticate(user=self.admin_user)
@@ -1060,7 +1060,7 @@ class DashboardIntegrationTestCase(APITestCase):
             username='admin',
             email='admin@test.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=self.admin_user)
         self.client.force_authenticate(user=self.admin_user)

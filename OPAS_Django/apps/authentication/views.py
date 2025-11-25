@@ -52,4 +52,5 @@ class LoginView(APIView):
             'last_name': user.last_name,
             'address': user.address,
             'role': user.role,
+            'admin_role': user.admin_role if user.role == 'ADMIN' else None,
         }, status=status.HTTP_200_OK)

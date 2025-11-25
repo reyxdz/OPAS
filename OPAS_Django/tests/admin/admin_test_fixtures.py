@@ -37,7 +37,7 @@ class AdminUserFactory:
             'email': email,
             'first_name': 'Super',
             'last_name': 'Admin',
-            'role': UserRole.OPAS_ADMIN,
+            'role': UserRole.ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)
@@ -53,7 +53,7 @@ class AdminUserFactory:
             'email': email,
             'first_name': 'Seller',
             'last_name': 'Manager',
-            'role': UserRole.OPAS_ADMIN,
+            'role': UserRole.ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)
@@ -69,7 +69,7 @@ class AdminUserFactory:
             'email': email,
             'first_name': 'Price',
             'last_name': 'Manager',
-            'role': UserRole.OPAS_ADMIN,
+            'role': UserRole.ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)
@@ -85,7 +85,7 @@ class AdminUserFactory:
             'email': email,
             'first_name': 'OPAS',
             'last_name': 'Manager',
-            'role': UserRole.OPAS_ADMIN,
+            'role': UserRole.ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)
@@ -101,7 +101,7 @@ class AdminUserFactory:
             'email': email,
             'first_name': 'Analytics',
             'last_name': 'Manager',
-            'role': UserRole.OPAS_ADMIN,
+            'role': UserRole.ADMIN,
             'password': 'secure_password_123'
         }
         user_data.update(kwargs)

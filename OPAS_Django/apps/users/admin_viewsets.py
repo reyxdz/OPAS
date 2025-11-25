@@ -21,7 +21,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from apps.users.models import (
-    User, UserRole, SellerStatus,
+    User, UserRole, SellerStatus, SellerApplication,
     SellerProduct, SellToOPAS, SellerPayout, SellerOrder,
 )
 from apps.users.seller_models import (
@@ -29,6 +29,7 @@ from apps.users.seller_models import (
 )
 from apps.users.admin_models import (
     AdminUser, SellerRegistrationRequest, SellerDocumentVerification,
+    SellerRegistrationStatus,
     SellerApprovalHistory, SellerSuspension,
     PriceCeiling, PriceAdvisory, PriceHistory, PriceNonCompliance,
     OPASPurchaseOrder, OPASInventory, OPASInventoryTransaction, OPASPurchaseHistory,
@@ -42,6 +43,7 @@ from .admin_serializers import (
     SystemNotificationSerializer, AdminAuditLogDetailedSerializer,
     AdminDashboardStatsSerializer,
 )
+from .seller_serializers import SellerRegistrationRequestSerializer
 from .admin_permissions import (
     IsAdmin, CanApproveSellers, CanManagePrices, CanAccessAuditLogs,
     CanViewAnalytics
@@ -59,8 +61,8 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
     """
     ViewSet for admin seller management operations.
     
-    Handles seller approval workflow, suspensions, document verification,
-    and compliance monitoring.
+    Handles seller registration approval workflow.
+    Returns pending seller registration requests awaiting admin approval.
     
     Caching: List and retrieve operations are cached for 5 minutes
     Rate Limiting: 
@@ -73,31 +75,27 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
     throttle_classes = [AdminReadThrottle, AdminWriteThrottle, AdminDeleteThrottle]
     
     def get_queryset(self):
-        """Get all sellers with filtering support"""
-        queryset = User.objects.filter(role=UserRole.SELLER).order_by('-created_at')
-        
-        # Filter by status
-        status_filter = self.request.query_params.get('status', None)
-        if status_filter:
-            queryset = queryset.filter(seller_status=status_filter)
+        """Get pending seller registration requests"""
+        queryset = SellerApplication.objects.filter(
+            status='PENDING'
+        ).order_by('-created_at')
         
         # Filter by search term
         search = self.request.query_params.get('search', None)
         if search:
             queryset = queryset.filter(
-                Q(first_name__icontains=search) |
-                Q(last_name__icontains=search) |
-                Q(email__icontains=search) |
-                Q(store_name__icontains=search)
+                Q(farm_name__icontains=search) |
+                Q(farm_location__icontains=search) |
+                Q(store_name__icontains=search) |
+                Q(user__email__icontains=search)
             )
         
         return queryset
     
     def get_serializer_class(self):
-        """Use different serializer for retrieve action"""
-        if self.action == 'retrieve':
-            return SellerDetailsSerializer
-        return SellerManagementSerializer
+        """Use SellerApplicationSerializer"""
+        from .admin_serializers import SellerApplicationSerializer
+        return SellerApplicationSerializer
     
     @action(detail=False, methods=['get'], url_path='pending-approvals')
     def pending_approvals(self, request):
@@ -106,7 +104,8 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         
         Returns: List of sellers with PENDING status
         """
-        sellers = self.get_queryset().filter(seller_status=SellerStatus.PENDING)
+        # get_queryset() already filters for PENDING status
+        sellers = self.get_queryset()
         serializer = self.get_serializer(sellers, many=True)
         return Response({
             'count': sellers.count(),
@@ -118,11 +117,20 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         """
         Get seller's submitted documents with verification status.
         
-        Returns: List of documents with verification status
+        Returns: List of documents with verification status (if any)
         """
-        seller = self.get_object()
         try:
-            reg_request = SellerRegistrationRequest.objects.get(seller=seller)
+            application = self.get_object()  # Get SellerApplication
+            user = application.user  # Get the User object
+        except SellerApplication.DoesNotExist:
+            return Response(
+                {'detail': 'Application not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Try to find legacy registration request documents
+        try:
+            reg_request = SellerRegistrationRequest.objects.get(seller=user)
             documents = SellerDocumentVerification.objects.filter(
                 registration_request=reg_request
             )
@@ -130,10 +138,8 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             serializer = SellerDocumentVerificationSerializer(documents, many=True)
             return Response(serializer.data)
         except SellerRegistrationRequest.DoesNotExist:
-            return Response(
-                {'detail': 'No registration request found for this seller'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            # No legacy documents, return empty list
+            return Response([])
     
     @action(
         detail=True, methods=['post'],
@@ -150,22 +156,38 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             "documents_verified": true
         }
         
-        Returns: Updated seller with APPROVED status
+        Returns: Updated application with APPROVED status
         """
-        seller = self.get_object()
-        admin_user = AdminUser.objects.get(user=request.user)
+        # Check admin permission
+        if not request.user.has_admin_permission('approve_sellers'):
+            return Response(
+                {'detail': 'You do not have permission to approve sellers.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         
-        # Update seller status
-        seller.role = UserRole.SELLER
-        seller.seller_status = SellerStatus.APPROVED
-        seller.seller_approval_date = timezone.now()
-        seller.seller_documents_verified = request.data.get('documents_verified', False)
-        seller.save()
+        application = self.get_object()  # Get SellerApplication
+        user = application.user  # Get the User object
+        
+        # Get or create AdminUser record (for audit logs)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+        
+        # Update application status
+        application.status = 'APPROVED'
+        application.reviewed_at = timezone.now()
+        application.reviewed_by = request.user
+        application.save()
+        
+        # Update user role and status
+        user.role = UserRole.SELLER
+        user.seller_status = SellerStatus.APPROVED
+        user.seller_approval_date = timezone.now()
+        user.seller_documents_verified = request.data.get('documents_verified', False)
+        user.save()
         
         # Record in approval history
         admin_notes = request.data.get('admin_notes', '')
         SellerApprovalHistory.objects.create(
-            seller=seller,
+            seller=user,
             admin=admin_user,
             decision='APPROVED',
             decision_reason='Seller registration approved by admin',
@@ -178,12 +200,12 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             admin=admin_user,
             action_type='Seller Approval',
             action_category='SELLER_APPROVAL',
-            affected_seller=seller,
-            description=f"Approved seller registration for {seller.full_name}",
+            affected_seller=user,
+            description=f"Approved seller registration for {user.full_name}",
             new_value=SellerStatus.APPROVED
         )
         
-        serializer = self.get_serializer(seller)
+        serializer = self.get_serializer(application)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     @action(
@@ -201,21 +223,36 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             "admin_notes": "Requested more information"
         }
         
-        Returns: Updated seller with REJECTED status
+        Returns: Updated application with REJECTED status
         """
-        seller = self.get_object()
-        admin_user = AdminUser.objects.get(user=request.user)
+        # Check admin permission
+        if not request.user.has_admin_permission('approve_sellers'):
+            return Response(
+                {'detail': 'You do not have permission to reject sellers.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        application = self.get_object()  # Get SellerApplication
+        user = application.user  # Get the User object
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         
         rejection_reason = request.data.get('rejection_reason', 'No reason provided')
         admin_notes = request.data.get('admin_notes', '')
         
-        # Update seller status
-        seller.seller_status = SellerStatus.REJECTED
-        seller.save()
+        # Update application status
+        application.status = 'REJECTED'
+        application.rejection_reason = rejection_reason
+        application.reviewed_at = timezone.now()
+        application.reviewed_by = request.user
+        application.save()
+        
+        # Update user status
+        user.seller_status = SellerStatus.REJECTED
+        user.save()
         
         # Record in approval history
         SellerApprovalHistory.objects.create(
-            seller=seller,
+            seller=user,
             admin=admin_user,
             decision='REJECTED',
             decision_reason=rejection_reason,
@@ -228,12 +265,12 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             admin=admin_user,
             action_type='Seller Rejection',
             action_category='SELLER_APPROVAL',
-            affected_seller=seller,
+            affected_seller=user,
             description=f"Rejected seller registration: {rejection_reason}",
             new_value=SellerStatus.REJECTED
         )
         
-        serializer = self.get_serializer(seller)
+        serializer = self.get_serializer(application)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     @action(
@@ -254,17 +291,26 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         
         Returns: Updated seller with SUSPENDED status
         """
-        seller = self.get_object()
-        admin_user = AdminUser.objects.get(user=request.user)
+        # Get the seller user (not the application)
+        try:
+            application = self.get_object()  # Get SellerApplication
+            user = application.user  # Get the User object
+        except SellerApplication.DoesNotExist:
+            return Response(
+                {'detail': 'Application not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         
         reason = request.data.get('reason', 'Account suspended by admin')
         duration_days = request.data.get('duration_days', None)
         
         # Update seller status
-        seller.seller_status = SellerStatus.SUSPENDED
-        seller.suspended_at = timezone.now()
-        seller.suspension_reason = reason
-        seller.save()
+        user.seller_status = SellerStatus.SUSPENDED
+        user.suspended_at = timezone.now()
+        user.suspension_reason = reason
+        user.save()
         
         # Create suspension record
         suspended_until = None
@@ -274,7 +320,7 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             severity = 'TEMPORARY'
         
         SellerSuspension.objects.create(
-            seller=seller,
+            seller=user,
             admin=admin_user,
             reason=reason,
             severity=severity,
@@ -287,12 +333,13 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             admin=admin_user,
             action_type='Seller Suspension',
             action_category='SELLER_SUSPENSION',
-            affected_seller=seller,
+            affected_seller=user,
             description=f"Suspended seller account: {reason}",
             new_value=SellerStatus.SUSPENDED
         )
         
-        serializer = self.get_serializer(seller)
+        # Serialize the application for response
+        serializer = self.get_serializer(application)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     @action(
@@ -311,18 +358,27 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         
         Returns: Updated seller with APPROVED status
         """
-        seller = self.get_object()
-        admin_user = AdminUser.objects.get(user=request.user)
+        # Get the seller user (not the application)
+        try:
+            application = self.get_object()  # Get SellerApplication
+            user = application.user  # Get the User object
+        except SellerApplication.DoesNotExist:
+            return Response(
+                {'detail': 'Application not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         
         # Update seller status
-        seller.seller_status = SellerStatus.APPROVED
-        seller.suspended_at = None
-        seller.suspension_reason = None
-        seller.save()
+        user.seller_status = SellerStatus.APPROVED
+        user.suspended_at = None
+        user.suspension_reason = None
+        user.save()
         
         # Mark suspension as lifted
         suspension = SellerSuspension.objects.filter(
-            seller=seller, is_active=True
+            seller=user, is_active=True
         ).first()
         if suspension:
             suspension.is_active = False
@@ -332,7 +388,7 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         # Record in approval history
         admin_notes = request.data.get('admin_notes', '')
         SellerApprovalHistory.objects.create(
-            seller=seller,
+            seller=user,
             admin=admin_user,
             decision='REACTIVATED',
             decision_reason='Seller account reactivated',
@@ -345,12 +401,13 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             admin=admin_user,
             action_type='Seller Reactivation',
             action_category='SELLER_SUSPENSION',
-            affected_seller=seller,
+            affected_seller=user,
             description='Seller account reactivated',
             new_value=SellerStatus.APPROVED
         )
         
-        serializer = self.get_serializer(seller)
+        # Serialize the application for response
+        serializer = self.get_serializer(application)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'], url_path='approval-history')
@@ -360,8 +417,16 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         
         Returns: List of all approval decisions with timestamps and notes
         """
-        seller = self.get_object()
-        history = SellerApprovalHistory.objects.filter(seller=seller).order_by('-created_at')
+        try:
+            application = self.get_object()  # Get SellerApplication
+            user = application.user  # Get the User object
+        except SellerApplication.DoesNotExist:
+            return Response(
+                {'detail': 'Application not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        history = SellerApprovalHistory.objects.filter(seller=user).order_by('-created_at')
         from .admin_serializers import SellerApprovalHistorySerializer
         serializer = SellerApprovalHistorySerializer(history, many=True)
         return Response(serializer.data)
@@ -373,8 +438,16 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         
         Returns: List of price violations with current status
         """
-        seller = self.get_object()
-        violations = PriceNonCompliance.objects.filter(seller=seller).order_by('-detected_at')
+        try:
+            application = self.get_object()  # Get SellerApplication
+            user = application.user  # Get the User object
+        except SellerApplication.DoesNotExist:
+            return Response(
+                {'detail': 'Application not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        violations = PriceNonCompliance.objects.filter(seller=user).order_by('-detected_at')
         serializer = PriceNonComplianceSerializer(violations, many=True)
         return Response({
             'count': violations.count(),
@@ -455,7 +528,7 @@ class PriceManagementViewSet(viewsets.ModelViewSet):
         
         Returns: Created price ceiling
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         product_id = request.data.get('product_id')
         
         product = get_object_or_404(SellerProduct, pk=product_id)
@@ -504,7 +577,7 @@ class PriceManagementViewSet(viewsets.ModelViewSet):
         
         Returns: Updated price ceiling with history
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         ceiling = get_object_or_404(PriceCeiling, pk=ceiling_id)
         
         old_price = ceiling.ceiling_price
@@ -600,7 +673,7 @@ class PriceManagementViewSet(viewsets.ModelViewSet):
         
         Returns: Created advisory
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         
         advisory = PriceAdvisory.objects.create(
             title=request.data.get('title'),
@@ -636,7 +709,7 @@ class PriceManagementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['delete'], url_path='advisories/(?P<advisory_id>[^/.]+)')
     def delete_advisory(self, request, advisory_id=None):
         """Delete a price advisory."""
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         advisory = get_object_or_404(PriceAdvisory, pk=advisory_id)
         
         advisory.is_active = False
@@ -664,7 +737,7 @@ class PriceManagementViewSet(viewsets.ModelViewSet):
             "ceiling_price": 500.00
         }
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         seller_id = request.data.get('seller_id')
         product_id = request.data.get('product_id')
         listed_price = request.data.get('listed_price')
@@ -971,7 +1044,7 @@ class PriceManagementViewSet(viewsets.ModelViewSet):
         
         Returns: Updated violation record
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         violation = get_object_or_404(PriceNonCompliance, pk=violation_id)
         
         # Update violation status
@@ -1059,7 +1132,7 @@ class OPASPurchasingViewSet(viewsets.ModelViewSet):
             "admin_notes": "Good quality produce"
         }
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         purchase_order = self.get_object()
         
         purchase_order.status = 'APPROVED'
@@ -1109,7 +1182,7 @@ class OPASPurchasingViewSet(viewsets.ModelViewSet):
             "rejection_reason": "Quality not meeting standards"
         }
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         purchase_order = self.get_object()
         
         purchase_order.status = 'REJECTED'
@@ -1210,7 +1283,7 @@ class OPASPurchasingViewSet(viewsets.ModelViewSet):
             "reason": "Spoilage"
         }
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         inventory_id = request.data.get('inventory_id')
         quantity_change = request.data.get('quantity_change')
         
@@ -1422,7 +1495,7 @@ class MarketplaceOversightViewSet(viewsets.ReadOnlyModelViewSet):
             "severity": "WARNING"
         }
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         product = get_object_or_404(SellerProduct, pk=product_id)
         
         alert = MarketplaceAlert.objects.create(
@@ -1441,7 +1514,7 @@ class MarketplaceOversightViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['post'], url_path='listings/(?P<product_id>[^/.]+)/remove')
     def remove_listing(self, request, product_id=None):
         """Remove a marketplace listing."""
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         product = get_object_or_404(SellerProduct, pk=product_id)
         
         product.status = 'INACTIVE'
@@ -1509,7 +1582,7 @@ class MarketplaceOversightViewSet(viewsets.ReadOnlyModelViewSet):
             "resolution_type": "SELLER_RESOLVED" | "ADMIN_RESOLVED" | "FALSE_POSITIVE"
         }
         """
-        admin_user = AdminUser.objects.get(user=request.user)
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         alert = get_object_or_404(MarketplaceAlert, pk=alert_id)
         
         alert.status = 'RESOLVED'
@@ -1869,7 +1942,7 @@ class AdminNotificationsViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         """Get notifications for current admin user"""
         try:
-            admin_user = AdminUser.objects.get(user=self.request.user)
+            admin_user, _ = AdminUser.objects.get_or_create(user=self.request.user)
             return SystemNotification.objects.filter(
                 recipient=admin_user
             ).order_by('-created_at')
@@ -2393,8 +2466,9 @@ class DashboardViewSet(viewsets.ViewSet):
         
         except Exception as e:
             # Log error and return error response
+            admin_user = AdminUser.objects.get_or_create(user=request.user)[0] if request.user.is_authenticated else None
             AdminAuditLog.objects.create(
-                admin=AdminUser.objects.get(user=request.user) if request.user.is_authenticated else None,
+                admin=admin_user,
                 action_type='Dashboard Stats Error',
                 action_category='ERROR',
                 description=f'Error calculating dashboard stats: {str(e)}'

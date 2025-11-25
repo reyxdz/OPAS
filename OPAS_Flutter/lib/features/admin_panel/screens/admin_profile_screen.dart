@@ -5,7 +5,9 @@ import '../models/admin_profile.dart';
 /// Admin Profile Screen
 /// Displays admin user information, edit profile functionality, and logout
 class AdminProfileScreen extends StatefulWidget {
-  const AdminProfileScreen({super.key});
+  final VoidCallback? onBackPressed;
+
+  const AdminProfileScreen({super.key, this.onBackPressed});
 
   @override
   State<AdminProfileScreen> createState() => _AdminProfileScreenState();
@@ -208,7 +210,13 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Admin Profile')),
+        appBar: AppBar(
+          title: const Text('Admin Profile'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: widget.onBackPressed,
+          ),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -217,6 +225,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       appBar: AppBar(
         centerTitle: true,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: widget.onBackPressed,
+        ),
+        title: const Text('Admin Profile'),
       ),
       body: Column(
         children: [

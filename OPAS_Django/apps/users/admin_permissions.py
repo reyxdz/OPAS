@@ -20,6 +20,12 @@ class IsAdmin(permissions.BasePermission):
         """Check if user is an admin."""
         if not request.user or not request.user.is_authenticated:
             return False
+        
+        # Check User.role directly
+        if hasattr(request.user, 'role') and request.user.role == 'ADMIN':
+            return True
+        
+        # Fallback to AdminUser model if it exists
         try:
             admin_user = AdminUser.objects.get(user=request.user)
             return admin_user.is_active
@@ -37,6 +43,12 @@ class IsSuperAdmin(permissions.BasePermission):
         """Check if user is a super admin."""
         if not request.user or not request.user.is_authenticated:
             return False
+        
+        # Check User.admin_role directly
+        if hasattr(request.user, 'admin_role') and request.user.admin_role == 'SUPER_ADMIN':
+            return True
+        
+        # Fallback to AdminUser model if it exists
         try:
             admin_user = AdminUser.objects.get(user=request.user)
             return admin_user.admin_role == 'SUPER_ADMIN' and admin_user.is_active
@@ -57,11 +69,17 @@ class CanApproveSellers(permissions.BasePermission):
         """Check if user has seller approval permissions."""
         if not request.user or not request.user.is_authenticated:
             return False
+        
+        # Check User.admin_role directly
+        if hasattr(request.user, 'admin_role'):
+            allowed_roles = ['SUPER_ADMIN', 'SELLER_MANAGER']
+            return request.user.admin_role in allowed_roles
+        
+        # Fallback to AdminUser model if it exists
         try:
             admin_user = AdminUser.objects.get(user=request.user)
             if not admin_user.is_active:
                 return False
-            # Super Admin and Seller Manager can approve sellers
             allowed_roles = ['SUPER_ADMIN', 'SELLER_MANAGER']
             return admin_user.admin_role in allowed_roles
         except AdminUser.DoesNotExist:
@@ -79,11 +97,17 @@ class CanManagePrices(permissions.BasePermission):
         """Check if user has price management permissions."""
         if not request.user or not request.user.is_authenticated:
             return False
+        
+        # Check User.admin_role directly
+        if hasattr(request.user, 'admin_role'):
+            allowed_roles = ['SUPER_ADMIN', 'PRICE_MANAGER']
+            return request.user.admin_role in allowed_roles
+        
+        # Fallback to AdminUser model if it exists
         try:
             admin_user = AdminUser.objects.get(user=request.user)
             if not admin_user.is_active:
                 return False
-            # Super Admin and Price Manager can manage prices
             allowed_roles = ['SUPER_ADMIN', 'PRICE_MANAGER']
             return admin_user.admin_role in allowed_roles
         except AdminUser.DoesNotExist:
@@ -501,4 +525,50 @@ __all__ = [
     'IsAdminAndCanMonitorMarketplace',
     'IsAdminAndCanViewAnalytics',
     'IsAdminAndCanManageNotifications',
+    'check_admin_permission',
+    'get_admin_info',
 ]
+
+
+# ==================== UTILITY FUNCTIONS ====================
+
+def check_admin_permission(user, permission: str) -> bool:
+    """
+    Check if a user has a specific admin permission.
+    
+    Permissions:
+    - 'approve_sellers': Approve/reject seller applications
+    - 'manage_prices': Set prices and price regulations
+    - 'view_analytics': View reports and analytics
+    - 'handle_suspensions': Suspend/reactivate accounts
+    - 'full_access': All permissions
+    
+    Returns: True if user has permission, False otherwise
+    """
+    if not user.is_authenticated or not user.is_admin:
+        return False
+    
+    return user.has_admin_permission(permission)
+
+
+def get_admin_info(user):
+    """
+    Get admin role and permissions info for a user.
+    
+    Returns dict with admin_role and permissions, or None if not admin.
+    """
+    if not user.is_authenticated or not user.is_admin:
+        return None
+    
+    return {
+        'admin_role': user.admin_role,
+        'admin_role_display': user.get_admin_role_display(),
+        'permissions': {
+            'approve_sellers': user.has_admin_permission('approve_sellers'),
+            'manage_prices': user.has_admin_permission('manage_prices'),
+            'view_analytics': user.has_admin_permission('view_analytics'),
+            'handle_suspensions': user.has_admin_permission('handle_suspensions'),
+            'full_access': user.has_admin_permission('full_access'),
+        }
+    }
+

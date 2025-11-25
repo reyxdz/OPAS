@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/services/admin_service.dart';
+import '../../../core/utils/admin_permissions.dart';
 
 class PendingSellerApprovalsScreen extends StatefulWidget {
   const PendingSellerApprovalsScreen({super.key});
@@ -28,11 +29,22 @@ class _PendingSellerApprovalsScreenState
   Future<List<Map<String, dynamic>>> _fetchPendingApplications() async {
     try {
       final approvals = await AdminService.getPendingSellerApprovals();
+      print('DEBUG: Received ${approvals.length} approvals from API');
+      print('DEBUG: Approvals type: ${approvals.runtimeType}');
+      if (approvals.isNotEmpty) {
+        print('DEBUG: First approval: ${approvals.first}');
+      }
+      
       _pendingApprovals = List<Map<String, dynamic>>.from(
-        approvals.map((item) => _parseApplication(item as Map<String, dynamic>)),
+        approvals.map((item) {
+          print('DEBUG: Processing item: $item');
+          return _parseApplication(item as Map<String, dynamic>);
+        }),
       );
+      print('DEBUG: Parsed ${_pendingApprovals.length} applications');
       return _pendingApprovals;
     } catch (e) {
+      print('ERROR loading pending applications: $e');
       if (kDebugMode) {
         print('Error loading pending applications: $e');
       }
@@ -41,21 +53,29 @@ class _PendingSellerApprovalsScreenState
   }
 
   Map<String, dynamic> _parseApplication(Map<String, dynamic> item) {
-    final user = item['user'] as Map<String, dynamic>? ?? {};
-    final createdAt = item['created_at'] as String? ?? '';
+    // API returns flat structure with seller_email and seller_full_name directly
+    final submittedAt = item['submitted_at'] as String? ?? '';
+    final sellerFullName = item['seller_full_name'] as String? ?? '';
+    final sellerEmail = item['seller_email'] as String? ?? '';
+    
+    // Use seller_full_name if available, otherwise extract from email
+    String displayName = sellerFullName.isNotEmpty 
+        ? sellerFullName 
+        : sellerEmail.split('@').first;
     
     return {
       'id': item['id'],
-      'name': user['name'] ?? 'Unknown',
+      'name': displayName.isNotEmpty ? displayName : 'Unknown',
       'farmName': item['farm_name'] ?? '',
       'farmLocation': item['farm_location'] ?? '',
       'storeName': item['store_name'] ?? '',
       'storeDescription': item['store_description'] ?? '',
-      'appliedDate': _formatDate(createdAt),
-      'phoneNumber': user['phone_number'] ?? '',
-      'email': user['email'] ?? '',
+      'appliedDate': _formatDate(submittedAt),
+      'phoneNumber': item['phone_number'] ?? '',  // May not exist in API
+      'email': sellerEmail,
       'status': item['status'] ?? 'PENDING',
       'rejectionReason': item['rejection_reason'] ?? '',
+      'productsGrown': item['products_grown'] ?? '',
     };
   }
 
@@ -92,12 +112,53 @@ class _PendingSellerApprovalsScreenState
         title: const Text('Pending Seller Approvals'),
         centerTitle: true,
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _pendingApplicationsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: FutureBuilder<bool>(
+        future: AdminPermissions.canApproveSellers(),
+        builder: (context, permissionSnapshot) {
+          // Check if user has permission
+          if (permissionSnapshot.hasData && !permissionSnapshot.data!) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.lock_outline,
+                    size: 80,
+                    color: Colors.red.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Access Denied',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'You don\'t have permission to view pending seller approvals.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Go Back'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // Show loading while checking permissions
+          if (permissionSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+
+          // User has permission, show pending applications
+          return FutureBuilder<List<Map<String, dynamic>>>(
+            future: _pendingApplicationsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
           if (snapshot.hasError) {
             return Center(
@@ -167,7 +228,9 @@ class _PendingSellerApprovalsScreenState
               return _buildApprovalCard(context, approval, index);
             },
           );
-        },
+            }
+          );
+        }
       ),
     );
   }

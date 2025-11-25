@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
                 ('last_name', models.CharField(max_length=150)),
                 ('phone_number', models.CharField(blank=True, max_length=15)),
                 ('address', models.TextField(blank=True)),
-                ('role', models.CharField(choices=[('BUYER', 'Buyer'), ('SELLER', 'Seller'), ('OPAS_ADMIN', 'OPAS Admin'), ('SYSTEM_ADMIN', 'System Admin')], default='BUYER', max_length=20)),
+                ('role', models.CharField(choices=[('BUYER', 'Buyer'), ('SELLER', 'Seller'), ('ADMIN', 'OPAS Admin'), ('ADMIN', 'System Admin')], default='BUYER', max_length=20)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('groups', models.ManyToManyField(blank=True, help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.', related_name='user_set', related_query_name='user', to='auth.group', verbose_name='groups')),

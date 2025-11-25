@@ -624,7 +624,7 @@ class DashboardAuthorizationTestCase(TestCase):
             email='admin@test.com',
             password='pass123',
             username='admin',
-            role=UserRole.OPAS_ADMIN,
+            role=UserRole.ADMIN,
             is_staff=True
         )
         
@@ -685,7 +685,7 @@ class DashboardIntegrationTestCase(TestCase):
             email='admin@test.com',
             password='pass123',
             username='admin',
-            role=UserRole.OPAS_ADMIN,
+            role=UserRole.ADMIN,
             is_staff=True
         )
         
@@ -958,7 +958,7 @@ class DashboardIntegrationTestCase(TestCase):
             email='admin2@test.com',
             password='pass123',
             username='admin2',
-            role=UserRole.OPAS_ADMIN,
+            role=UserRole.ADMIN,
             is_staff=True
         )
         
@@ -1016,7 +1016,7 @@ class DashboardPerformanceIntegrationTestCase(TestCase):
             email='admin@test.com',
             password='pass123',
             username='admin',
-            role=UserRole.OPAS_ADMIN,
+            role=UserRole.ADMIN,
             is_staff=True
         )
         

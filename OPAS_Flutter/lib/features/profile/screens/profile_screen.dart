@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile_model.dart';
-import 'seller_registration_screen.dart';
+import 'seller_upgrade_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -169,7 +169,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Navigate to seller registration screen
     final result = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const SellerRegistrationScreen()),
+      MaterialPageRoute(
+        builder: (_) => const SellerUpgradeScreen(),
+      ),
     );
 
     // If registration was successful, update UI

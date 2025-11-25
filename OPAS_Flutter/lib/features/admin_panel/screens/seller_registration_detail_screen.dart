@@ -277,7 +277,6 @@ class _SellerRegistrationDetailScreenState
             const SizedBox(height: 16),
             _buildInfoRow('Farm Name', _registration!.farmName),
             _buildInfoRow('Location', _registration!.farmLocation),
-            _buildInfoRow('Size', _registration!.farmSize),
             _buildInfoRow(
               'Products',
               _registration!.productsGrown.join(', '),

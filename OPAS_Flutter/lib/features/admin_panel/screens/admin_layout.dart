@@ -165,9 +165,11 @@ class _AdminLayoutState extends State<AdminLayout> with WidgetsBindingObserver {
   Widget _buildBody() {
     return IndexedStack(
       index: _currentScreenIndex,
-      children: const [
-        AdminHomeScreen(),
-        AdminProfileScreen(),
+      children: [
+        const AdminHomeScreen(),
+        AdminProfileScreen(
+          onBackPressed: () => _onScreenChanged(0),
+        ),
       ],
     );
   }

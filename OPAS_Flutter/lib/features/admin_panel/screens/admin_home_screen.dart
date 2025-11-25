@@ -1,9 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import 'pending_seller_approvals_screen.dart';
+import '../../../core/services/admin_service.dart';
+import '../../../core/utils/admin_permissions.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -26,32 +25,17 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   Future<void> _fetchPendingApprovalCount() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final accessToken = prefs.getString('access') ?? '';
-
-      if (accessToken.isEmpty) {
-        setState(() => _loadingPendingCount = false);
-        return;
+      final approvals = await AdminService.getPendingSellerApprovals();
+      final count = approvals.length;
+      
+      if (kDebugMode) {
+        print('DEBUG: Pending approvals count: $count');
       }
-
-      final response = await http.get(
-        Uri.parse('http://10.113.93.34:8000/api/users/admin/sellers/pending_approvals/'),
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final count = (data is List) ? data.length : 0;
-        setState(() {
-          _pendingApprovalCount = count;
-          _loadingPendingCount = false;
-        });
-      } else {
-        setState(() => _loadingPendingCount = false);
-      }
+      
+      setState(() {
+        _pendingApprovalCount = count;
+        _loadingPendingCount = false;
+      });
     } catch (e) {
       if (kDebugMode) {
         print('Error fetching pending approval count: $e');
@@ -62,9 +46,25 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _buildBody(),
-      bottomNavigationBar: _buildAdminBottomNavBar(),
+    return FutureBuilder<String>(
+      future: AdminPermissions.getAdminRole(),
+      builder: (context, roleSnapshot) {
+        String adminRole = roleSnapshot.data ?? '';
+        
+        return Scaffold(
+          body: Stack(
+            children: [
+              _buildBody(),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: _buildAdminBottomNavBar(adminRole),
+              ),
+            ],
+          ),
+        );
+      }
     );
   }
 
@@ -88,24 +88,49 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
   }
 
-  Widget _buildAdminBottomNavBar() {
+  Widget _buildAdminBottomNavBar(String adminRole) {
+    // Build nav items based on admin role
+    if (kDebugMode) {
+      print('DEBUG: Admin role from SharedPreferences: "$adminRole"');
+    }
+    List<Widget> navItems = [];
+    
+    // Dashboard - everyone can see
+    navItems.add(_buildAdminNavItem(0, Icons.analytics_outlined, Icons.analytics));
+    
+    // User Management - everyone except Analytics Admin and Price Manager
+    if (adminRole != 'ANALYTICS_ADMIN' && adminRole != 'PRICE_MANAGER') {
+      navItems.add(_buildAdminNavItem(1, Icons.person_add_outlined, Icons.person_add));
+    }
+    
+    // Price Management - Super Admin and Price Manager
+    if (adminRole == 'SUPER_ADMIN' || adminRole == 'PRICE_MANAGER') {
+      navItems.add(_buildAdminNavItem(2, Icons.price_check_outlined, Icons.price_check));
+    }
+    
+    // Inventory - Super Admin and Price Manager
+    if (adminRole == 'SUPER_ADMIN' || adminRole == 'PRICE_MANAGER') {
+      navItems.add(_buildAdminNavItem(3, Icons.store_outlined, Icons.store));
+    }
+    
+    // Announcements - everyone can see
+    navItems.add(_buildAdminNavItem(4, Icons.campaign_outlined, Icons.campaign));
+    
+    // Calculate container width based on number of icons
+    // Each icon needs space: ~55 (icon) + ~20 (padding) = ~75 per icon
+    // Plus container padding and margins
+    final containerWidth = (navItems.length * 75.0) + 30;
+
     return Container(
       height: 80,
       padding: const EdgeInsets.only(bottom: 25, top: 10),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.transparent,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
       ),
       child: Center(
         child: Container(
           height: 60,
-          margin: const EdgeInsets.symmetric(horizontal: 55),
+          width: containerWidth,
           decoration: BoxDecoration(
             color: const Color(0xFF000000),
             borderRadius: BorderRadius.circular(16),
@@ -118,20 +143,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             ],
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(width: 20),
-              _buildAdminNavItem(0, Icons.analytics_outlined, Icons.analytics),
-              const SizedBox(width: 35),
-              _buildAdminNavItem(1, Icons.person_add_outlined, Icons.person_add),
-              const SizedBox(width: 35),
-              _buildAdminNavItem(2, Icons.price_check_outlined, Icons.price_check),
-              const SizedBox(width: 35),
-              _buildAdminNavItem(3, Icons.store_outlined, Icons.store),
-              const SizedBox(width: 35),
-              _buildAdminNavItem(4, Icons.campaign_outlined, Icons.campaign),
-              const SizedBox(width: 20),
-            ],
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: navItems,
           ),
         ),
       ),

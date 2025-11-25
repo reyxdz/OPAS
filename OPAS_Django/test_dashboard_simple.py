@@ -24,7 +24,7 @@ admin_user, created = User.objects.get_or_create(
         'email': 'test_admin@example.com',
         'first_name': 'Test',
         'last_name': 'Admin',
-        'role': UserRole.OPAS_ADMIN
+        'role': UserRole.ADMIN
     }
 )
 

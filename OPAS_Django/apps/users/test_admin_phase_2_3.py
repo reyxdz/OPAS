@@ -43,7 +43,7 @@ class AdminUserModelMethodsTest(TestCase):
             password='testpass123',
             first_name='Super',
             last_name='Admin',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         self.user2 = User.objects.create_user(
             username='seller_manager',
@@ -51,7 +51,7 @@ class AdminUserModelMethodsTest(TestCase):
             password='testpass123',
             first_name='Seller',
             last_name='Manager',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         self.user3 = User.objects.create_user(
             username='inactive_admin',
@@ -59,7 +59,7 @@ class AdminUserModelMethodsTest(TestCase):
             password='testpass123',
             first_name='Inactive',
             last_name='Admin',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         
         # Create admin profiles
@@ -162,7 +162,7 @@ class SellerRegistrationApproveRejectTest(TestCase):
             password='testpass123',
             first_name='Admin',
             last_name='User',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         self.admin = AdminUser.objects.create(
             user=admin_user,
@@ -496,7 +496,7 @@ class AdminAuditLogImmutabilityTest(TestCase):
         admin_user = User.objects.create_user(
             email='admin@opas.com',
             password='testpass123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         self.admin = AdminUser.objects.create(
             user=admin_user,

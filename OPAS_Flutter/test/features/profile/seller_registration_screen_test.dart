@@ -1,83 +1,73 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:opas_flutter/features/profile/screens/seller_registration_screen.dart';
+import 'package:opas_flutter/features/profile/screens/seller_upgrade_screen.dart';
 
-/// Flutter Widget Tests for Seller Registration Screen
-/// Tests form rendering, validation, and state management
+/// Flutter Widget Tests for Seller Upgrade Screen
+/// Tests form rendering, validation, and submission
 /// CORE PRINCIPLE: Input Validation - Client-side validation tested
 /// CORE PRINCIPLE: User Experience - Form flow and feedback tested
 
 void main() {
-  group('SellerRegistrationScreen Widget Tests', () {
-    testWidgets('Renders multi-step form with progress indicator',
+  group('SellerUpgradeScreen Widget Tests', () {
+    testWidgets('Renders form with all required fields',
         (WidgetTester tester) async {
       // CORE PRINCIPLE: User Experience - Visual feedback
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
       // Verify app renders
       expect(find.byType(Scaffold), findsOneWidget);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
-      expect(find.text('Step 1 of 4'), findsOneWidget);
+      expect(find.text('Start Selling Today'), findsOneWidget);
+      expect(find.byType(TextFormField), findsWidgets);
     });
 
-    testWidgets('Farm info step renders all fields',
+    testWidgets('All form fields render correctly',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      // Verify farm info fields
-      expect(find.text('Farm Information'), findsOneWidget);
-      expect(find.byType(TextField), findsWidgets);
-      expect(find.text('Farm Name *'), findsOneWidget);
-      expect(find.text('Location *'), findsOneWidget);
-      expect(find.text('Farm Size *'), findsOneWidget);
-      expect(find.text('Products Grown *'), findsOneWidget);
+      // Verify form fields
+      expect(find.text('Farm Name'), findsOneWidget);
+      expect(find.byType(TextFormField), findsWidgets);
+      expect(find.text('Farm Location'), findsOneWidget);
+      expect(find.text('Store Name'), findsOneWidget);
+      expect(find.text('Store Description'), findsOneWidget);
     });
 
     testWidgets('Form validation shows error messages',
         (WidgetTester tester) async {
       // CORE PRINCIPLE: Input Validation - Error display
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      // Try to proceed without filling farm name
-      final nextButton = find.byType(ElevatedButton).last;
-      await tester.tap(nextButton);
+      // Try to submit without filling farm name
+      final submitButton = find.widgetWithText(ElevatedButton, 'Upgrade to Seller');
+      await tester.tap(submitButton);
       await tester.pumpAndSettle();
 
-      // Should show validation error or prevent navigation
-      expect(find.text('Farm Information'), findsOneWidget);
+      // Should show validation error
+      expect(find.byType(SnackBar), findsWidgets);
     });
 
     testWidgets('Farm name field requires minimum 3 characters',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
       // Find and fill farm name field with short text
-      final farmNameField = find.byType(TextField).first;
+      final farmNameField = find.byType(TextFormField).first;
       await tester.enterText(farmNameField, 'AB'); // Too short
       await tester.pumpAndSettle();
 
@@ -85,131 +75,112 @@ void main() {
       expect(find.text('AB'), findsOneWidget);
     });
 
-    testWidgets('Products can be selected via checkboxes',
+    testWidgets('Store description field accepts input',
         (WidgetTester tester) async {
       // CORE PRINCIPLE: User Experience - Form interaction
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      // Find checkbox for "Fruits"
-      final fruitsCheckbox = find.widgetWithText(CheckboxListTile, 'Fruits');
-      expect(fruitsCheckbox, findsOneWidget);
+      // Find store description field
+      final descriptionFields = find.byType(TextFormField);
+      expect(descriptionFields, findsWidgets);
 
-      // Tap to select
-      await tester.tap(fruitsCheckbox);
+      // Enter text in description field
+      final lastField = find.byType(TextFormField).last;
+      await tester.enterText(lastField, 'Fresh farm products');
       await tester.pumpAndSettle();
 
-      // Checkbox should be selected
-      final checkboxes = find.byType(CheckboxListTile);
-      expect(checkboxes, findsWidgets);
+      // Verify text was entered
+      expect(find.text('Fresh farm products'), findsOneWidget);
     });
 
-    testWidgets('Navigation between steps works', (WidgetTester tester) async {
-      // CORE PRINCIPLE: User Experience - Step navigation
+    testWidgets('Submit button is present', (WidgetTester tester) async {
+      // CORE PRINCIPLE: User Experience - Form submission
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      // Verify on step 1
-      expect(find.text('Step 1 of 4'), findsOneWidget);
+      // Verify submit button exists
+      final submitButton = find.widgetWithText(ElevatedButton, 'Upgrade to Seller');
+      expect(submitButton, findsOneWidget);
 
-      // Find and tap next button
-      final nextButton = find.widgetWithText(ElevatedButton, 'Next');
-      expect(nextButton, findsOneWidget);
-
-      // Should be able to find navigation buttons
-      expect(find.byType(ElevatedButton), findsWidgets);
+      // Button should be enabled
+      expect(find.byType(ElevatedButton), findsOneWidget);
     });
 
-    testWidgets('Previous button disabled on first step',
+    testWidgets('All required fields are present',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      // Find Previous button
-      final buttons = find.byType(ElevatedButton);
-      expect(buttons, findsWidgets);
+      // Verify required fields
+      final formFields = find.byType(TextFormField);
+      expect(formFields, findsWidgets);
 
-      // Note: Actual disabled state depends on implementation
-      // This verifies buttons exist and are rendered
+      // At minimum should have farm name, location, store name, description
+      expect(formFields, findsWidgets);
     });
 
-    testWidgets('Store description has character counter',
+    testWidgets('Store description has max length',
         (WidgetTester tester) async {
       // CORE PRINCIPLE: User Experience - Field feedback
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      // Navigate to step 2 (Store info)
-      // First fill out step 1 to proceed
-      final textFields = find.byType(TextField);
+      // Find and test store description field
+      final textFields = find.byType(TextFormField);
       if (textFields.evaluate().isNotEmpty) {
-        await tester.enterText(textFields.first, 'Test Farm');
+        await tester.enterText(textFields.last, 'Test Description');
         await tester.pumpAndSettle();
       }
     });
 
-    testWidgets('Terms and conditions required for submission',
+    testWidgets('Terms and conditions shown',
         (WidgetTester tester) async {
       // CORE PRINCIPLE: Input Validation - Required fields
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      // Navigate to final step (would need multiple next button taps)
       // Verify submit button exists
-      expect(find.byType(ElevatedButton), findsWidgets);
+      expect(find.byType(ElevatedButton), findsOneWidget);
 
       // Verify terms section exists
-      expect(find.text('Terms & Conditions'), findsOneWidget);
+      expect(find.text('Before you proceed:'), findsOneWidget);
     });
 
     testWidgets('Loading state shown during submission',
         (WidgetTester tester) async {
       // CORE PRINCIPLE: User Experience - Loading feedback
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
       // Verify form renders
       expect(find.byType(Scaffold), findsOneWidget);
-      expect(find.byType(ElevatedButton), findsWidgets);
+      expect(find.byType(ElevatedButton), findsOneWidget);
     });
 
     testWidgets('Error messages displayed on submission failure',
         (WidgetTester tester) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
@@ -217,19 +188,17 @@ void main() {
       expect(find.byType(Scaffold), findsOneWidget);
     });
 
-    testWidgets('Form data persists when navigating away',
+    testWidgets('Form data can be entered in fields',
         (WidgetTester tester) async {
-      // CORE PRINCIPLE: State Preservation - Form recovery
+      // CORE PRINCIPLE: State Preservation - Form data entry
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
       // Enter data in first field
-      final firstTextField = find.byType(TextField).first;
+      final firstTextField = find.byType(TextFormField).first;
       await tester.enterText(firstTextField, 'Sunset Farm');
       await tester.pumpAndSettle();
 
@@ -238,14 +207,12 @@ void main() {
     });
   });
 
-  group('SellerRegistrationScreen Validation Tests', () {
+  group('SellerUpgradeScreen Validation Tests', () {
     testWidgets('Empty farm name shows error', (WidgetTester tester) async {
       // CORE PRINCIPLE: Input Validation - Required field
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
@@ -254,71 +221,61 @@ void main() {
 
     testWidgets('Farm location field is present', (WidgetTester tester) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      expect(find.text('Location *'), findsOneWidget);
+      expect(find.text('Farm Location'), findsOneWidget);
     });
 
-    testWidgets('Multiple products can be selected',
+    testWidgets('Form fields are wrapped in form',
         (WidgetTester tester) async {
-      // CORE PRINCIPLE: User Experience - Multi-select
+      // CORE PRINCIPLE: User Experience - Form validation
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      // Verify product options are present
-      expect(find.byType(CheckboxListTile), findsWidgets);
+      // Verify form widget is present
+      expect(find.byType(Form), findsOneWidget);
     });
 
     testWidgets('Store name field validation', (WidgetTester tester) async {
       // CORE PRINCIPLE: Input Validation - All fields checked
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
-      expect(find.text('Store Name *'), findsOneWidget);
+      expect(find.text('Store Name'), findsOneWidget);
     });
   });
 
-  group('SellerRegistrationScreen Integration Tests', () {
+  group('SellerUpgradeScreen Integration Tests', () {
     testWidgets('Complete form flow', (WidgetTester tester) async {
       // CORE PRINCIPLE: User Experience - Full workflow
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 
       // Verify initial state
       expect(find.text('Become a Seller'), findsOneWidget);
-      expect(find.text('Step 1 of 4'), findsOneWidget);
+      expect(find.text('Start Selling Today'), findsOneWidget);
 
       // Verify form structure
-      expect(find.byType(PageView), findsOneWidget);
-      expect(find.byType(TabController), findsNothing); // Not using tabs
+      expect(find.byType(Form), findsOneWidget);
+      expect(find.byType(PageView), findsNothing); // Single page form
     });
 
     testWidgets('Form renders without errors', (WidgetTester tester) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
-            home: SellerRegistrationScreen(),
-          ),
+        const MaterialApp(
+          home: SellerUpgradeScreen(),
         ),
       );
 

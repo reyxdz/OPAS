@@ -25,14 +25,45 @@ class AdminService {
   /// HELPER METHODS
   /// ============================================================================
 
+  /// Refresh the JWT token if it's about to expire
+  static Future<void> _refreshTokenIfNeeded() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final refreshToken = prefs.getString('refresh') ?? '';
+
+      if (refreshToken.isEmpty) {
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/token/refresh/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh': refreshToken}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final newAccessToken = data['access'] ?? '';
+        if (newAccessToken.isNotEmpty) {
+          await prefs.setString('access', newAccessToken);
+        }
+      }
+    } catch (e) {
+      // Silently fail - token refresh is optional
+    }
+  }
+
   /// Get HTTP headers with auth token
   static Future<Map<String, String>> _getHeaders() async {
+    // Refresh token if needed
+    await _refreshTokenIfNeeded();
+    
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token') ?? prefs.getString('access') ?? '';
 
     return {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
+      'Authorization': 'Bearer $token',  // JWT token from admin login
       'Accept': 'application/json',
     };
   }
@@ -109,19 +140,34 @@ class AdminService {
   /// Purpose: Admin dashboard widget showing pending approvals
   static Future<List<dynamic>> getPendingSellerApprovals() async {
     try {
+      final headers = await _getHeaders();
+      print('DEBUG: Admin pending approvals headers: $headers');
+      
       final response = await http.get(
         Uri.parse('$adminEndpoint/sellers/pending-approvals/'),
-        headers: await _getHeaders(),
+        headers: headers,
       );
+
+      print('DEBUG: Pending approvals response status: ${response.statusCode}');
+      print('DEBUG: Pending approvals response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final approvals = data is List ? data : data['approvals'] ?? [];
-        return approvals;
+        // Handle both list and object response formats
+        if (data is List) {
+          return data;  // Direct list response
+        } else if (data is Map && data.containsKey('results')) {
+          return List<dynamic>.from(data['results'] ?? []);  // {count, results} format
+        } else if (data is Map && data.containsKey('approvals')) {
+          return List<dynamic>.from(data['approvals'] ?? []);  // {approvals} format
+        } else {
+          return [];
+        }
       } else {
         throw Exception('Failed to fetch pending approvals: ${response.statusCode}');
       }
     } catch (e) {
+      print('DEBUG: Error in getPendingSellerApprovals: $e');
       return [];
     }
   }
@@ -1785,7 +1831,64 @@ class AdminService {
       return {'success': false, 'error': e.toString()};
     }
   }
+
+  /// ============================================================================
+  /// USER STATUS & ROLE REFRESH
+  /// ============================================================================
+  /// Operations: Get current user info, refresh role after changes
+
+  /// Get current user's status, role, and seller status
+  /// 
+  /// Returns: {user_id, email, role, seller_status, application_status, is_seller, ...}
+  /// Used by: HomeRouteWrapper to check if role changed (e.g., BUYER → SELLER after approval)
+  static Future<Map<String, dynamic>> getCurrentUserStatus() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/me/'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data is Map<String, dynamic> ? data : {};
+      } else {
+        throw Exception('Failed to fetch user status: ${response.statusCode}');
+      }
+    } catch (e) {
+      return {'error': e.toString()};
+    }
+  }
+
+  /// Refresh user role in SharedPreferences from server
+  /// 
+  /// Checks if user's role changed (e.g., seller was approved)
+  /// Updates SharedPreferences if role is different
+  /// Called on app startup or app resume
+  static Future<void> refreshUserRole() async {
+    try {
+      final userStatus = await getCurrentUserStatus();
+      if (userStatus.containsKey('error')) {
+        return;
+      }
+
+      final newRole = userStatus['role'] as String?;
+      if (newRole != null && newRole.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        final currentRole = prefs.getString('role');
+        
+        // Update if role changed
+        if (currentRole != newRole) {
+          await prefs.setString('role', newRole);
+          print('DEBUG: User role updated from $currentRole to $newRole');
+        }
+      }
+    } catch (e) {
+      // Silently fail - role refresh is not critical
+      print('DEBUG: Failed to refresh user role: $e');
+    }
+  }
 }
+
 
 
 

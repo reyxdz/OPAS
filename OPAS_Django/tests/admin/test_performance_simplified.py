@@ -37,7 +37,7 @@ class PerformanceTestBase(APITestCase):
             username=f'admin_{uuid.uuid4().hex[:8]}',
             email=f'admin_{uuid.uuid4().hex[:8]}@opas.com',
             password='secure_password_123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=user, admin_role=AdminRole.SUPER_ADMIN)
         token = Token.objects.create(user=user)

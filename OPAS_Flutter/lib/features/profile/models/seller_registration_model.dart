@@ -8,7 +8,6 @@ class SellerRegistration {
   final int userId;
   final String farmName;
   final String farmLocation;
-  final String farmSize;
   final List<String> productsGrown; // ['fruits', 'vegetables', 'livestock', 'others']
   final String storeName;
   final String storeDescription;
@@ -26,7 +25,6 @@ class SellerRegistration {
     required this.userId,
     required this.farmName,
     required this.farmLocation,
-    required this.farmSize,
     required this.productsGrown,
     required this.storeName,
     required this.storeDescription,
@@ -53,7 +51,6 @@ class SellerRegistration {
       userId: json['seller'] as int? ?? 0,
       farmName: json['farm_name'] as String? ?? '',
       farmLocation: json['farm_location'] as String? ?? '',
-      farmSize: json['farm_size'] as String? ?? '',
       productsGrown: productsGrown,
       storeName: json['store_name'] as String? ?? '',
       storeDescription: json['store_description'] as String? ?? '',
@@ -82,7 +79,6 @@ class SellerRegistration {
   Map<String, dynamic> toJson() => {
         'farm_name': farmName,
         'farm_location': farmLocation,
-        'farm_size': farmSize,
         'products_grown': productsGrown,
         'store_name': storeName,
         'store_description': storeDescription,

@@ -6,8 +6,7 @@ class UserRole(models.TextChoices):
     """User role choices for the OPAS platform"""
     BUYER = 'BUYER', 'Buyer'
     SELLER = 'SELLER', 'Seller'
-    OPAS_ADMIN = 'OPAS_ADMIN', 'OPAS Admin'
-    SYSTEM_ADMIN = 'SYSTEM_ADMIN', 'System Admin'
+    ADMIN = 'ADMIN', 'Admin'
 
 
 class SellerStatus(models.TextChoices):
@@ -18,12 +17,20 @@ class SellerStatus(models.TextChoices):
     REJECTED = 'REJECTED', 'Rejected'
 
 
+class AdminRole(models.TextChoices):
+    """Admin permission levels"""
+    SUPER_ADMIN = 'SUPER_ADMIN', 'Super Admin (Full Access)'
+    SELLER_MANAGER = 'SELLER_MANAGER', 'Seller Manager (Approve/Reject Sellers & Handle Support)'
+    PRICE_MANAGER = 'PRICE_MANAGER', 'Price Manager (Manage Prices)'
+    ANALYTICS_ADMIN = 'ANALYTICS_ADMIN', 'Analytics Admin (View Reports)'
+
+
 class User(AbstractUser):
     """
     Custom User model extending Django's AbstractUser.
     
     Features:
-    - Role-based access (BUYER, SELLER, OPAS_ADMIN, SYSTEM_ADMIN)
+    - Role-based access (BUYER, SELLER, ADMIN)
     - Seller management with approval workflow
     - Account suspension tracking
     - Document verification
@@ -43,6 +50,14 @@ class User(AbstractUser):
         choices=UserRole.choices,
         default=UserRole.BUYER,
         help_text='User role: Buyer, Seller, Admin, or System Admin'
+    )
+    admin_role = models.CharField(
+        max_length=20,
+        choices=AdminRole.choices,
+        default=AdminRole.SUPER_ADMIN,
+        blank=True,
+        null=True,
+        help_text='Permission level for admin users'
     )
     
     # ==================== SELLER INFORMATION ====================
@@ -128,7 +143,36 @@ class User(AbstractUser):
     @property
     def is_admin(self) -> bool:
         """Check if user is admin"""
-        return self.role in [UserRole.OPAS_ADMIN, UserRole.SYSTEM_ADMIN]
+        return self.role == UserRole.ADMIN
+
+    def has_admin_permission(self, permission: str) -> bool:
+        """
+        Check if admin has specific permission.
+        
+        Permissions:
+        - 'approve_sellers': Approve/reject seller applications
+        - 'manage_prices': Set prices and price regulations
+        - 'view_analytics': View reports and analytics
+        - 'handle_suspensions': Suspend/reactivate accounts
+        - 'full_access': All permissions
+        """
+        if not self.is_admin:
+            return False
+        
+        # Super admin has all permissions
+        if self.admin_role == AdminRole.SUPER_ADMIN:
+            return True
+        
+        permission_map = {
+            'approve_sellers': ['SUPER_ADMIN', 'SELLER_MANAGER'],
+            'manage_prices': ['SUPER_ADMIN', 'PRICE_MANAGER'],
+            'view_analytics': ['SUPER_ADMIN', 'ANALYTICS_ADMIN'],
+            'handle_suspensions': ['SUPER_ADMIN', 'SELLER_MANAGER'],
+            'full_access': ['SUPER_ADMIN'],
+        }
+        
+        allowed_roles = permission_map.get(permission, [])
+        return self.admin_role in allowed_roles
 
     @property
     def is_seller(self) -> bool:
@@ -142,13 +186,13 @@ class User(AbstractUser):
 
     @property
     def is_opas_admin(self) -> bool:
-        """Check if user is OPAS admin"""
-        return self.role == UserRole.OPAS_ADMIN
+        """Deprecated: Use is_admin instead"""
+        return self.role == UserRole.ADMIN
 
     @property
     def is_system_admin(self) -> bool:
-        """Check if user is system admin (super admin)"""
-        return self.role == UserRole.SYSTEM_ADMIN
+        """Deprecated: Use is_admin instead"""
+        return self.role == UserRole.ADMIN
 
     @property
     def is_suspended(self) -> bool:

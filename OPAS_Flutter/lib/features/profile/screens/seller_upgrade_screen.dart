@@ -273,12 +273,31 @@ class _SellerUpgradeScreenState extends State<SellerUpgradeScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      String errorMessage = e.toString().replaceAll('Exception: ', '');
+      
+      // Check for specific error messages from backend
+      if (errorMessage.contains('already have a pending application')) {
+        errorMessage = 'You already have a pending seller application. Please wait for admin approval.';
+      } else if (errorMessage.contains('already been approved')) {
+        errorMessage = 'Congratulations! Your seller application has been approved. You are now a seller!';
+      } else if (errorMessage.contains('pending application')) {
+        errorMessage = 'You already have a pending seller application. Please wait for admin approval.';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: Colors.red,
+          content: Text(errorMessage),
+          backgroundColor: errorMessage.contains('approved') ? Colors.green : Colors.red,
+          duration: const Duration(seconds: 4),
         ),
       );
+      
+      // If approved, refresh role and go back
+      if (errorMessage.contains('approved')) {
+        await Future.delayed(const Duration(seconds: 2));
+        if (!mounted) return;
+        Navigator.pop(context, true);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

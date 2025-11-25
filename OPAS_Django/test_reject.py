@@ -25,7 +25,7 @@ print(f"User: {app.user.email}")
 print(f"Status before: {app.status}")
 
 # Find an admin user
-admin = User.objects.filter(role=UserRole.OPAS_ADMIN).first()
+admin = User.objects.filter(role=UserRole.ADMIN).first()
 if not admin:
     print("No admin user found")
     sys.exit(1)

@@ -85,7 +85,7 @@ class DemoDataGenerator:
                 last_name='Administrator',
                 role=UserRole.ADMIN
             )
-            AdminUser.objects.create(user=admin_user, role='SYSTEM_ADMIN')
+            AdminUser.objects.create(user=admin_user, role='ADMIN')
             self.log(f'✓ Created admin user: {admin_user.email}')
         
         self.demo_admin = admin_user

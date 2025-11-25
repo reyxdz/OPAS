@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "260054441220",
+    "project_id": "opas-mobile-app",
+    "storage_bucket": "opas-mobile-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:260054441220:android:2fdce00e7318849f794451",
+        "android_client_info": {
+          "package_name": "opas_app.v1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDCcIR98eUySyZQq_5sIYCSCeOUjD9826o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

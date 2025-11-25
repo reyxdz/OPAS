@@ -15,6 +15,7 @@ from django.db.models import Q, Count
 import logging
 
 from .models import User, UserRole, SellerStatus, SellerApplication
+from .admin_models import SellerRegistrationRequest, SellerRegistrationStatus
 from .admin_serializers import (
     SellerListSerializer,
     ApproveSellerSerializer,
@@ -24,6 +25,7 @@ from .admin_serializers import (
     DashboardStatsSerializer,
     SellerApplicationDetailSerializer,
 )
+from .seller_serializers import SellerRegistrationRequestSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +44,7 @@ class IsOPASAdmin(BasePermission):
         if not request.user.is_authenticated:
             return False
         
-        is_admin = request.user.role in [UserRole.OPAS_ADMIN, UserRole.SYSTEM_ADMIN]
+        is_admin = request.user.role == UserRole.ADMIN
         
         if is_admin:
             logger.info(f'Admin access granted to: {request.user.email}')
@@ -133,13 +135,13 @@ class SellerManagementViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def pending_approvals(self, request):
-        """Get all sellers pending approval (from SellerApplication model)"""
+        """Get all sellers pending approval (from SellerRegistrationRequest model)"""
         try:
-            applications = SellerApplication.objects.filter(
-                status='PENDING'
-            ).select_related('user').order_by('-created_at')
+            applications = SellerRegistrationRequest.objects.filter(
+                status=SellerRegistrationStatus.PENDING
+            ).select_related('seller').order_by('-submitted_at')
             
-            serializer = SellerApplicationDetailSerializer(applications, many=True)
+            serializer = SellerRegistrationRequestSerializer(applications, many=True)
             logger.info(f'Retrieved {applications.count()} pending applications for: {request.user.email}')
             return Response(serializer.data, status=status.HTTP_200_OK)
         
@@ -152,13 +154,13 @@ class SellerManagementViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], name='applications')
     def pending_applications(self, request):
-        """Get all pending seller applications (from SellerApplication model)"""
+        """Get all pending seller applications (from SellerRegistrationRequest model)"""
         try:
-            applications = SellerApplication.objects.filter(
-                status='PENDING'
-            ).select_related('user').order_by('-created_at')
+            applications = SellerRegistrationRequest.objects.filter(
+                status=SellerRegistrationStatus.PENDING
+            ).select_related('seller').order_by('-submitted_at')
             
-            serializer = SellerApplicationDetailSerializer(applications, many=True)
+            serializer = SellerRegistrationRequestSerializer(applications, many=True)
             logger.info(f'Retrieved {applications.count()} pending applications for: {request.user.email}')
             return Response(serializer.data, status=status.HTTP_200_OK)
         
@@ -485,7 +487,7 @@ class UserManagementViewSet(viewsets.ViewSet):
             buyers = User.objects.filter(role=UserRole.BUYER).count()
             sellers = User.objects.filter(role=UserRole.SELLER).count()
             admins = User.objects.filter(
-                role__in=[UserRole.OPAS_ADMIN, UserRole.SYSTEM_ADMIN]
+                role=UserRole.ADMIN
             ).count()
             approved_sellers = User.objects.filter(
                 seller_status=SellerStatus.APPROVED

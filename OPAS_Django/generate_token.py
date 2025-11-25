@@ -8,7 +8,7 @@ from apps.users.models import User
 import json
 
 # Get the admin user
-admin = User.objects.filter(role='OPAS_ADMIN').first()
+admin = User.objects.filter(role='ADMIN').first()
 print(f"Admin user: {admin.email if admin else 'Not found'}")
 
 if admin:

@@ -14,14 +14,13 @@ import '../models/seller_registration_model.dart';
 /// - Rate Limiting: One registration per user enforced by backend
 class SellerRegistrationService {
   static const String baseUrl = 'http://10.113.93.34:8000/api';
-  static const String registrationEndpoint = '$baseUrl/sellers';
+  static const String registrationEndpoint = '$baseUrl/users/sellers';
 
   /// Submit seller registration application
   /// 
   /// Requires:
   /// - farmName: Name of the farm (3+ characters)
   /// - farmLocation: Location of farm
-  /// - farmSize: Size of farm
   /// - productsGrown: List of products (fruits, vegetables, livestock, others)
   /// - storeName: Store name (3+ characters)
   /// - storeDescription: Store description (10+ characters)
@@ -35,7 +34,6 @@ class SellerRegistrationService {
   static Future<SellerRegistration> submitRegistration({
     required String farmName,
     required String farmLocation,
-    required String farmSize,
     required List<String> productsGrown,
     required String storeName,
     required String storeDescription,
@@ -54,8 +52,7 @@ class SellerRegistrationService {
       final payload = {
         'farm_name': farmName.trim(),
         'farm_location': farmLocation.trim(),
-        'farm_size': farmSize.trim(),
-        'products_grown': productsGrown,
+        'products_grown': productsGrown.join(', '),
         'store_name': storeName.trim(),
         'store_description': storeDescription.trim(),
       };

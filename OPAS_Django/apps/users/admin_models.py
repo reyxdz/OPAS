@@ -742,12 +742,6 @@ class SellerRegistrationRequest(models.Model):
         max_length=255,
         help_text='Location/address of the farm'
     )
-    farm_size = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-        help_text='Size of farm (e.g., "5 hectares")'
-    )
     products_grown = models.TextField(
         blank=True,
         null=True,
@@ -891,10 +885,11 @@ class SellerRegistrationRequest(models.Model):
         self.approved_at = timezone.now()
         self.save(update_fields=['status', 'reviewed_at', 'approved_at'])
         
-        # Update seller user status to APPROVED
-        from .models import SellerStatus
+        # Update seller user role and status to APPROVED (Buyer-First conversion)
+        from .models import SellerStatus, UserRole
+        self.seller.role = UserRole.SELLER  # Convert BUYER to SELLER role
         self.seller.seller_status = SellerStatus.APPROVED
-        self.seller.save(update_fields=['seller_status'])
+        self.seller.save(update_fields=['role', 'seller_status'])
         
         # Create approval history record
         SellerApprovalHistory.objects.create(

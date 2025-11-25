@@ -1,0 +1,28 @@
+=== FIXES APPLIED ===
+
+1. FLUTTER APP FIXES:
+   ✓ Changed Authentication: Bearer → Token
+   ✓ Updated all API endpoints in:
+     - seller_registration_service.dart
+     - admin_home_screen.dart
+   ✓ Removed farmSize field from:
+     - Registration form
+     - Models
+     - API calls
+
+2. BACKEND FIXES:
+   ✓ Created missing AdminUser record for opas_admin
+   ✓ Admin now has proper permissions
+   ✓ Endpoints tested and working:
+     - POST /api/users/sellers/register-application/ ✓
+     - GET /api/admin/sellers/ ✓
+
+3. NEXT STEPS FOR YOU:
+   - Rebuild Flutter: flutter clean && flutter pub get && flutter run
+   - Test admin login with opas_admin
+   - Test seller registration with buyer account
+   - Check "Pending Seller Approvals" screen
+
+=== STATUS ===
+✓ All issues resolved
+✓ Ready for testing

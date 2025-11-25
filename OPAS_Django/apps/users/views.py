@@ -133,3 +133,26 @@ class SellerApplicationView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+class UserStatusView(APIView):
+    """Get current user's role, seller status, and application status"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        
+        # Get the user's seller application if exists
+        seller_app = SellerApplication.objects.filter(user=user).first()
+        app_status = seller_app.status if seller_app else None
+        
+        return Response({
+            'user_id': user.id,
+            'email': user.email,
+            'phone_number': user.phone_number,
+            'role': user.role,
+            'seller_status': user.seller_status,
+            'application_status': app_status,
+            'store_name': user.store_name,
+            'is_seller': user.role == 'SELLER',
+        }, status=status.HTTP_200_OK)
+

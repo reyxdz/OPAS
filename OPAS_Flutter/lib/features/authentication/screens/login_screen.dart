@@ -4,6 +4,7 @@ import './registration_screen.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/logger_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/routing/admin_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -164,6 +165,9 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setString('last_name', response['last_name'] ?? '');
       await prefs.setString('address', response['address'] ?? '');
       await prefs.setString('role', response['role'] ?? 'BUYER');
+      if (response['role'] == 'ADMIN') {
+        await prefs.setString('admin_role', response['admin_role'] ?? 'SUPER_ADMIN');
+      }
 
       if (!mounted) return;
 
@@ -173,10 +177,18 @@ class _LoginScreenState extends State<LoginScreen> {
       
       // Route based on user role
       final role = response['role'] ?? 'BUYER';
-      if (role == 'OPAS_ADMIN' || role == 'SYSTEM_ADMIN') {
-        Navigator.pushReplacementNamed(context, '/admin');
+      if (role == 'ADMIN') {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AdminRoutes.adminDashboard,
+          (route) => false,
+        );
       } else {
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/home',
+          (route) => false,
+        );
       }
     } catch (e) {
       LoggerService.error(

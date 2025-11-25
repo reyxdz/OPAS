@@ -24,13 +24,13 @@ def test_dashboard_stats():
     """Test the dashboard stats endpoint"""
     
     # Get or create an admin user
-    admin_user = User.objects.filter(role=UserRole.OPAS_ADMIN).first()
+    admin_user = User.objects.filter(role=UserRole.ADMIN).first()
     if not admin_user:
         admin_user = User.objects.create_user(
             email='admin@test.com',
             password='admin123',
             username='admin_test',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         print(f'✓ Created admin user: {admin_user.email}')
     else:

@@ -102,7 +102,6 @@ class AdminRegistrationDetail {
   final String buyerPhone;
   final String farmName;
   final String farmLocation;
-  final String farmSize;
   final List<String> productsGrown;
   final String storeName;
   final String storeDescription;
@@ -124,7 +123,6 @@ class AdminRegistrationDetail {
     required this.buyerPhone,
     required this.farmName,
     required this.farmLocation,
-    required this.farmSize,
     required this.productsGrown,
     required this.storeName,
     required this.storeDescription,
@@ -152,7 +150,6 @@ class AdminRegistrationDetail {
       buyerPhone: json['buyer_phone'] as String? ?? 'N/A',
       farmName: json['farm_name'] as String? ?? 'N/A',
       farmLocation: json['farm_location'] as String? ?? 'N/A',
-      farmSize: json['farm_size'] as String? ?? 'N/A',
       productsGrown: List<String>.from(
         json['products_grown'] as List? ?? [],
       ),

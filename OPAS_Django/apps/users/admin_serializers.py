@@ -52,16 +52,20 @@ class SellerDocumentVerificationSerializer(serializers.ModelSerializer):
 class SellerApplicationSerializer(serializers.ModelSerializer):
     """Serializer for seller applications from buyers."""
     user_email = serializers.CharField(source='user.email', read_only=True)
+    seller_email = serializers.CharField(source='user.email', read_only=True)  # Alias for Flutter
+    seller_full_name = serializers.CharField(source='user.full_name', read_only=True)  # For Flutter
+    submitted_at = serializers.DateTimeField(source='created_at', read_only=True)  # Alias for Flutter
     reviewed_by_name = serializers.CharField(source='reviewed_by.full_name', read_only=True, allow_null=True)
     
     class Meta:
         model = SellerApplication
         fields = [
-            'id', 'user', 'user_email', 'farm_name', 'farm_location',
-            'store_name', 'store_description', 'status', 'rejection_reason',
-            'created_at', 'updated_at', 'reviewed_at', 'reviewed_by', 'reviewed_by_name'
+            'id', 'user', 'user_email', 'seller_email', 'seller_full_name',
+            'farm_name', 'farm_location', 'store_name', 'store_description',
+            'status', 'rejection_reason', 'created_at', 'submitted_at',
+            'updated_at', 'reviewed_at', 'reviewed_by', 'reviewed_by_name'
         ]
-        read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'reviewed_at', 'reviewed_by']
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'reviewed_at', 'reviewed_by', 'submitted_at']
 
 
 class SellerManagementListSerializer(serializers.ModelSerializer):

@@ -152,7 +152,6 @@ class RegistrationStatusWidget extends StatelessWidget {
           items: [
             (label: 'Name', value: registration!.farmName),
             (label: 'Location', value: registration!.farmLocation),
-            (label: 'Size', value: registration!.farmSize),
           ],
         ),
         const SizedBox(height: 16),

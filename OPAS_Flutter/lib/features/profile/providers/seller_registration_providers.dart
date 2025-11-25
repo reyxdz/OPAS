@@ -149,7 +149,6 @@ class SubmissionStatusNotifier extends StateNotifier<AsyncValue<void>> {
       await SellerRegistrationService.submitRegistration(
         farmName: formData['farm_name'] as String? ?? '',
         farmLocation: formData['farm_location'] as String? ?? '',
-        farmSize: formData['farm_size'] as String? ?? '',
         productsGrown:
             List<String>.from(formData['products_grown'] as List? ?? []),
         storeName: formData['store_name'] as String? ?? '',

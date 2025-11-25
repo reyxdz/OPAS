@@ -260,7 +260,7 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
                     height: 48,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        Navigator.pushReplacementNamed(context, '/buyer/home');
+                        Navigator.pushReplacementNamed(context, '/home');
                       },
                       icon: const Icon(Icons.shopping_cart, size: 18),
                       label: const Text('Buyer Mode', style: TextStyle(fontSize: 14)),

@@ -149,7 +149,7 @@ class PerformanceTestCase(APITestCase):
             username=f'admin_{uuid.uuid4().hex[:8]}',
             email=email,
             password='secure_password_123',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         AdminUser.objects.create(user=user, admin_role=AdminRole.SUPER_ADMIN)
         token = Token.objects.create(user=user)
@@ -320,13 +320,13 @@ class LargeDatasetFactory:
     @staticmethod
     def create_audit_logs(count=500):
         """Create audit log entries efficiently"""
-        admin = User.objects.filter(role=UserRole.OPAS_ADMIN).first()
+        admin = User.objects.filter(role=UserRole.ADMIN).first()
         if not admin:
             admin = User.objects.create_user(
                 username=f'audit_admin_{uuid.uuid4().hex[:4]}',
                 email='audit@opas.com',
                 password='secure',
-                role=UserRole.OPAS_ADMIN
+                role=UserRole.ADMIN
             )
         
         admin_user = AdminUser.objects.filter(user=admin).first()

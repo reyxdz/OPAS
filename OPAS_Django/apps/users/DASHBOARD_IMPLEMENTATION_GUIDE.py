@@ -384,7 +384,7 @@ class DashboardStatsTestCase(APITestCase):
             email='admin@test.com',
             password='pass123',
             username='admin',
-            role='OPAS_ADMIN'
+            role='ADMIN'
         )
         self.client.force_authenticate(user=self.admin)
     

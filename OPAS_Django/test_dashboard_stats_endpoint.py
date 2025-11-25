@@ -48,7 +48,7 @@ class DashboardStatsEndpointTestCase(APITestCase):
             password='admin123',
             first_name='Admin',
             last_name='User',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         
         # Create AdminUser record
@@ -293,7 +293,7 @@ class DashboardStatsResponseValidationTest(APITestCase):
             password='admin123',
             first_name='Admin',
             last_name='User',
-            role=UserRole.OPAS_ADMIN
+            role=UserRole.ADMIN
         )
         
         # Create AdminUser record

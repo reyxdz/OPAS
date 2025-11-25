@@ -172,7 +172,6 @@ class SellerRegistrationViewSet(viewsets.ViewSet):
             "seller_full_name": "John Doe",
             "farm_name": "Green Valley Farm",
             "farm_location": "Davao, Philippines",
-            "farm_size": "2.5 hectares",
             "products_grown": "Bananas, Coconut, Cacao",
             "store_name": "Green Valley Marketplace",
             "store_description": "Premium organic farm products",
@@ -257,7 +256,6 @@ class SellerRegistrationViewSet(viewsets.ViewSet):
         {
             "farm_name": "Green Valley Farm",
             "farm_location": "Davao, Philippines",
-            "farm_size": "2.5 hectares",
             "products_grown": "Bananas, Coconut, Cacao",
             "store_name": "Green Valley Marketplace",
             "store_description": "Premium organic farm products"

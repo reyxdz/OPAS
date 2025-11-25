@@ -2,6 +2,16 @@
 Admin API URL configuration for OPAS platform.
 
 URL routing for all admin panel endpoints using Django REST Framework SimpleRouter.
+
+Admin endpoints available at /api/admin/:
+- dashboard/ - Dashboard statistics
+- sellers/ - Seller management
+- prices/ - Price regulation
+- opas/ - OPAS purchasing
+- marketplace/ - Marketplace oversight
+- analytics/ - Analytics reporting
+- notifications/ - Admin notifications
+- audit-logs/ - Audit logs
 """
 
 from django.urls import path, include

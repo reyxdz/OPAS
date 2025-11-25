@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='user',
             name='role',
-            field=models.CharField(choices=[('BUYER', 'Buyer'), ('SELLER', 'Seller'), ('OPAS_ADMIN', 'OPAS Admin'), ('SYSTEM_ADMIN', 'System Admin')], default='BUYER', help_text='User role: Buyer, Seller, Admin, or System Admin', max_length=20),
+            field=models.CharField(choices=[('BUYER', 'Buyer'), ('SELLER', 'Seller'), ('ADMIN', 'OPAS Admin'), ('ADMIN', 'System Admin')], default='BUYER', help_text='User role: Buyer, Seller, Admin, or System Admin', max_length=20),
         ),
         migrations.AlterField(
             model_name='user',

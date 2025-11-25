@@ -10,7 +10,6 @@ import 'package:flutter/material.dart';
 class FarmInfoFormWidget extends StatefulWidget {
   final TextEditingController farmNameController;
   final TextEditingController farmLocationController;
-  final TextEditingController farmSizeController;
   final List<String> selectedProducts;
   final Function(List<String>) onProductsChanged;
   final Map<String, String>? fieldErrors;
@@ -19,7 +18,6 @@ class FarmInfoFormWidget extends StatefulWidget {
     super.key,
     required this.farmNameController,
     required this.farmLocationController,
-    required this.farmSizeController,
     required this.selectedProducts,
     required this.onProductsChanged,
     this.fieldErrors,
@@ -64,15 +62,6 @@ class _FarmInfoFormWidgetState extends State<FarmInfoFormWidget> {
           hint: 'e.g., Bukidnon, Philippines',
           controller: widget.farmLocationController,
           errorText: widget.fieldErrors?['farm_location'],
-        ),
-        const SizedBox(height: 16),
-
-        // Farm Size Field
-        _buildTextField(
-          label: 'Farm Size *',
-          hint: 'e.g., 5 hectares',
-          controller: widget.farmSizeController,
-          errorText: widget.fieldErrors?['farm_size'],
         ),
         const SizedBox(height: 24),
 

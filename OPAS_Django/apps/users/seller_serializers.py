@@ -1103,7 +1103,6 @@ class SellerRegistrationRequestSerializer(serializers.ModelSerializer):
     {
         "farm_name": "Green Valley Farm",
         "farm_location": "Davao, Philippines",
-        "farm_size": "2.5 hectares",
         "products_grown": "Bananas, Coconut, Cacao",
         "store_name": "Green Valley Marketplace",
         "store_description": "Premium organic farm products"
@@ -1143,7 +1142,6 @@ class SellerRegistrationRequestSerializer(serializers.ModelSerializer):
             'seller_full_name',
             'farm_name',
             'farm_location',
-            'farm_size',
             'products_grown',
             'store_name',
             'store_description',
@@ -1215,7 +1213,6 @@ class SellerRegistrationSubmitSerializer(serializers.Serializer):
     {
         "farm_name": "Green Valley Farm",
         "farm_location": "Davao, Philippines",
-        "farm_size": "2.5 hectares",
         "products_grown": "Bananas, Coconut, Cacao",
         "store_name": "Green Valley Marketplace",
         "store_description": "Premium organic farm products offering fresh produce"
@@ -1243,13 +1240,6 @@ class SellerRegistrationSubmitSerializer(serializers.Serializer):
         required=True,
         trim_whitespace=True,
         help_text="Location/address of the farm"
-    )
-    farm_size = serializers.CharField(
-        max_length=100,
-        required=False,
-        allow_blank=True,
-        trim_whitespace=True,
-        help_text="Size of farm (e.g., '5 hectares')"
     )
     products_grown = serializers.CharField(
         max_length=1000,
@@ -1372,6 +1362,19 @@ class SellerRegistrationSubmitSerializer(serializers.Serializer):
         user.store_name = validated_data['store_name']
         user.store_description = validated_data['store_description']
         user.save(update_fields=['store_name', 'store_description'])
+        
+        # Send notification to all OPAS Admin users
+        try:
+            from apps.core.notifications import NotificationService
+            NotificationService.send_registration_submitted_notification(
+                registration,
+                request=self.context.get('request')
+            )
+        except Exception as e:
+            # Log error but don't fail the registration creation
+            import logging
+            logger_obj = logging.getLogger(__name__)
+            logger_obj.error(f"Failed to send registration notification: {str(e)}")
         
         return registration
 

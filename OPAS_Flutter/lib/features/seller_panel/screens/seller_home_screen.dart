@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:opas_flutter/features/seller_panel/widgets/seller_bottom_nav_bar.dart';
 import 'product_listing_screen.dart';
 
 class SellerHomeScreen extends StatefulWidget {
@@ -66,68 +67,9 @@ class _SellerHomeScreenState extends State<SellerHomeScreen> {
   }
 
   Widget _buildSellerBottomNavBar() {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Positioned(
-          bottom: 25,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: Container(
-              width: MediaQuery.of(context).size.width - 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: const Color(0xFF000000),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(width: 20),
-                  _buildSellerNavItem(0, Icons.home_outlined, Icons.home),
-                  const SizedBox(width: 30),
-                  _buildSellerNavItem(1, Icons.inventory_2_outlined, Icons.inventory_2),
-                  const SizedBox(width: 30),
-                  _buildSellerNavItem(2, Icons.add_box_outlined, Icons.add_box),
-                  const SizedBox(width: 30),
-                  _buildSellerNavItem(3, Icons.local_shipping_outlined, Icons.local_shipping),
-                  const SizedBox(width: 30),
-                  _buildSellerNavItem(4, Icons.trending_up_outlined, Icons.trending_up),
-                  const SizedBox(width: 20),
-                ],
-              ),
-            ),
-          ),
-        ),
-        
-      ],
-    );
-  }
-
-  Widget _buildSellerNavItem(int index, IconData outlinedIcon, IconData filledIcon) {
-    final isSelected = _selectedIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() {
-        _selectedIndex = index;
-      }),
-      child: AnimatedScale(
-        scale: isSelected ? 1.2 : 1.0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        child: Icon(
-          isSelected ? filledIcon : outlinedIcon,
-          color: isSelected ? const Color(0xFF00B464) : const Color(0xFFFAFAFA),
-          size: 25,
-        ),
-      ),
+    return SellerBottomNavBar(
+      selectedIndex: _selectedIndex,
+      onTap: (index) => setState(() => _selectedIndex = index),
     );
   }
 }
