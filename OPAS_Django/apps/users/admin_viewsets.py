@@ -279,7 +279,7 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         
         # Send rejection notification with reason to the user
         NotificationService.send_registration_rejected_notification(
-            user,
+            application,
             rejection_reason,
             admin_notes,
             request

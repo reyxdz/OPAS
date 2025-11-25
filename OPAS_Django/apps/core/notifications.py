@@ -132,7 +132,12 @@ Review at: {context['review_url']}
         Sends both email and push notification
         """
         try:
-            user = registration.seller
+            # Handle both SellerApplication and SellerRegistrationRequest
+            user = getattr(registration, 'user', None) or getattr(registration, 'seller', None)
+            if not user:
+                logger.error(f"Could not find user for registration {registration}")
+                return
+            
             prefs = NotificationService._get_preferences(user)
             
             if not prefs.registration_approved:
@@ -230,7 +235,12 @@ You can now access your seller dashboard: {context['dashboard_url']}
         Sends both email and push notification with rejection reason
         """
         try:
-            user = registration.seller
+            # Handle both SellerApplication and SellerRegistrationRequest
+            user = getattr(registration, 'user', None) or getattr(registration, 'seller', None)
+            if not user:
+                logger.error(f"Could not find user for registration {registration}")
+                return
+            
             prefs = NotificationService._get_preferences(user)
             
             if not prefs.registration_rejected:
