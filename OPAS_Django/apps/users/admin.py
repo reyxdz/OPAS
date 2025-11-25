@@ -5,14 +5,15 @@ from .seller_models import SellerProduct, SellerOrder, SellToOPAS, SellerPayout,
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ('email', 'username', 'first_name', 'last_name', 'phone_number', 'address', 'role', 'created_at')
-    search_fields = ('email', 'username', 'first_name', 'last_name', 'phone_number')
-    list_filter = ('role', 'created_at')
+    list_display = ('email', 'username', 'first_name', 'last_name', 'phone_number', 'municipality', 'barangay', 'role', 'created_at')
+    search_fields = ('email', 'username', 'first_name', 'last_name', 'phone_number', 'municipality', 'barangay')
+    list_filter = ('role', 'municipality', 'created_at')
     ordering = ('-created_at',)
     
     fieldsets = (
         (None, {'fields': ('email', 'username', 'password')}),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'phone_number', 'address')}),
+        ('Location', {'fields': ('municipality', 'barangay')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('User Role', {'fields': ('role',)}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
@@ -24,6 +25,7 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('email', 'username', 'password1', 'password2'),
         }),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'phone_number', 'address')}),
+        ('Location', {'fields': ('municipality', 'barangay')}),
         ('User Role', {'fields': ('role',)}),
     )
 

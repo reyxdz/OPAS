@@ -233,6 +233,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           'phone_number': _phoneNumberController.text,
           'password': _passwordController.text,
           'address': address,
+          'municipality': _selectedMunicipality,
+          'barangay': _selectedBarangay,
           'role': 'BUYER',
         };
 

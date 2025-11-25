@@ -6,6 +6,8 @@ class SignupRequestModel {
   final String password;
   final String phoneNumber;
   final String address;
+  final String municipality;
+  final String barangay;
 
   SignupRequestModel({
     required this.email,
@@ -15,6 +17,8 @@ class SignupRequestModel {
     required this.password,
     required this.phoneNumber,
     required this.address,
+    required this.municipality,
+    required this.barangay,
   });
 
   Map<String, dynamic> toJson() {
@@ -26,6 +30,8 @@ class SignupRequestModel {
       'password': password,
       'phone_number': phoneNumber,
       'address': address,
+      'municipality': municipality,
+      'barangay': barangay,
     };
   }
 }

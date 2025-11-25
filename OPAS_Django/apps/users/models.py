@@ -44,6 +44,20 @@ class User(AbstractUser):
     phone_number = models.CharField(max_length=15, blank=True)
     address = models.TextField(blank=True, null=True)
     
+    # ==================== LOCATION FIELDS ====================
+    municipality = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text='Municipality of the user (Biliran)'
+    )
+    barangay = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Barangay of the user within the selected municipality'
+    )
+    
     # ==================== ROLE & PERMISSIONS ====================
     role = models.CharField(
         max_length=20,
@@ -131,6 +145,9 @@ class User(AbstractUser):
             models.Index(fields=['phone_number']),
             models.Index(fields=['role']),
             models.Index(fields=['seller_status']),
+            models.Index(fields=['municipality']),
+            models.Index(fields=['barangay']),
+            models.Index(fields=['municipality', 'barangay']),
         ]
 
     # ==================== PROPERTIES ====================
