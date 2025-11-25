@@ -1,4 +1,4 @@
-# Generated migration for removing email and adding farm location fields
+# Generated migration for adding farm location fields
 
 from django.db import migrations, models
 
@@ -10,21 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Remove email field - make phone_number unique instead
-        migrations.RemoveField(
-            model_name='user',
-            name='email',
-        ),
-        # Update phone_number to be unique and not blank
-        migrations.AlterField(
-            model_name='user',
-            name='phone_number',
-            field=models.CharField(
-                max_length=15,
-                unique=True,
-                help_text='Phone number used for authentication'
-            ),
-        ),
         # Add farm location fields for sellers
         migrations.AddField(
             model_name='user',

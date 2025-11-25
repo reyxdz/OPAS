@@ -110,6 +110,45 @@ class RegistrationStatusWidget extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
 
+          // Rejection Reason (if rejected)
+          if (registration!.status.isRejected && registration!.rejectionReason != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info, color: Colors.red.shade600, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Rejection Reason',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: Colors.red.shade600,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      registration!.rejectionReason!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.red.shade700,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           if (registration!.status.isPending)
             Padding(
               padding: const EdgeInsets.only(top: 12),

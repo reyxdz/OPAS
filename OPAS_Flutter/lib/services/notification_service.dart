@@ -9,6 +9,8 @@ import 'package:firebase_messaging/firebase_messaging.dart' as firebase;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:opas_flutter/features/profile/models/notification_history_model.dart';
+import 'package:opas_flutter/features/profile/services/notification_history_service.dart';
 
 const String _logTag = 'NotificationService';
 
@@ -159,6 +161,16 @@ class NotificationService {
     // Log notification
     await _logNotification(message, 'RECEIVED');
     
+    // Save to notification history
+    final type = message.data['action'] ?? 'UNKNOWN';
+    final notification = NotificationHistory.fromNotification(
+      type: type,
+      title: message.notification?.title ?? 'New Notification',
+      body: message.notification?.body ?? '',
+      data: message.data,
+    );
+    await NotificationHistoryService.saveNotification(notification);
+    
     // Show local notification
     _showLocalNotification(
       title: message.notification?.title ?? 'New Notification',
@@ -216,6 +228,21 @@ class NotificationService {
     final action = data['action'] ?? '';
     final registrationId = data['registration_id'];
     
+    // Save to notification history
+    final notification = NotificationHistory.fromNotification(
+      type: action,
+      title: message.notification?.title ?? 'Notification',
+      body: message.notification?.body ?? '',
+      data: data,
+    );
+    await NotificationHistoryService.saveNotification(notification);
+    
+    // Cache rejection reason if present
+    if (action == 'REGISTRATION_REJECTED' && data.containsKey('rejection_reason')) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_rejection_reason', data['rejection_reason']!);
+    }
+    
     // Route based on notification action
     switch (action) {
       case 'REGISTRATION_APPROVED':
@@ -242,6 +269,23 @@ class NotificationService {
   Future<void> handleBackgroundMessage(firebase.RemoteMessage message) async {
     // Save to local cache for later processing
     await _cacheNotification(message);
+    
+    // Save to notification history
+    final type = message.data['action'] ?? 'UNKNOWN';
+    final notification = NotificationHistory.fromNotification(
+      type: type,
+      title: message.notification?.title ?? 'New Notification',
+      body: message.notification?.body ?? '',
+      data: message.data,
+    );
+    await NotificationHistoryService.saveNotification(notification);
+    
+    // Cache rejection reason if present
+    final data = message.data;
+    if (data['action'] == 'REGISTRATION_REJECTED' && data.containsKey('rejection_reason')) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_rejection_reason', data['rejection_reason']!);
+    }
     
     // Log to backend
     await _logNotification(message, 'BACKGROUND');

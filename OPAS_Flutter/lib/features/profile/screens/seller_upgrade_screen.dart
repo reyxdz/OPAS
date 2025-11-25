@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/api_service.dart';
+import '../../authentication/models/location_data.dart';
 
 class SellerUpgradeScreen extends StatefulWidget {
   const SellerUpgradeScreen({super.key});
@@ -12,9 +13,10 @@ class SellerUpgradeScreen extends StatefulWidget {
 class _SellerUpgradeScreenState extends State<SellerUpgradeScreen> {
   final _formKey = GlobalKey<FormState>();
   final _farmNameController = TextEditingController();
-  final _farmLocationController = TextEditingController();
   final _storeNameController = TextEditingController();
   final _storeDescriptionController = TextEditingController();
+  String? _selectedFarmMunicipality;
+  String? _selectedFarmBarangay;
   bool _isLoading = false;
 
   @override
@@ -93,30 +95,79 @@ class _SellerUpgradeScreenState extends State<SellerUpgradeScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Farm Location Field
+              // Farm Location - Municipality Dropdown
               Text(
-                'Farm Location',
+                'Farm Municipality',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              TextFormField(
-                controller: _farmLocationController,
-                decoration: InputDecoration(
-                  hintText: 'Enter your farm location (Baranggay/Municipality)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline,
                   ),
-                  prefixIcon: const Icon(Icons.location_on),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Farm location is required';
-                  }
-                  if (value.length < 3) {
-                    return 'Location must be at least 3 characters';
-                  }
-                  return null;
-                },
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    hint: const Text('Select Municipality'),
+                    value: _selectedFarmMunicipality,
+                    items: LocationData.municipalities
+                        .map((municipality) => DropdownMenuItem(
+                              value: municipality,
+                              child: Text(municipality),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedFarmMunicipality = value;
+                        _selectedFarmBarangay = null; // Reset barangay
+                      });
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Farm Location - Barangay Dropdown
+              Text(
+                'Farm Barangay',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    hint: const Text('Select Barangay'),
+                    value: _selectedFarmBarangay,
+                    items: _selectedFarmMunicipality == null
+                        ? []
+                        : LocationData.getBarangays(_selectedFarmMunicipality!)
+                            .map((barangay) => DropdownMenuItem(
+                                  value: barangay,
+                                  child: Text(barangay),
+                                ))
+                            .toList(),
+                    onChanged: _selectedFarmMunicipality == null
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedFarmBarangay = value;
+                            });
+                          },
+                    disabledHint: const Text('Please select municipality first'),
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
               
@@ -233,27 +284,44 @@ class _SellerUpgradeScreenState extends State<SellerUpgradeScreen> {
 
   Future<void> _handleUpgradeSeller() async {
     if (!_formKey.currentState!.validate()) return;
+    
+    // Validate farm location is selected
+    if (_selectedFarmMunicipality == null || _selectedFarmBarangay == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select both farm municipality and barangay'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
       final prefs = await SharedPreferences.getInstance();
       final accessToken = prefs.getString('access') ?? '';
+      
+      // Construct farm location string
+      final farmLocation = '$_selectedFarmBarangay, $_selectedFarmMunicipality, Biliran';
 
       // Call API to submit seller application
       await ApiService.submitSellerApplication(
         accessToken: accessToken,
         farmName: _farmNameController.text,
-        farmLocation: _farmLocationController.text,
+        farmLocation: farmLocation,
         storeName: _storeNameController.text,
         storeDescription: _storeDescriptionController.text,
+        farmMunicipality: _selectedFarmMunicipality,
+        farmBarangay: _selectedFarmBarangay,
       );
 
       if (!mounted) return;
 
       // Store seller application data
       await prefs.setString('farm_name', _farmNameController.text);
-      await prefs.setString('farm_location', _farmLocationController.text);
+      await prefs.setString('farm_municipality', _selectedFarmMunicipality ?? '');
+      await prefs.setString('farm_barangay', _selectedFarmBarangay ?? '');
       await prefs.setString('store_name', _storeNameController.text);
       await prefs.setString('seller_status', 'PENDING');
 
@@ -306,7 +374,6 @@ class _SellerUpgradeScreenState extends State<SellerUpgradeScreen> {
   @override
   void dispose() {
     _farmNameController.dispose();
-    _farmLocationController.dispose();
     _storeNameController.dispose();
     _storeDescriptionController.dispose();
     super.dispose();

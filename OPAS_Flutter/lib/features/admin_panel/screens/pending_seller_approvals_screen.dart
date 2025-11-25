@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/admin_service.dart';
 import '../../../core/utils/admin_permissions.dart';
 
@@ -28,50 +29,56 @@ class _PendingSellerApprovalsScreenState
 
   Future<List<Map<String, dynamic>>> _fetchPendingApplications() async {
     try {
+      // Debug: Check if we have a token
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? prefs.getString('access');
+      debugPrint('DEBUG: Auth token exists: ${token != null}');
+      if (token != null) {
+        debugPrint('DEBUG: Token preview: ${token.substring(0, 20)}...');
+      } else {
+        debugPrint('DEBUG: NO AUTH TOKEN FOUND - User may not be logged in!');
+      }
+      
       final approvals = await AdminService.getPendingSellerApprovals();
-      print('DEBUG: Received ${approvals.length} approvals from API');
-      print('DEBUG: Approvals type: ${approvals.runtimeType}');
+      debugPrint('DEBUG: Received ${approvals.length} approvals from API');
+      debugPrint('DEBUG: Approvals type: ${approvals.runtimeType}');
       if (approvals.isNotEmpty) {
-        print('DEBUG: First approval: ${approvals.first}');
+        debugPrint('DEBUG: First approval: ${approvals.first}');
       }
       
       _pendingApprovals = List<Map<String, dynamic>>.from(
         approvals.map((item) {
-          print('DEBUG: Processing item: $item');
+          debugPrint('DEBUG: Processing item: $item');
           return _parseApplication(item as Map<String, dynamic>);
         }),
       );
-      print('DEBUG: Parsed ${_pendingApprovals.length} applications');
+      debugPrint('DEBUG: Parsed ${_pendingApprovals.length} applications');
       return _pendingApprovals;
     } catch (e) {
-      print('ERROR loading pending applications: $e');
+      debugPrint('ERROR loading pending applications: $e');
       if (kDebugMode) {
-        print('Error loading pending applications: $e');
+        debugPrint('Error loading pending applications: $e');
       }
       return [];
     }
   }
 
   Map<String, dynamic> _parseApplication(Map<String, dynamic> item) {
-    // API returns flat structure with seller_email and seller_full_name directly
+    // API returns SellerApplication object with all seller details
     final submittedAt = item['submitted_at'] as String? ?? '';
     final sellerFullName = item['seller_full_name'] as String? ?? '';
+    final phoneNumber = item['phone_number'] as String? ?? '';
     final sellerEmail = item['seller_email'] as String? ?? '';
-    
-    // Use seller_full_name if available, otherwise extract from email
-    String displayName = sellerFullName.isNotEmpty 
-        ? sellerFullName 
-        : sellerEmail.split('@').first;
     
     return {
       'id': item['id'],
-      'name': displayName.isNotEmpty ? displayName : 'Unknown',
+      'name': sellerFullName.isNotEmpty ? sellerFullName : 'Unknown',
       'farmName': item['farm_name'] ?? '',
       'farmLocation': item['farm_location'] ?? '',
       'storeName': item['store_name'] ?? '',
       'storeDescription': item['store_description'] ?? '',
       'appliedDate': _formatDate(submittedAt),
-      'phoneNumber': item['phone_number'] ?? '',  // May not exist in API
+      'phoneNumber': phoneNumber,
       'email': sellerEmail,
       'status': item['status'] ?? 'PENDING',
       'rejectionReason': item['rejection_reason'] ?? '',
@@ -339,11 +346,6 @@ class _PendingSellerApprovalsScreenState
                   const SizedBox(height: 16),
                   _buildInfoSection('Contact Information', [
                     _buildInfoRow(
-                      'Email',
-                      approval['email'] as String,
-                      Icons.email,
-                    ),
-                    _buildInfoRow(
                       'Phone',
                       approval['phoneNumber'] as String,
                       Icons.phone,
@@ -467,7 +469,7 @@ class _PendingSellerApprovalsScreenState
                 );
               } catch (e) {
                 if (kDebugMode) {
-                  print('Error approving application: $e');
+                  debugPrint('Error approving application: $e');
                 }
                 if (!mounted) return;
                 // ignore: use_build_context_synchronously
@@ -547,7 +549,7 @@ class _PendingSellerApprovalsScreenState
               } catch (e) {
                 reasonController.dispose();
                 if (kDebugMode) {
-                  print('Error rejecting application: $e');
+                  debugPrint('Error rejecting application: $e');
                 }
                 if (!mounted) return;
                 // ignore: use_build_context_synchronously

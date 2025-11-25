@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../../../core/services/api_service.dart';
 import 'edit_seller_profile_screen.dart';
 
 class SellerProfileScreen extends StatefulWidget {
@@ -44,13 +47,76 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
   Future<void> _loadUserData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access') ?? '';
+      
+      // Try to fetch user profile from API
+      if (accessToken.isNotEmpty) {
+        try {
+          final response = await http.get(
+            Uri.parse('${ApiService.baseUrl}/users/seller/profile/'),
+            headers: {
+              'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+            },
+          ).timeout(const Duration(seconds: 10));
+
+          if (response.statusCode == 200) {
+            final userData = jsonDecode(response.body) as Map<String, dynamic>;
+            
+            debugPrint('✓ API Profile Response: $userData');
+            
+            setState(() {
+              _firstName = userData['first_name'] ?? prefs.getString('first_name') ?? 'First';
+              _lastName = userData['last_name'] ?? prefs.getString('last_name') ?? 'Name';
+              _phoneNumber = userData['phone_number'] ?? prefs.getString('phone_number') ?? 'Not provided';
+              _address = userData['address'] ?? prefs.getString('address') ?? 'Not provided';
+              
+              // Store name from API (or use cached value if empty)
+              final apiStoreName = userData['store_name'];
+              _storeName = (apiStoreName != null && apiStoreName.toString().isNotEmpty) 
+                  ? apiStoreName.toString() 
+                  : (prefs.getString('store_name')?.isNotEmpty == true ? prefs.getString('store_name')! : 'Not set');
+              
+              // Farm name - construct from municipality and barangay
+              final farmMunicipality = userData['farm_municipality'];
+              final farmBarangay = userData['farm_barangay'];
+              if (farmMunicipality != null && farmMunicipality.toString().isNotEmpty &&
+                  farmBarangay != null && farmBarangay.toString().isNotEmpty) {
+                _farmName = '$farmBarangay, $farmMunicipality';
+              } else {
+                _farmName = (prefs.getString('farm_name')?.isNotEmpty == true ? prefs.getString('farm_name')! : 'Not set');
+              }
+              
+              debugPrint('✓ Store Name: $_storeName');
+              debugPrint('✓ Farm Name: $_farmName');
+              
+              // Initialize controllers with current values
+              _farmNameController?.text = _farmName;
+              _storeNameController?.text = _storeName;
+              _phoneNumberController?.text = _phoneNumber;
+              
+              _isLoading = false;
+            });
+            return;
+          } else {
+            debugPrint('✗ API returned ${response.statusCode}: ${response.body}');
+          }
+        } catch (e) {
+          // If API fails, continue with SharedPreferences
+          debugPrint('✗ API fetch failed: $e, using SharedPreferences');
+        }
+      }
+      
+      // Fallback to SharedPreferences if API not available
       setState(() {
         _firstName = prefs.getString('first_name') ?? 'First';
         _lastName = prefs.getString('last_name') ?? 'Name';
         _phoneNumber = prefs.getString('phone_number') ?? 'Not provided';
         _address = prefs.getString('address') ?? 'Not provided';
-        _storeName = prefs.getString('store_name') ?? 'My Store';
-        _farmName = prefs.getString('farm_name') ?? 'My Farm';
+        _storeName = (prefs.getString('store_name')?.isNotEmpty ?? false) ? prefs.getString('store_name')! : 'Not set';
+        _farmName = (prefs.getString('farm_name')?.isNotEmpty ?? false) ? prefs.getString('farm_name')! : 'Not set';
+        
+        debugPrint('✓ Using SharedPreferences - Store: $_storeName, Farm: $_farmName');
         
         // Initialize controllers with current values
         _farmNameController?.text = _farmName;

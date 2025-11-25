@@ -300,9 +300,26 @@ class ApiService {
     required String farmLocation,
     required String storeName,
     required String storeDescription,
+    String? farmMunicipality,
+    String? farmBarangay,
   }) async {
     try {
       var token = accessToken;
+      
+      final requestBody = {
+        'farm_name': farmName,
+        'farm_location': farmLocation,
+        'store_name': storeName,
+        'store_description': storeDescription,
+      };
+      
+      // Add farm municipality and barangay if provided
+      if (farmMunicipality != null && farmMunicipality.isNotEmpty) {
+        requestBody['farm_municipality'] = farmMunicipality;
+      }
+      if (farmBarangay != null && farmBarangay.isNotEmpty) {
+        requestBody['farm_barangay'] = farmBarangay;
+      }
 
       final response = await http.post(
         Uri.parse('$baseUrl/users/seller-application/'),
@@ -310,12 +327,7 @@ class ApiService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'farm_name': farmName,
-          'farm_location': farmLocation,
-          'store_name': storeName,
-          'store_description': storeDescription,
-        }),
+        body: jsonEncode(requestBody),
       ).timeout(const Duration(seconds: 15));
 
       // If token expired, try to refresh and retry
@@ -337,12 +349,7 @@ class ApiService {
                 'Content-Type': 'application/json',
                 'Authorization': 'Bearer $token',
               },
-              body: jsonEncode({
-                'farm_name': farmName,
-                'farm_location': farmLocation,
-                'store_name': storeName,
-                'store_description': storeDescription,
-              }),
+              body: jsonEncode(requestBody),
             ).timeout(const Duration(seconds: 15));
 
             if (retryResponse.statusCode == 201 || retryResponse.statusCode == 200) {

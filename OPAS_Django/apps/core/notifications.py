@@ -13,11 +13,13 @@ User Experience: Clear, actionable messages with deadlines
 
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.utils import timezone
-from django.db import models
 from django.conf import settings
 import logging
 from datetime import timedelta
 import json
+
+# Import models from models.py
+from .models import NotificationPreferences, NotificationLog
 
 # Optional: Celery for async tasks (install with: pip install celery)
 try:
@@ -28,90 +30,6 @@ except ImportError:
         return func
 
 logger = logging.getLogger('notifications')
-
-
-class NotificationPreferences(models.Model):
-    """User notification preferences"""
-    
-    CHANNEL_CHOICES = [
-        ('EMAIL', 'Email'),
-        ('SMS', 'SMS'),
-        ('PUSH', 'Push Notification'),
-        ('IN_APP', 'In-App Only'),
-    ]
-    
-    user = models.OneToOneField(
-        'users.User',
-        on_delete=models.CASCADE,
-        related_name='notification_preferences'
-    )
-    
-    # Registration events
-    registration_submitted = models.BooleanField(default=True)
-    registration_approved = models.BooleanField(default=True)
-    registration_rejected = models.BooleanField(default=True)
-    info_requested = models.BooleanField(default=True)
-    deadline_approaching = models.BooleanField(default=True)
-    
-    # Channel preferences
-    preferred_channel = models.CharField(
-        max_length=20,
-        choices=CHANNEL_CHOICES,
-        default='EMAIL'
-    )
-    
-    # Digest settings
-    receive_digest = models.BooleanField(default=False)
-    digest_frequency = models.CharField(
-        max_length=20,
-        choices=[('DAILY', 'Daily'), ('WEEKLY', 'Weekly')],
-        default='DAILY'
-    )
-    
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        db_table = 'core_notification_preferences'
-        verbose_name = 'Notification Preference'
-
-
-class NotificationLog(models.Model):
-    """Track all sent notifications"""
-    
-    STATUS_CHOICES = [
-        ('PENDING', 'Pending'),
-        ('SENT', 'Sent'),
-        ('FAILED', 'Failed'),
-        ('BOUNCED', 'Bounced'),
-    ]
-    
-    user = models.ForeignKey(
-        'users.User',
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='notification_logs'
-    )
-    
-    notification_type = models.CharField(max_length=50)
-    channel = models.CharField(max_length=20)
-    recipient = models.CharField(max_length=255)
-    subject = models.CharField(max_length=255, blank=True)
-    message = models.TextField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
-    
-    sent_at = models.DateTimeField(null=True, blank=True)
-    error_message = models.TextField(blank=True)
-    retry_count = models.IntegerField(default=0)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'core_notification_log'
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['user', '-created_at']),
-            models.Index(fields=['status', 'created_at']),
-        ]
 
 
 class NotificationService:
@@ -211,6 +129,7 @@ Review at: {context['review_url']}
         """
         CORE PRINCIPLE: Notify seller of approval + role change
         Security: Excluded sensitive approval criteria
+        Sends both email and push notification
         """
         try:
             user = registration.seller
@@ -250,6 +169,38 @@ You can now access your seller dashboard: {context['dashboard_url']}
             )
             message.send()
             
+            # Send push notification for approval
+            try:
+                import firebase_admin
+                from firebase_admin import messaging
+                
+                # Get user's FCM token from profile
+                from apps.users.models import UserProfile
+                profile = UserProfile.objects.filter(user=user).first()
+                if profile and profile.fcm_token:
+                    approval_message = f"Congratulations! Your seller registration has been approved. You can now access your seller dashboard."
+                    
+                    message_data = {
+                        'action': 'REGISTRATION_APPROVED',
+                        'registration_id': str(registration.id if hasattr(registration, 'id') else user.id),
+                        'title': 'Registration Approved ✅',
+                        'body': approval_message,
+                    }
+                    
+                    push_message = messaging.Message(
+                        data=message_data,
+                        notification=messaging.Notification(
+                            title='Registration Approved ✅',
+                            body=approval_message,
+                        ),
+                        token=profile.fcm_token,
+                    )
+                    
+                    messaging.send(push_message)
+                    logger.info(f"Approval push notification sent to {user.email}")
+            except Exception as e:
+                logger.warning(f"Failed to send approval push notification: {str(e)}")
+            
             NotificationService._log_notification(
                 user=user,
                 notification_type='REGISTRATION_APPROVED',
@@ -276,6 +227,7 @@ You can now access your seller dashboard: {context['dashboard_url']}
         """
         CORE PRINCIPLE: Clear rejection reason with reapply option
         Security: Excluded internal review notes
+        Sends both email and push notification with rejection reason
         """
         try:
             user = registration.seller
@@ -314,6 +266,37 @@ For assistance, contact: {context['support_email']}
                 to=[user.email],
             )
             message.send()
+            
+            # Send push notification with rejection reason in data
+            try:
+                import firebase_admin
+                from firebase_admin import messaging
+                
+                # Get user's FCM token from profile
+                from apps.users.models import UserProfile
+                profile = UserProfile.objects.filter(user=user).first()
+                if profile and profile.fcm_token:
+                    message_data = {
+                        'action': 'REGISTRATION_REJECTED',
+                        'registration_id': str(registration.id if hasattr(registration, 'id') else user.id),
+                        'rejection_reason': rejection_reason[:200],  # Truncate for payload size
+                        'title': 'Registration Rejected ❌',
+                        'body': rejection_reason,
+                    }
+                    
+                    push_message = messaging.Message(
+                        data=message_data,
+                        notification=messaging.Notification(
+                            title='Registration Rejected ❌',
+                            body=rejection_reason if len(rejection_reason) <= 240 else f"{rejection_reason[:237]}...",
+                        ),
+                        token=profile.fcm_token,
+                    )
+                    
+                    messaging.send(push_message)
+                    logger.info(f"Push notification sent to {user.email}")
+            except Exception as e:
+                logger.warning(f"Failed to send push notification: {str(e)}")
             
             NotificationService._log_notification(
                 user=user,

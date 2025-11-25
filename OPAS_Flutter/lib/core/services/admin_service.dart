@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:opas_flutter/features/admin_panel/services/admin_audit_trail_service.dart';
+import 'api_service.dart';
 
 /// Admin Service Layer - Phase 3.1
 /// 
@@ -18,8 +20,9 @@ import 'package:opas_flutter/features/admin_panel/services/admin_audit_trail_ser
 /// Pattern: Static methods for API communication
 /// Returns: Map<String, dynamic> for flexibility, List<dynamic> for collections
 class AdminService {
-  static const String baseUrl = 'http://localhost:8000/api';
-  static const String adminEndpoint = '$baseUrl/admin';
+  // Use ApiService.baseUrl to support different networks (localhost, IP addresses, etc.)
+  static String get baseUrl => ApiService.baseUrl;
+  static String get adminEndpoint => '$baseUrl/admin';
 
   /// ============================================================================
   /// HELPER METHODS
@@ -136,38 +139,57 @@ class AdminService {
 
   /// Get list of sellers pending approval
   /// 
-  /// Returns: [{id, name, email, submissionDate, documents, farmInfo}]
+  /// Returns: [{id, seller_full_name, phone_number, farm_name, etc}]
   /// Purpose: Admin dashboard widget showing pending approvals
   static Future<List<dynamic>> getPendingSellerApprovals() async {
     try {
       final headers = await _getHeaders();
-      print('DEBUG: Admin pending approvals headers: $headers');
+      final fullUrl = '$adminEndpoint/sellers/pending-approvals/';
+      debugPrint('DEBUG: Full API URL: $fullUrl');
+      debugPrint('DEBUG: Admin endpoint: $adminEndpoint');
+      debugPrint('DEBUG: Base URL: ${baseUrl}');
+      debugPrint('DEBUG: Admin pending approvals headers: $headers');
       
       final response = await http.get(
-        Uri.parse('$adminEndpoint/sellers/pending-approvals/'),
+        Uri.parse(fullUrl),
         headers: headers,
       );
 
-      print('DEBUG: Pending approvals response status: ${response.statusCode}');
-      print('DEBUG: Pending approvals response body: ${response.body}');
+      debugPrint('DEBUG: Pending approvals response status: ${response.statusCode}');
+      debugPrint('DEBUG: Pending approvals response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        debugPrint('DEBUG: Decoded response type: ${data.runtimeType}');
+        debugPrint('DEBUG: Decoded response keys: ${data is Map ? data.keys.toList() : "N/A"}');
+        
         // Handle both list and object response formats
         if (data is List) {
+          debugPrint('DEBUG: Response is a direct list with ${data.length} items');
           return data;  // Direct list response
         } else if (data is Map && data.containsKey('results')) {
+          debugPrint('DEBUG: Response has "results" key with ${(data['results'] as List?)?.length ?? 0} items');
           return List<dynamic>.from(data['results'] ?? []);  // {count, results} format
         } else if (data is Map && data.containsKey('approvals')) {
+          debugPrint('DEBUG: Response has "approvals" key with ${(data['approvals'] as List?)?.length ?? 0} items');
           return List<dynamic>.from(data['approvals'] ?? []);  // {approvals} format
         } else {
+          debugPrint('DEBUG: Unknown response format, returning empty list');
           return [];
         }
+      } else if (response.statusCode == 401) {
+        debugPrint('ERROR: Unauthorized (401) - Check admin token');
+        debugPrint('ERROR: Token from headers: ${headers['Authorization']}');
+        return [];
+      } else if (response.statusCode == 403) {
+        debugPrint('ERROR: Forbidden (403) - Admin may not have permission');
+        return [];
       } else {
-        throw Exception('Failed to fetch pending approvals: ${response.statusCode}');
+        debugPrint('ERROR: HTTP ${response.statusCode} - ${response.body}');
+        return [];
       }
     } catch (e) {
-      print('DEBUG: Error in getPendingSellerApprovals: $e');
+      debugPrint('DEBUG: Error in getPendingSellerApprovals: $e');
       return [];
     }
   }
@@ -1879,12 +1901,12 @@ class AdminService {
         // Update if role changed
         if (currentRole != newRole) {
           await prefs.setString('role', newRole);
-          print('DEBUG: User role updated from $currentRole to $newRole');
+          debugPrint('DEBUG: User role updated from $currentRole to $newRole');
         }
       }
     } catch (e) {
       // Silently fail - role refresh is not critical
-      print('DEBUG: Failed to refresh user role: $e');
+      debugPrint('DEBUG: Failed to refresh user role: $e');
     }
   }
 }

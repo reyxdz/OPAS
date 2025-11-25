@@ -155,12 +155,11 @@ class _SellerDetailsAdminScreenState extends State<SellerDetailsAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Personal Information',
+              'Contact Information',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const Divider(),
-            _buildInfoRow('Email', _seller['email'] ?? 'N/A'),
-            _buildInfoRow('Phone', _seller['phone_number'] ?? 'N/A'),
+            _buildInfoRow('Phone Number', _seller['phone_number'] ?? 'N/A'),
             _buildInfoRow('Address', _seller['address'] ?? 'N/A'),
             _buildInfoRow(
               'Registered',

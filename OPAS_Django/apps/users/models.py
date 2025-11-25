@@ -38,6 +38,8 @@ class User(AbstractUser):
     """
     
     # ==================== IDENTITY FIELDS ====================
+    # Note: email, username, first_name, last_name inherited from AbstractUser
+    # email is NOT used for authentication - kept only for AbstractUser compatibility
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
     phone_number = models.CharField(max_length=15, unique=True, help_text='Phone number used for authentication')

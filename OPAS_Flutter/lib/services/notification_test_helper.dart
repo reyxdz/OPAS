@@ -2,6 +2,7 @@
 // Use this to test notifications locally without sending from backend
 
 import 'package:opas_flutter/services/notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class NotificationTestHelper {
   /// Simulate receiving a push notification
@@ -42,13 +43,18 @@ class NotificationTestHelper {
   /// Simulate rejection notification
   static Future<void> simulateRejection({
     String registrationId = '12345',
+    String rejectionReason = 'Documentation incomplete. Please resubmit with complete business registration and tax ID documents.',
   }) async {
     await simulateNotification(
       title: 'Registration Rejected',
-      body: 'Your registration was rejected. Please contact support.',
+      body: rejectionReason,
       action: 'REGISTRATION_REJECTED',
       registrationId: registrationId,
     );
+    
+    // Also cache the rejection reason
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_rejection_reason', rejectionReason);
   }
   
   /// Simulate info request notification

@@ -35,8 +35,9 @@ from apps.users.admin_models import (
     OPASPurchaseOrder, OPASInventory, OPASInventoryTransaction, OPASPurchaseHistory,
     AdminAuditLog, MarketplaceAlert, SystemNotification,
 )
+from apps.core.notifications import NotificationService
 from .admin_serializers import (
-    SellerManagementSerializer, SellerDetailsSerializer,
+    SellerApplicationSerializer, SellerManagementSerializer, SellerDetailsSerializer,
     PriceCeilingSerializer, PriceAdvisorySerializer, PriceHistorySerializer,
     PriceNonComplianceSerializer, OPASPurchaseOrderSerializer,
     OPASInventorySerializer, AdminAuditLogSerializer, MarketplaceAlertSerializer,
@@ -71,7 +72,7 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         - Delete: 20 requests/hour
     """
     permission_classes = [IsAuthenticated, IsAdmin, CanApproveSellers]
-    serializer_class = SellerManagementSerializer
+    serializer_class = SellerApplicationSerializer
     throttle_classes = [AdminReadThrottle, AdminWriteThrottle, AdminDeleteThrottle]
     
     def get_queryset(self):
@@ -205,6 +206,12 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             new_value=SellerStatus.APPROVED
         )
         
+        # Send approval notification to the user
+        NotificationService.send_registration_approved_notification(
+            application,
+            request
+        )
+        
         serializer = self.get_serializer(application)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
@@ -268,6 +275,14 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             affected_seller=user,
             description=f"Rejected seller registration: {rejection_reason}",
             new_value=SellerStatus.REJECTED
+        )
+        
+        # Send rejection notification with reason to the user
+        NotificationService.send_registration_rejected_notification(
+            user,
+            rejection_reason,
+            admin_notes,
+            request
         )
         
         serializer = self.get_serializer(application)

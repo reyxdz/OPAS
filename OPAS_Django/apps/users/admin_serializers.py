@@ -54,6 +54,7 @@ class SellerApplicationSerializer(serializers.ModelSerializer):
     user_email = serializers.CharField(source='user.email', read_only=True)
     seller_email = serializers.CharField(source='user.email', read_only=True)  # Alias for Flutter
     seller_full_name = serializers.CharField(source='user.full_name', read_only=True)  # For Flutter
+    phone_number = serializers.CharField(source='user.phone_number', read_only=True)  # Get from related User
     submitted_at = serializers.DateTimeField(source='created_at', read_only=True)  # Alias for Flutter
     reviewed_by_name = serializers.CharField(source='reviewed_by.full_name', read_only=True, allow_null=True)
     
@@ -61,7 +62,7 @@ class SellerApplicationSerializer(serializers.ModelSerializer):
         model = SellerApplication
         fields = [
             'id', 'user', 'user_email', 'seller_email', 'seller_full_name',
-            'farm_name', 'farm_location', 'store_name', 'store_description',
+            'phone_number', 'farm_name', 'farm_location', 'store_name', 'store_description',
             'status', 'rejection_reason', 'created_at', 'submitted_at',
             'updated_at', 'reviewed_at', 'reviewed_by', 'reviewed_by_name'
         ]

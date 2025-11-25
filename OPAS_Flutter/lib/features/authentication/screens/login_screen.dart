@@ -165,6 +165,18 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setString('last_name', response['last_name'] ?? '');
       await prefs.setString('address', response['address'] ?? '');
       await prefs.setString('role', response['role'] ?? 'BUYER');
+      
+      // Store seller information if available
+      if (response['store_name'] != null) {
+        await prefs.setString('store_name', response['store_name'] ?? '');
+      }
+      if (response['farm_municipality'] != null) {
+        await prefs.setString('farm_municipality', response['farm_municipality'] ?? '');
+      }
+      if (response['farm_barangay'] != null) {
+        await prefs.setString('farm_barangay', response['farm_barangay'] ?? '');
+      }
+      
       if (response['role'] == 'ADMIN') {
         await prefs.setString('admin_role', response['admin_role'] ?? 'SUPER_ADMIN');
       }

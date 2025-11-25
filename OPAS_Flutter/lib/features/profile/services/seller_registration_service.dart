@@ -199,4 +199,28 @@ class SellerRegistrationService {
         ? errors.join('\n')
         : 'An error occurred. Please try again.';
   }
+
+  /// Get the last rejection reason from cache
+  /// 
+  /// Returns the rejection reason from push notification or null if not found
+  static Future<String?> getLastRejectionReason() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('last_rejection_reason');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Clear the cached rejection reason
+  /// 
+  /// Called after user views the rejection reason
+  static Future<void> clearCachedRejectionReason() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('last_rejection_reason');
+    } catch (e) {
+      // Silently ignore errors
+    }
+  }
 }
