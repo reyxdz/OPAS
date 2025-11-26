@@ -28,47 +28,47 @@ class NotificationTypeStyle {
 class NotificationBuilder {
   // Notification type styles mapping
   static final Map<String, NotificationTypeStyle> typeStyles = {
-    'REGISTRATION_APPROVED': NotificationTypeStyle(
+    'REGISTRATION_APPROVED': const NotificationTypeStyle(
       icon: Icons.check_circle,
       color: Colors.green,
       label: 'Approved',
     ),
-    'REGISTRATION_REJECTED': NotificationTypeStyle(
+    'REGISTRATION_REJECTED': const NotificationTypeStyle(
       icon: Icons.cancel,
       color: Colors.red,
       label: 'Rejected',
     ),
-    'INFO_REQUESTED': NotificationTypeStyle(
+    'INFO_REQUESTED': const NotificationTypeStyle(
       icon: Icons.info,
       color: Colors.orange,
       label: 'Info Needed',
     ),
-    'APPLICATION': NotificationTypeStyle(
+    'APPLICATION': const NotificationTypeStyle(
       icon: Icons.notifications,
       color: Colors.blue,
       label: 'Application',
     ),
-    'PENDING_REVIEW': NotificationTypeStyle(
+    'PENDING_REVIEW': const NotificationTypeStyle(
       icon: Icons.schedule,
       color: Colors.amber,
       label: 'Pending Review',
     ),
-    'UNDER_REVIEW': NotificationTypeStyle(
+    'UNDER_REVIEW': const NotificationTypeStyle(
       icon: Icons.search,
       color: Colors.indigo,
       label: 'Under Review',
     ),
-    'RESUBMISSION_REQUIRED': NotificationTypeStyle(
+    'RESUBMISSION_REQUIRED': const NotificationTypeStyle(
       icon: Icons.refresh,
       color: Colors.purple,
       label: 'Resubmission Required',
     ),
-    'APPROVED': NotificationTypeStyle(
+    'APPROVED': const NotificationTypeStyle(
       icon: Icons.verified,
       color: Colors.teal,
       label: 'Approved',
     ),
-    'REJECTED': NotificationTypeStyle(
+    'REJECTED': const NotificationTypeStyle(
       icon: Icons.cancel,
       color: Colors.deepOrange,
       label: 'Rejected',

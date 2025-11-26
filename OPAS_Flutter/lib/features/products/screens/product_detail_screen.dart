@@ -44,7 +44,6 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   late Future<Product> _productFuture;
   late Future<List<ProductReview>> _reviewsFuture;
-  late Future<List<Product>> _relatedProductsFuture;
   
   int _quantity = 1;
   int _currentImageIndex = 0;
@@ -58,10 +57,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     _productFuture = BuyerApiService.getProductDetail(widget.productId);
     _reviewsFuture = BuyerApiService.getProductReviews(widget.productId);
     // Related products will load after we get the product category
-    _relatedProductsFuture = Future.delayed(
-      const Duration(milliseconds: 500),
-      () => [], // Placeholder - will load after product data
-    );
   }
 
   @override
@@ -474,8 +469,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               _buildInfoCard(
                 context,
                 'Stock Level',
-                product.stockLevel > 0 ? '${product.stockLevel}' : 'Out',
-                product.stockLevel > 0 ? Colors.green : Colors.red,
+                product.stock > 0 ? '${product.stock}' : 'Out',
+                product.stock > 0 ? Colors.green : Colors.red,
               ),
               _buildInfoCard(
                 context,
@@ -485,8 +480,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
               _buildInfoCard(
                 context,
-                'Quality Grade',
-                product.qualityGrade ?? 'N/A',
+                'Seller Rating',
+                '${product.sellerRating.toStringAsFixed(1)}★',
                 Colors.blue,
               ),
             ],
@@ -540,29 +535,28 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            product.sellerInfo.name,
+                            product.sellerName,
                             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (product.sellerInfo.status == 'APPROVED')
-                            const Tooltip(
-                              message: 'Verified Seller',
-                              child: Icon(
-                                Icons.verified_user,
-                                size: 18,
-                                color: Color(0xFF00B464),
-                              ),
+                          const Tooltip(
+                            message: 'Seller',
+                            child: Icon(
+                              Icons.verified_user,
+                              size: 18,
+                              color: Color(0xFF00B464),
                             ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(Icons.star, size: 14, color: Colors.amber),
+                          const Icon(Icons.star, size: 14, color: Colors.amber),
                           const SizedBox(width: 4),
                           Text(
-                            '${product.sellerInfo.rating.toStringAsFixed(1)} (${product.sellerInfo.reviewsCount} reviews)',
+                            '${product.sellerRating.toStringAsFixed(1)} rating',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -570,10 +564,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(Icons.location_on, size: 14, color: Colors.grey),
+                          const Icon(Icons.storefront, size: 14, color: Colors.grey),
                           const SizedBox(width: 4),
                           Text(
-                            product.sellerInfo.location,
+                            'View more products',
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Colors.grey[600],
                             ),
@@ -594,8 +588,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (_) => SellerShopScreen(
-                        sellerId: product.sellerInfo.id,
-                        sellerName: product.sellerInfo.name,
+                        sellerId: product.sellerId,
+                        sellerName: product.sellerName,
                       ),
                     ),
                   );
@@ -962,7 +956,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.star, size: 12, color: Colors.amber),
+                        const Icon(Icons.star, size: 12, color: Colors.amber),
                         const SizedBox(width: 2),
                         Text(
                           '4.5',
@@ -1036,7 +1030,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   IconButton(
                     icon: const Icon(Icons.add),
                     iconSize: 20,
-                    onPressed: _quantity < product.stockLevel
+                    onPressed: _quantity < product.stock
                         ? () => setState(() => _quantity++)
                         : null,
                   ),
@@ -1141,6 +1135,42 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       }
     }
     return breakdown;
+  }
+
+  /// Build error state widget
+  Widget _buildErrorState(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 80,
+            color: Colors.red.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Error Loading Product',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _productFuture = BuyerApiService.getProductDetail(widget.productId);
+              });
+            },
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

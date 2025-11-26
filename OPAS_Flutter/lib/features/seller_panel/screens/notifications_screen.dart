@@ -72,14 +72,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  Color _getNotificationColor(String type) {
-    return NotificationBuilder.getStyle(type).color;
-  }
-
-  IconData _getNotificationIcon(String type) {
-    return NotificationBuilder.getStyle(type).icon;
-  }
-
   String _formatTime(String dateString) {
     try {
       final dateTime = DateTime.parse(dateString);

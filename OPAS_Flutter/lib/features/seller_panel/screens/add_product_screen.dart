@@ -22,7 +22,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   String _selectedProductType = 'VEGETABLE';
   String _selectedQualityGrade = 'A';
   String _selectedUnit = 'kg';
-  List<File> _selectedImages = [];
+  final List<File> _selectedImages = [];
   double? _ceilingPrice;
   bool _isLoading = false;
   bool _priceExceedsCeiling = false;

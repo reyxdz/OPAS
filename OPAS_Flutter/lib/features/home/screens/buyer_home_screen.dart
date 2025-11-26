@@ -59,11 +59,11 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   
   // Categories configuration with icons and labels
   final Map<String, Map<String, dynamic>> _categories = {
-    'VEGETABLE': {'label': 'Vegetables', 'icon': Icons.eco, 'color': Color(0xFF2E7D32)},
-    'FRUIT': {'label': 'Fruits', 'icon': Icons.apple, 'color': Color(0xFFD32F2F)},
-    'GRAIN': {'label': 'Grains', 'icon': Icons.grain, 'color': Color(0xFF7B1FA2)},
-    'POULTRY': {'label': 'Poultry', 'icon': Icons.food_bank, 'color': Color(0xFFE65100)},
-    'DAIRY': {'label': 'Dairy', 'icon': Icons.local_drink, 'color': Color(0xFF0277BD)},
+    'VEGETABLE': {'label': 'Vegetables', 'icon': Icons.eco, 'color': const Color(0xFF2E7D32)},
+    'FRUIT': {'label': 'Fruits', 'icon': Icons.apple, 'color': const Color(0xFFD32F2F)},
+    'GRAIN': {'label': 'Grains', 'icon': Icons.grain, 'color': const Color(0xFF7B1FA2)},
+    'POULTRY': {'label': 'Poultry', 'icon': Icons.food_bank, 'color': const Color(0xFFE65100)},
+    'DAIRY': {'label': 'Dairy', 'icon': Icons.local_drink, 'color': const Color(0xFF0277BD)},
   };
 
   @override
@@ -463,13 +463,13 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
         ),
         const SizedBox(height: 12),
         if (_isLoadingFeatured)
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+          const Padding(
+            padding: EdgeInsets.all(AppDimensions.paddingMedium),
             child: SizedBox(
               height: 250,
               child: Center(
                 child: CircularProgressIndicator(
-                  color: const Color(0xFF00B464),
+                  color: Color(0xFF00B464),
                 ),
               ),
             ),
@@ -726,8 +726,8 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
           ),
           child: Card(
             child: ListTile(
-              leading: Icon(Icons.shopping_bag_outlined, 
-                color: const Color(0xFF00B464)),
+              leading: const Icon(Icons.shopping_bag_outlined, 
+                color: Color(0xFF00B464)),
               title: const Text('No recent orders'),
               subtitle: const Text('Your orders will appear here'),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),

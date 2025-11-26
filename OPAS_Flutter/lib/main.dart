@@ -103,16 +103,6 @@ Future<void> _initializeSqliteFfi() async {
   }
 }
 
-/// Dynamically load a Dart module
-Future<dynamic> _loadModule(String modulePath) async {
-  try {
-    // This is a placeholder for dynamic module loading
-    // In practice, sqflite_common_ffi handles this automatically
-    return true;
-  } catch (e) {
-    return null;
-  }
-}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

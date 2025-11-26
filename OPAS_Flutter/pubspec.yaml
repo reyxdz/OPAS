@@ -25,6 +25,7 @@ dependencies:
   flutter_local_notifications: ^15.1.0
   fl_chart: ^0.65.0
   sqflite_common_ffi: ^2.3.0
+  cached_network_image: ^3.3.0
 
 dev_dependencies:
   flutter_test:

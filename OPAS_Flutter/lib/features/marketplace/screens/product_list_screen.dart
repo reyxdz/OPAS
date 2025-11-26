@@ -41,7 +41,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   // UI State
   String _viewMode = 'grid'; // 'grid' or 'list'
-  bool _showShimmer = false;
 
   // Debounce timer for search
   Timer? _searchDebounceTimer;
@@ -81,7 +80,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
       } else {
         _isLoadingMore = true;
       }
-      _showShimmer = true;
     });
 
     try {
@@ -152,7 +150,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
       setState(() {
         _isLoading = false;
         _isLoadingMore = false;
-        _showShimmer = false;
       });
     }
   }
@@ -678,7 +675,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   // Seller Info
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.star,
                         size: 14,
                         color: Colors.amber,

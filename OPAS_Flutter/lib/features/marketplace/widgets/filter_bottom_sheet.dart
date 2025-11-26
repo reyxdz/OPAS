@@ -51,12 +51,6 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     'POULTRY',
   ];
 
-  final List<String> _sortOptions = [
-    'newest',
-    'price_asc',
-    'price_desc',
-    'rating',
-  ];
 
   @override
   void initState() {
@@ -241,20 +235,20 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
             DropdownButton<String>(
               value: _sortOrder,
               isExpanded: true,
-              items: [
-                const DropdownMenuItem(
+              items: const [
+                DropdownMenuItem(
                   value: 'newest',
                   child: Text('Newest'),
                 ),
-                const DropdownMenuItem(
+                DropdownMenuItem(
                   value: 'price_asc',
                   child: Text('Price: Low to High'),
                 ),
-                const DropdownMenuItem(
+                DropdownMenuItem(
                   value: 'price_desc',
                   child: Text('Price: High to Low'),
                 ),
-                const DropdownMenuItem(
+                DropdownMenuItem(
                   value: 'rating',
                   child: Text('Top Rated'),
                 ),

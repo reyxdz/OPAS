@@ -86,7 +86,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
       filtered = filtered
           .where((p) =>
               p.name.toLowerCase().contains(searchQuery) ||
-              p.category.toLowerCase().contains(searchQuery))
+              p.category!.toLowerCase().contains(searchQuery))
           .toList();
     }
 
@@ -103,8 +103,8 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
         break;
       case 'newest':
       default:
-        filtered.sort((a, b) => (b.createdAt ?? DateTime.now())
-            .compareTo(a.createdAt ?? DateTime.now()));
+        filtered.sort((a, b) => (b.createdAt)
+            .compareTo(a.createdAt));
         break;
     }
 
@@ -305,20 +305,20 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
                             child: DropdownButton<String>(
                               value: _sortOrder,
                               isExpanded: true,
-                              items: [
-                                const DropdownMenuItem(
+                              items: const [
+                                DropdownMenuItem(
                                   value: 'newest',
                                   child: Text('Newest First'),
                                 ),
-                                const DropdownMenuItem(
+                                DropdownMenuItem(
                                   value: 'price_asc',
                                   child: Text('Price: Low to High'),
                                 ),
-                                const DropdownMenuItem(
+                                DropdownMenuItem(
                                   value: 'price_desc',
                                   child: Text('Price: High to Low'),
                                 ),
-                                const DropdownMenuItem(
+                                DropdownMenuItem(
                                   value: 'stock_low',
                                   child: Text('Low Stock First'),
                                 ),

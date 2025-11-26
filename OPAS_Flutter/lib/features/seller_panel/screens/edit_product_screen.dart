@@ -34,7 +34,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
   bool _isLoading = false;
   bool _priceExceedsCeiling = false;
   DateTime? _lastEditTime;
-  bool _isOptimisticUpdating = false;
 
   @override
   void initState() {
@@ -144,7 +143,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
       // Start optimistic update
       setState(() {
-        _isOptimisticUpdating = true;
       });
 
       final updatedProduct = await SellerService.updateProduct(
@@ -154,7 +152,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
       // Complete optimistic update
       setState(() {
-        _isOptimisticUpdating = false;
       });
 
       if (mounted) {

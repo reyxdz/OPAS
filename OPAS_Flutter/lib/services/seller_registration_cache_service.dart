@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
@@ -36,37 +36,37 @@ class SellerRegistrationCacheService {
     if (_isInitialized) return;
 
     try {
-      print('🔧 Cache Service: initialize() called');
+      debugPrint('🔧 Cache Service: initialize() called');
       
       // On web: Disable cache completely
       // sqflite on web uses a different IndexedDB API that doesn't work with this cache service
       if (kIsWeb) {
-        print('ℹ️  Cache Service: Web platform detected - cache disabled');
+        debugPrint('ℹ️  Cache Service: Web platform detected - cache disabled');
         _isInitialized = true;
         _database = null;
         return;
       }
       
       // Failsafe: Ensure FFI factory is set on DESKTOP platforms only
-      print('🔧 Cache Service: Checking databaseFactory (non-web platform)...');
+      debugPrint('🔧 Cache Service: Checking databaseFactory (non-web platform)...');
       try {
         if (databaseFactory.toString().contains('DefaultDatabaseFactory')) {
-          print('⚠️  Cache Service: databaseFactory is still DefaultDatabaseFactory, attempting FFI setup...');
+          debugPrint('⚠️  Cache Service: databaseFactory is still DefaultDatabaseFactory, attempting FFI setup...');
           sqflite_ffi.sqfliteFfiInit();
           databaseFactory = sqflite_ffi.databaseFactoryFfi;
-          print('✅ Cache Service: FFI factory set in failsafe');
+          debugPrint('✅ Cache Service: FFI factory set in failsafe');
         } else {
-          print('✅ Cache Service: databaseFactory already set: ${databaseFactory.runtimeType}');
+          debugPrint('✅ Cache Service: databaseFactory already set: ${databaseFactory.runtimeType}');
         }
       } catch (factorySetupError) {
-        print('ℹ️  Cache Service: FFI factory setup in failsafe failed (might be mobile): $factorySetupError');
+        debugPrint('ℹ️  Cache Service: FFI factory setup in failsafe failed (might be mobile): $factorySetupError');
       }
       
       final dbPath = await getDatabasesPath();
       final path = join(dbPath, _dbName);
       
-      print('🔧 Cache Service: Database path: $path');
-      print('🔧 Cache Service: Calling openDatabase()...');
+      debugPrint('🔧 Cache Service: Database path: $path');
+      debugPrint('🔧 Cache Service: Calling openDatabase()...');
 
       _database = await openDatabase(
         path,
@@ -75,10 +75,10 @@ class SellerRegistrationCacheService {
       );
 
       _isInitialized = true;
-      print('✅ Cache Service: Database initialized successfully');
+      debugPrint('✅ Cache Service: Database initialized successfully');
     } catch (e) {
-      print('❌ Cache Service: Database initialization failed: $e');
-      print('   Error type: ${e.runtimeType}');
+      debugPrint('❌ Cache Service: Database initialization failed: $e');
+      debugPrint('   Error type: ${e.runtimeType}');
       _isInitialized = true; // Mark as initialized to prevent retry loop
       _database = null;
       // Don't rethrow - cache is optional, app should work without it
@@ -259,18 +259,18 @@ class SellerRegistrationCacheService {
     try {
       // Skip cache operations on web platform
       if (kIsWeb) {
-        print('ℹ️ Cache Service: Web platform - skipping cache clear');
+        debugPrint('ℹ️ Cache Service: Web platform - skipping cache clear');
         return;
       }
       
       await initialize();
       if (_database != null) {
         final count = await _database!.delete(_admRegistrationsTable);
-        print('✅ Cleared admin registrations cache: $count items deleted');
+        debugPrint('✅ Cleared admin registrations cache: $count items deleted');
       }
     } catch (e) {
       // Log the error but don't crash - database caching is non-critical
-      print('⚠️ Warning: Could not clear admin registrations cache: $e');
+      debugPrint('⚠️ Warning: Could not clear admin registrations cache: $e');
       // Don't rethrow - this is a non-critical operation
     }
   }
