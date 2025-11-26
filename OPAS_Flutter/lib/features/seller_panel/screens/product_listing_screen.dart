@@ -139,15 +139,12 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
   String? _ensureAbsoluteUrl(String? url) {
     if (url == null || url.isEmpty) return null;
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      print('DEBUG: URL already absolute: $url');
       return url;
     }
     // Relative URL - prepend the API base URL
     // Remove leading slash if present to avoid double slashes
     final path = url.startsWith('/') ? url : '/$url';
-    final absoluteUrl = '${ApiService.baseUrl}$path';
-    print('DEBUG: Converted relative URL "$url" to absolute: $absoluteUrl');
-    return absoluteUrl;
+    return '${ApiService.baseUrl}$path';
   }
 
   @override
@@ -430,12 +427,8 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
     if (product.primaryImage != null &&
         product.primaryImage!['image_url'] != null) {
       imageUrl = _ensureAbsoluteUrl(product.primaryImage!['image_url']);
-      print('DEBUG: Using primaryImage for product ${product.id}: $imageUrl');
     } else if (product.images != null && product.images!.isNotEmpty) {
       imageUrl = _ensureAbsoluteUrl(product.images!.first);
-      print('DEBUG: Using images[0] for product ${product.id}: $imageUrl');
-    } else {
-      print('DEBUG: No image for product ${product.id}. Primary: ${product.primaryImage}, Images: ${product.images}');
     }
 
     return Card(
