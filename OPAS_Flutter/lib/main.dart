@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'features/authentication/screens/login_screen.dart';
@@ -20,14 +21,13 @@ import 'core/services/admin_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize SQLite FFI for desktop platforms FIRST
-  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-    try {
-      await _initializeSqliteFfi();
-      debugPrint('✅ SQLite FFI initialized for desktop');
-    } catch (e) {
-      debugPrint('⚠️ SQLite FFI initialization error: $e');
-    }
+  // Initialize SQLite FFI FIRST - critical for desktop and mobile apps
+  // Must happen before any database operations
+  try {
+    await _initializeSqliteFfi();
+  } catch (e) {
+    debugPrint('⚠️ SQLite FFI initialization error: $e');
+    // Continue anyway - app will work but cache may not be available
   }
   
   // Initialize Firebase (skip on web if credentials not configured)
@@ -58,18 +58,48 @@ void main() async {
 }
 
 /// Initialize SQLite FFI for desktop platforms
+/// CRITICAL: Must be called BEFORE any database operations on desktop
+/// For web: Uses IndexedDB automatically, no FFI needed
+/// For mobile: Uses native SQLite, no FFI needed
 Future<void> _initializeSqliteFfi() async {
+  debugPrint('🔧 Starting SQLite FFI initialization...');
+  
+  // Skip FFI initialization on web - it uses IndexedDB instead
+  if (kIsWeb) {
+    debugPrint('ℹ️ Web platform detected - skipping FFI, using IndexedDB');
+    return;
+  }
+  
   try {
-    // Dynamically import and initialize sqflite FFI
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      // Load sqflite_common_ffi
-      final sqfliteFfi = await _loadModule('package:sqflite_common_ffi/sqflite_ffi.dart');
-      if (sqfliteFfi != null) {
-        debugPrint('✅ Sqflite FFI module loaded');
-      }
+    // Step 1: Try to initialize FFI factory - this handles desktop platforms
+    debugPrint('🔧 Step 1: Attempting sqfliteFfiInit()...');
+    try {
+      sqflite_ffi.sqfliteFfiInit();
+      debugPrint('✅ Step 1: sqfliteFfiInit() completed successfully');
+    } catch (ffiInitError) {
+      debugPrint('ℹ️ Step 1: FFI init threw error (might be mobile): $ffiInitError');
+    }
+    
+    // Step 2: Check if databaseFactoryFfi is available
+    debugPrint('🔧 Step 2: Checking if databaseFactoryFfi is available...');
+    try {
+      // Access the factory to verify it exists
+      final factory = sqflite_ffi.databaseFactoryFfi;
+      debugPrint('✅ Step 2: databaseFactoryFfi is available');
+      
+      // Step 3: Set the global database factory
+      debugPrint('🔧 Step 3: Setting global databaseFactory...');
+      databaseFactory = factory;
+      debugPrint('✅ Step 3: Global databaseFactory set successfully');
+      debugPrint('✅ SQLite FFI initialization COMPLETE (desktop)');
+    } catch (factoryError) {
+      debugPrint('⚠️ Step 2/3 Failed: databaseFactoryFfi error: $factoryError');
+      // On mobile, sqflite uses native implementation automatically
+      debugPrint('ℹ️ Mobile platform detected - native SQLite will be used');
     }
   } catch (e) {
-    debugPrint('⚠️ Could not initialize sqflite FFI: $e');
+    debugPrint('❌ SQLite FFI initialization error: $e');
+    // Don't rethrow - cache is optional
   }
 }
 

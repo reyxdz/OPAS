@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/api_service.dart';
 import '../models/notification_history_model.dart';
 import '../services/notification_history_service.dart';
+import '../helpers/notification_builder.dart';
+import '../widgets/notification_read_state_widget.dart';
 
 /// Notification History Screen
 /// Displays all past notifications with rejection reasons, approvals, and info requests
@@ -32,16 +34,21 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
       await _syncPendingRejections();
       await _syncPendingApprovals();
       
+      // Get all notifications first
+      List<NotificationHistory> allNotifications =
+          await NotificationHistoryService.getAllNotifications();
+      
+      // Filter based on selected type
       List<NotificationHistory> notifications;
       if (_filterType == 'ALL') {
-        notifications =
-            await NotificationHistoryService.getAllNotifications();
+        notifications = allNotifications;
       } else {
-        notifications =
-            await NotificationHistoryService.getRejectionNotifications();
+        notifications = allNotifications
+            .where((n) => n.type == _filterType)
+            .toList();
       }
 
-      debugPrint('📋 Loaded ${notifications.length} notifications');
+      debugPrint('📋 Loaded ${notifications.length} notifications (filtered by $_filterType)');
       for (var n in notifications) {
         debugPrint('  - ${n.type}: ${n.title}');
       }
@@ -278,6 +285,12 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
               children: [
                 _buildFilterChip('ALL', 'All'),
                 const SizedBox(width: 8),
+                _buildFilterChip('REGISTRATION_APPROVED', 'Approved'),
+                const SizedBox(width: 8),
+                _buildFilterChip('REGISTRATION_REJECTED', 'Rejected'),
+                const SizedBox(width: 8),
+                _buildFilterChip('INFO_REQUESTED', 'Info Needed'),
+                const SizedBox(width: 8),
                 _buildFilterChip('APPLICATION', 'Application'),
               ],
             ),
@@ -349,117 +362,126 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
   }
 
   Widget _buildNotificationCard(NotificationHistory notification) {
-    final color = Color(notification.getColorValue());
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
+    return NotificationReadStateBackground(
+      isRead: notification.isRead,
+      unreadColor: NotificationBuilder.getCardBackgroundColor(notification.type, false),
+      readColor: Colors.white,
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: ListTile(
+          leading: NotificationBuilder.buildIcon(notification.type, isRead: notification.isRead),
+          title: NotificationText(
+            notification.title,
+            baseStyle: NotificationBuilder.getTitleStyle(context, notification.isRead),
+            isRead: notification.isRead,
           ),
-          child: Icon(
-            _getIcon(notification.getIcon()),
-            color: color,
-            size: 20,
-          ),
-        ),
-        title: Text(
-          notification.title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: notification.isRead ? Colors.grey[600] : Colors.black,
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              // Main body
+              NotificationText(
+                notification.body,
+                baseStyle: NotificationBuilder.getBodyStyle(context, notification.isRead),
+                isRead: notification.isRead,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            // Main body
-            Text(
-              notification.body,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[700],
-                  ),
-            ),
-            // Rejection reason if available
-            if (notification.rejectionReason != null)
+              // Notification type badge
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    border: Border.all(color: Colors.red.shade200),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'Reason: ${notification.rejectionReason}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.red.shade700,
-                        ),
-                  ),
+                child: NotificationBuilder.buildTypeBadge(
+                  notification.type,
+                  isRead: notification.isRead,
                 ),
               ),
-            const SizedBox(height: 4),
-            // Time
-            Text(
-              notification.getDetailedDateTime(),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[500],
-                    fontSize: 11,
+              // Rejection reason if available
+              if (notification.rejectionReason != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: NotificationBuilder.buildInfoBoxDecoration('rejection'),
+                    color: NotificationBuilder.getInfoBoxBackgroundColor('rejection'),
+                    child: Text(
+                      'Reason: ${notification.rejectionReason}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: NotificationBuilder.getInfoBoxTextColor('rejection'),
+                          ),
+                    ),
                   ),
-            ),
-          ],
-        ),
-        trailing: PopupMenuButton(
-          onSelected: (value) {
-            if (value == 'read') {
-              _markAsRead(notification.id);
-            } else if (value == 'delete') {
-              _deleteNotification(notification.id);
-            }
-          },
-          itemBuilder: (context) => [
-            if (!notification.isRead)
-              const PopupMenuItem(
-                value: 'read',
-                child: Text('Mark as read'),
+                ),
+              // Approval notes if available
+              if (notification.approvalNotes != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: NotificationBuilder.buildInfoBoxDecoration('approval'),
+                    color: NotificationBuilder.getInfoBoxBackgroundColor('approval'),
+                    child: Text(
+                      'Approval Notes: ${notification.approvalNotes}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: NotificationBuilder.getInfoBoxTextColor('approval'),
+                          ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 4),
+              // Time
+              NotificationText(
+                notification.getDetailedDateTime(),
+                baseStyle: NotificationBuilder.getTimestampStyle(context),
+                isRead: notification.isRead,
               ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Text('Delete', style: TextStyle(color: Colors.red)),
-            ),
-          ],
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Unread indicator dot
+              NotificationReadStateIndicator(
+                isRead: notification.isRead,
+                padding: const EdgeInsets.only(right: 8),
+                color: NotificationBuilder.getStyle(notification.type).color,
+              ),
+              // Actions menu
+              PopupMenuButton(
+                onSelected: (value) {
+                  if (value == 'read') {
+                    _markAsRead(notification.id);
+                  } else if (value == 'delete') {
+                    _deleteNotification(notification.id);
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (!notification.isRead)
+                    const PopupMenuItem(
+                      value: 'read',
+                      child: Text('Mark as read'),
+                    ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Delete', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          isThreeLine: true,
+          onTap: () {
+            if (!notification.isRead) {
+              _markAsRead(notification.id);
+            }
+            _showNotificationDetail(context, notification);
+          },
         ),
-        isThreeLine: true,
-        onTap: () {
-          if (!notification.isRead) {
-            _markAsRead(notification.id);
-          }
-          _showNotificationDetail(context, notification);
-        },
       ),
     );
-  }
-
-  IconData _getIcon(String iconName) {
-    switch (iconName) {
-      case 'check_circle':
-        return Icons.check_circle;
-      case 'cancel':
-        return Icons.cancel;
-      case 'help':
-        return Icons.help;
-      default:
-        return Icons.notifications;
-    }
   }
 
   void _showNotificationDetail(
@@ -476,19 +498,7 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
               // Header
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Color(notification.getColorValue())
-                          .withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      _getIcon(notification.getIcon()),
-                      color: Color(notification.getColorValue()),
-                      size: 28,
-                    ),
-                  ),
+                  NotificationBuilder.buildIcon(notification.type),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -504,17 +514,37 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                         const SizedBox(height: 4),
                         Text(
                           notification.getDetailedDateTime(),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: Colors.grey[600]),
+                          style: NotificationBuilder.getTimestampStyle(context),
                         ),
+                        const SizedBox(height: 8),
+                        NotificationBuilder.buildTypeBadge(notification.type, isRead: notification.isRead),
                       ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
+              // Main body
+              Text(
+                'Details',
+                style: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  notification.body,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
               // Rejection reason
               if (notification.rejectionReason != null &&
                   notification.rejectionReason!.isNotEmpty) ...[
@@ -530,20 +560,21 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    border: Border.all(color: Colors.red.shade300),
+                    color: NotificationBuilder.getInfoBoxBackgroundColor('rejection'),
+                    border: Border.all(color: NotificationBuilder.getStyle(notification.type).color),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     notification.rejectionReason!,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.red.shade700,
+                          color: NotificationBuilder.getInfoBoxTextColor('rejection'),
                         ),
                   ),
                 ),
               ],
               // Approval notes
-              if (notification.approvalNotes != null) ...[
+              if (notification.approvalNotes != null &&
+                  notification.approvalNotes!.isNotEmpty) ...[
                 const SizedBox(height: 24),
                 Text(
                   'Approval Notes',
@@ -556,18 +587,66 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    border: Border.all(color: Colors.green.shade300),
+                    color: NotificationBuilder.getInfoBoxBackgroundColor('approval'),
+                    border: Border.all(color: NotificationBuilder.getStyle(notification.type).color),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     notification.approvalNotes!,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.green.shade700,
+                          color: NotificationBuilder.getInfoBoxTextColor('approval'),
                         ),
                   ),
                 ),
               ],
+              const SizedBox(height: 24),
+              // Read status indicator
+              if (!notification.isRead)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    border: Border.all(color: Colors.blue[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info, color: Colors.blue[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This is an unread notification',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.blue[700],
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check, color: Colors.grey[600]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You have already read this notification',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 24),
               // Action buttons
               SizedBox(

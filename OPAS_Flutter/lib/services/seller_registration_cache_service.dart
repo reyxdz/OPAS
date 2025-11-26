@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
 
 /// Cache service for seller registration data with offline-first support
 /// CORE PRINCIPLE: Resource Management - Efficient caching reduces API calls
@@ -27,12 +29,44 @@ class SellerRegistrationCacheService {
 
   /// Initialize database connection
   /// CORE PRINCIPLE: Resource Management - Lazy initialization
+  /// NOTE: SQLite FFI should be initialized in main.dart before this is called
+  /// This method also serves as a failsafe to ensure FFI is initialized (desktop only)
+  /// On web: Cache is disabled by default as IndexedDB has different APIs
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
+      print('🔧 Cache Service: initialize() called');
+      
+      // On web: Disable cache completely
+      // sqflite on web uses a different IndexedDB API that doesn't work with this cache service
+      if (kIsWeb) {
+        print('ℹ️  Cache Service: Web platform detected - cache disabled');
+        _isInitialized = true;
+        _database = null;
+        return;
+      }
+      
+      // Failsafe: Ensure FFI factory is set on DESKTOP platforms only
+      print('🔧 Cache Service: Checking databaseFactory (non-web platform)...');
+      try {
+        if (databaseFactory.toString().contains('DefaultDatabaseFactory')) {
+          print('⚠️  Cache Service: databaseFactory is still DefaultDatabaseFactory, attempting FFI setup...');
+          sqflite_ffi.sqfliteFfiInit();
+          databaseFactory = sqflite_ffi.databaseFactoryFfi;
+          print('✅ Cache Service: FFI factory set in failsafe');
+        } else {
+          print('✅ Cache Service: databaseFactory already set: ${databaseFactory.runtimeType}');
+        }
+      } catch (factorySetupError) {
+        print('ℹ️  Cache Service: FFI factory setup in failsafe failed (might be mobile): $factorySetupError');
+      }
+      
       final dbPath = await getDatabasesPath();
       final path = join(dbPath, _dbName);
+      
+      print('🔧 Cache Service: Database path: $path');
+      print('🔧 Cache Service: Calling openDatabase()...');
 
       _database = await openDatabase(
         path,
@@ -41,14 +75,16 @@ class SellerRegistrationCacheService {
       );
 
       _isInitialized = true;
-      print('✅ Database initialized successfully');
+      print('✅ Cache Service: Database initialized successfully');
     } catch (e) {
-      print('⚠️ Database initialization failed (cache will be skipped): $e');
+      print('❌ Cache Service: Database initialization failed: $e');
+      print('   Error type: ${e.runtimeType}');
       _isInitialized = true; // Mark as initialized to prevent retry loop
       _database = null;
       // Don't rethrow - cache is optional, app should work without it
     }
   }
+
 
   /// Create all necessary tables
   Future<void> _createTables(Database db, int version) async {
@@ -221,6 +257,12 @@ class SellerRegistrationCacheService {
   /// Clear all admin registrations cache
   Future<void> clearAllAdminRegistrations() async {
     try {
+      // Skip cache operations on web platform
+      if (kIsWeb) {
+        print('ℹ️ Cache Service: Web platform - skipping cache clear');
+        return;
+      }
+      
       await initialize();
       if (_database != null) {
         final count = await _database!.delete(_admRegistrationsTable);

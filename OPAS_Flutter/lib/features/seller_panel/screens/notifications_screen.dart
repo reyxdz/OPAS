@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/seller_service.dart';
+import '../../profile/helpers/notification_builder.dart';
+import '../../profile/widgets/notification_read_state_widget.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -71,29 +73,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Color _getNotificationColor(String type) {
-    switch (type) {
-      case 'Orders':
-        return Colors.blue;
-      case 'Payments':
-        return Colors.green;
-      case 'System':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
+    return NotificationBuilder.getStyle(type).color;
   }
 
   IconData _getNotificationIcon(String type) {
-    switch (type) {
-      case 'Orders':
-        return Icons.shopping_cart;
-      case 'Payments':
-        return Icons.payment;
-      case 'System':
-        return Icons.notifications_active;
-      default:
-        return Icons.info;
-    }
+    return NotificationBuilder.getStyle(type).icon;
   }
 
   String _formatTime(String dateString) {
@@ -221,60 +205,51 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       final createdAt = notification['created_at'] ?? DateTime.now().toString();
                       final notificationId = notification['id'] ?? 0;
 
-                      return Card(
+                  return Card(
                         margin: const EdgeInsets.only(bottom: 8),
-                        color: isRead ? Colors.white : Colors.blue.withOpacity(0.05),
+                        color: isRead ? Colors.white : NotificationBuilder.getCardBackgroundColor(type, false),
                         child: ListTile(
                           contentPadding: const EdgeInsets.all(12),
                           leading: Container(
                             width: 48,
                             height: 48,
                             decoration: BoxDecoration(
-                              color: _getNotificationColor(type).withOpacity(0.2),
+                              color: NotificationBuilder.getStyle(type).color.withOpacity(0.2),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
-                              _getNotificationIcon(type),
-                              color: _getNotificationColor(type),
+                              NotificationBuilder.getStyle(type).icon,
+                              color: NotificationBuilder.getStyle(type).color,
                             ),
                           ),
-                          title: Text(
+                          title: NotificationText(
                             title,
-                            style: TextStyle(
-                              fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            baseStyle: NotificationBuilder.getTitleStyle(context, isRead),
+                            isRead: isRead,
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(height: 4),
-                              Text(
+                              NotificationText(
                                 message,
+                                baseStyle: NotificationBuilder.getBodyStyle(context, isRead),
+                                isRead: isRead,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall,
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 _formatTime(createdAt),
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Colors.grey,
-                                ),
+                                style: NotificationBuilder.getTimestampStyle(context),
                               ),
                             ],
                           ),
-                          trailing: !isRead
-                              ? Container(
-                                width: 12,
-                                height: 12,
-                                decoration: const BoxDecoration(
-                                  color: Colors.blue,
-                                  shape: BoxShape.circle,
-                                ),
-                              )
-                              : null,
+                          trailing: NotificationReadStateIndicator(
+                            isRead: isRead,
+                            padding: const EdgeInsets.all(0),
+                            color: NotificationBuilder.getStyle(type).color,
+                          ),
                           onTap: () {
                             if (!isRead) {
                               _markAsRead(notificationId);

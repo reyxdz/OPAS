@@ -25,40 +25,48 @@ class _PendingSellerApprovalsScreenState
   }
 
   Future<void> _loadPendingApplications() async {
+    debugPrint('🔍 [PendingScreen] _loadPendingApplications() called');
     _pendingApplicationsFuture = _fetchPendingApplications();
+    debugPrint('🔍 [PendingScreen] Future assigned, will trigger rebuild');
   }
 
   Future<List<Map<String, dynamic>>> _fetchPendingApplications() async {
     try {
+      debugPrint('🔍 [PendingScreen] Starting _fetchPendingApplications()');
+      
       // Debug: Check if we have a token
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token') ?? prefs.getString('access');
-      debugPrint('DEBUG: Auth token exists: ${token != null}');
+      debugPrint('🔍 [PendingScreen] Auth token exists: ${token != null}');
       if (token != null) {
-        debugPrint('DEBUG: Token preview: ${token.substring(0, 20)}...');
+        debugPrint('🔍 [PendingScreen] Token preview: ${token.substring(0, 20)}...');
       } else {
-        debugPrint('DEBUG: NO AUTH TOKEN FOUND - User may not be logged in!');
+        debugPrint('🔍 [PendingScreen] NO AUTH TOKEN FOUND - User may not be logged in!');
       }
       
+      debugPrint('🔍 [PendingScreen] Calling AdminService.getPendingSellerApprovals()...');
       final approvals = await AdminService.getPendingSellerApprovals();
-      debugPrint('DEBUG: Received ${approvals.length} approvals from API');
-      debugPrint('DEBUG: Approvals type: ${approvals.runtimeType}');
+      debugPrint('🔍 [PendingScreen] Received ${approvals.length} approvals from API');
+      debugPrint('🔍 [PendingScreen] Approvals type: ${approvals.runtimeType}');
       if (approvals.isNotEmpty) {
-        debugPrint('DEBUG: First approval: ${approvals.first}');
+        debugPrint('🔍 [PendingScreen] First approval: ${approvals.first}');
       }
       
       _pendingApprovals = List<Map<String, dynamic>>.from(
         approvals.map((item) {
-          debugPrint('DEBUG: Processing item: $item');
+          debugPrint('🔍 [PendingScreen] Processing item: $item');
           return _parseApplication(item as Map<String, dynamic>);
         }),
       );
-      debugPrint('DEBUG: Parsed ${_pendingApprovals.length} applications');
+      debugPrint('🔍 [PendingScreen] Parsed ${_pendingApprovals.length} applications');
+      debugPrint('🔍 [PendingScreen] Returning parsed approvals');
       return _pendingApprovals;
     } catch (e) {
-      debugPrint('ERROR loading pending applications: $e');
+      debugPrint('❌ [PendingScreen] ERROR loading pending applications: $e');
+      debugPrint('❌ [PendingScreen] Error type: ${e.runtimeType}');
+      debugPrint('❌ [PendingScreen] Stack trace: ${StackTrace.current}');
       if (kDebugMode) {
-        debugPrint('Error loading pending applications: $e');
+        debugPrint('❌ [PendingScreen] Error loading pending applications: $e');
       }
       return [];
     }
@@ -111,6 +119,8 @@ class _PendingSellerApprovalsScreenState
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('🔍 [PendingScreen.build()] Widget building...');
+    
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -123,8 +133,11 @@ class _PendingSellerApprovalsScreenState
       body: FutureBuilder<bool>(
         future: AdminPermissions.canApproveSellers(),
         builder: (context, permissionSnapshot) {
+          debugPrint('🔍 [PendingScreen.permissionBuilder] state: ${permissionSnapshot.connectionState}, hasData: ${permissionSnapshot.hasData}, data: ${permissionSnapshot.data}');
+          
           // Check if user has permission
           if (permissionSnapshot.hasData && !permissionSnapshot.data!) {
+            debugPrint('🔍 [PendingScreen] User does not have permission');
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -164,11 +177,20 @@ class _PendingSellerApprovalsScreenState
           return FutureBuilder<List<Map<String, dynamic>>>(
             future: _pendingApplicationsFuture,
             builder: (context, snapshot) {
+              debugPrint('🔍 [PendingScreen.FutureBuilder] Connection state: ${snapshot.connectionState}');
+              debugPrint('🔍 [PendingScreen.FutureBuilder] Has data: ${snapshot.hasData}');
+              debugPrint('🔍 [PendingScreen.FutureBuilder] Has error: ${snapshot.hasError}');
+              if (snapshot.hasError) {
+                debugPrint('🔍 [PendingScreen.FutureBuilder] Error: ${snapshot.error}');
+              }
+              
               if (snapshot.connectionState == ConnectionState.waiting) {
+                debugPrint('🔍 [PendingScreen] Showing loading indicator');
                 return const Center(child: CircularProgressIndicator());
               }
 
           if (snapshot.hasError) {
+            debugPrint('❌ [PendingScreen] Showing error screen');
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -182,6 +204,12 @@ class _PendingSellerApprovalsScreenState
                   Text(
                     'Error loading applications',
                     style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Error: ${snapshot.error}',
+                    style: const TextStyle(fontSize: 12, color: Colors.red),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
@@ -198,8 +226,10 @@ class _PendingSellerApprovalsScreenState
           }
 
           final applications = snapshot.data ?? [];
+          debugPrint('🔍 [PendingScreen] Applications count: ${applications.length}');
 
           if (applications.isEmpty) {
+            debugPrint('🔍 [PendingScreen] Showing "all approved" screen');
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -228,6 +258,7 @@ class _PendingSellerApprovalsScreenState
             );
           }
 
+          debugPrint('🔍 [PendingScreen] Showing ListView with ${applications.length} items');
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: applications.length,

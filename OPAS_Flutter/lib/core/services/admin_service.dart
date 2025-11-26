@@ -145,51 +145,58 @@ class AdminService {
     try {
       final headers = await _getHeaders();
       final fullUrl = '$adminEndpoint/sellers/pending-approvals/';
-      debugPrint('DEBUG: Full API URL: $fullUrl');
-      debugPrint('DEBUG: Admin endpoint: $adminEndpoint');
-      debugPrint('DEBUG: Base URL: $baseUrl');
-      debugPrint('DEBUG: Admin pending approvals headers: $headers');
+      debugPrint('🔍 [AdminService] Full API URL: $fullUrl');
+      debugPrint('🔍 [AdminService] Admin endpoint: $adminEndpoint');
+      debugPrint('🔍 [AdminService] Base URL: $baseUrl');
+      debugPrint('🔍 [AdminService] Auth header: ${headers['Authorization']?.substring(0, 30) ?? 'NONE'}...');
       
       final response = await http.get(
         Uri.parse(fullUrl),
         headers: headers,
-      );
+      ).timeout(const Duration(seconds: 30));
 
-      debugPrint('DEBUG: Pending approvals response status: ${response.statusCode}');
-      debugPrint('DEBUG: Pending approvals response body: ${response.body}');
+      debugPrint('🔍 [AdminService] Response status: ${response.statusCode}');
+      debugPrint('🔍 [AdminService] Response body length: ${response.body.length}');
+      if (response.body.length < 500) {
+        debugPrint('🔍 [AdminService] Response body: ${response.body}');
+      } else {
+        debugPrint('🔍 [AdminService] Response body (first 500 chars): ${response.body.substring(0, 500)}...');
+      }
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        debugPrint('DEBUG: Decoded response type: ${data.runtimeType}');
-        debugPrint('DEBUG: Decoded response keys: ${data is Map ? data.keys.toList() : "N/A"}');
+        debugPrint('🔍 [AdminService] Decoded response type: ${data.runtimeType}');
+        debugPrint('🔍 [AdminService] Decoded response keys: ${data is Map ? data.keys.toList() : "N/A"}');
         
         // Handle both list and object response formats
         if (data is List) {
-          debugPrint('DEBUG: Response is a direct list with ${data.length} items');
+          debugPrint('🔍 [AdminService] Response is direct list with ${data.length} items');
           return data;  // Direct list response
         } else if (data is Map && data.containsKey('results')) {
-          debugPrint('DEBUG: Response has "results" key with ${(data['results'] as List?)?.length ?? 0} items');
-          return List<dynamic>.from(data['results'] ?? []);  // {count, results} format
+          final results = List<dynamic>.from(data['results'] ?? []);
+          debugPrint('🔍 [AdminService] Response has "results" key with ${results.length} items');
+          return results;  // {count, results} format
         } else if (data is Map && data.containsKey('approvals')) {
-          debugPrint('DEBUG: Response has "approvals" key with ${(data['approvals'] as List?)?.length ?? 0} items');
-          return List<dynamic>.from(data['approvals'] ?? []);  // {approvals} format
+          final approvals = List<dynamic>.from(data['approvals'] ?? []);
+          debugPrint('🔍 [AdminService] Response has "approvals" key with ${approvals.length} items');
+          return approvals;  // {approvals} format
         } else {
-          debugPrint('DEBUG: Unknown response format, returning empty list');
+          debugPrint('❌ [AdminService] Unknown response format, returning empty list');
           return [];
         }
       } else if (response.statusCode == 401) {
-        debugPrint('ERROR: Unauthorized (401) - Check admin token');
-        debugPrint('ERROR: Token from headers: ${headers['Authorization']}');
+        debugPrint('❌ [AdminService] Unauthorized (401) - Check admin token');
         return [];
       } else if (response.statusCode == 403) {
-        debugPrint('ERROR: Forbidden (403) - Admin may not have permission');
+        debugPrint('❌ [AdminService] Forbidden (403) - Admin may not have permission');
         return [];
       } else {
-        debugPrint('ERROR: HTTP ${response.statusCode} - ${response.body}');
+        debugPrint('❌ [AdminService] HTTP ${response.statusCode} - ${response.body}');
         return [];
       }
     } catch (e) {
-      debugPrint('DEBUG: Error in getPendingSellerApprovals: $e');
+      debugPrint('❌ [AdminService] Error in getPendingSellerApprovals: $e');
+      debugPrint('❌ [AdminService] Stack trace: ${StackTrace.current}');
       return [];
     }
   }
