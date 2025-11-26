@@ -61,6 +61,7 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
   }
 
   /// Check server for pending rejections and sync to local history
+  /// This acts as a fallback when push notifications weren't received
   Future<void> _syncPendingRejections() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -73,52 +74,60 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
       
       final response = await ApiService.getUserStatus(accessToken: accessToken);
       
-      if (response != null) {
-        final rejectionReason = response['rejection_reason'];
-        final status = response['application_status'];
+      if (response == null) {
+        debugPrint('⚠️ No response from getUserStatus');
+        return;
+      }
+      
+      final rejectionReason = response['rejection_reason'];
+      final status = response['application_status'];
+      
+      debugPrint('🔄 Sync check - Status: $status, rejection_reason type: ${rejectionReason.runtimeType}, value: "$rejectionReason"');
+      
+      // Check if there's a rejection reason (even if status is PENDING, user might have resubmitted)
+      if (rejectionReason != null) {
+        final reasonStr = rejectionReason.toString().trim();
         
-        debugPrint('🔄 Sync check - Status: $status, Has rejection reason: ${rejectionReason != null && (rejectionReason is String) && rejectionReason.isNotEmpty}');
-        
-        // Sync rejection even if status is PENDING but rejection_reason exists
-        // This handles the case where user resubmits after rejection
-        if (rejectionReason != null && 
-            rejectionReason is String && 
-            rejectionReason.trim().isNotEmpty) {
-          debugPrint('🔄 Found rejection reason from server: "$rejectionReason"');
+        if (reasonStr.isNotEmpty && reasonStr != 'null') {
+          debugPrint('🔄 Found rejection reason from server: "$reasonStr"');
           
           // Check if we already have this rejection in history
           final existing = await NotificationHistoryService.getAllNotifications();
           final hasRejection = existing.any((n) => 
             n.type == 'REGISTRATION_REJECTED' && 
-            n.rejectionReason == rejectionReason
+            n.rejectionReason != null &&
+            n.rejectionReason == reasonStr
           );
           
           if (!hasRejection) {
-            debugPrint('➕ Adding rejection to history');
+            debugPrint('➕ Adding rejection to history (fallback sync)');
             final notification = NotificationHistory(
-              id: 'REJECTION_${DateTime.now().millisecondsSinceEpoch}',
+              id: 'REJECTION_SYNC_${DateTime.now().millisecondsSinceEpoch}',
               type: 'REGISTRATION_REJECTED',
               title: 'Registration Rejected ❌',
-              body: rejectionReason,
-              rejectionReason: rejectionReason,
+              body: reasonStr,
+              rejectionReason: reasonStr,
               receivedAt: DateTime.now(),
               isRead: false,
               data: {
                 'action': 'REGISTRATION_REJECTED',
-                'rejection_reason': rejectionReason,
+                'rejection_reason': reasonStr,
               },
             );
             await NotificationHistoryService.saveNotification(notification);
-            debugPrint('✅ Rejection notification saved to history');
+            debugPrint('✅ Rejection notification added via fallback sync');
           } else {
             debugPrint('ℹ️ Rejection already in history');
           }
         } else {
-          debugPrint('⚠️ No valid rejection reason: $rejectionReason (type: ${rejectionReason.runtimeType})');
+          debugPrint('⚠️ Rejection reason is empty or null: "$reasonStr"');
         }
+      } else {
+        debugPrint('ℹ️ No rejection reason in response');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('⚠️ Error syncing rejections: $e');
+      debugPrint('Stack trace: $stackTrace');
       // Don't throw - this is a background sync
     }
   }
