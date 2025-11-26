@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/seller_product_model.dart';
 import '../services/seller_service.dart';
+import '../../../core/services/api_service.dart';
 
 class ProductListingScreen extends StatefulWidget {
   const ProductListingScreen({super.key});
@@ -132,6 +133,18 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
   void _clearSearch() {
     _searchController.clear();
     _applyFiltersAndSort();
+  }
+
+  /// Ensure URL is absolute by prepending base URL if needed
+  String? _ensureAbsoluteUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    // Relative URL - prepend the API base URL
+    // Remove leading slash if present to avoid double slashes
+    final path = url.startsWith('/') ? url : '/$url';
+    return '${ApiService.baseUrl}$path';
   }
 
   @override
@@ -425,9 +438,9 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
     String? imageUrl;
     if (product.primaryImage != null &&
         product.primaryImage!['image_url'] != null) {
-      imageUrl = product.primaryImage!['image_url'];
+      imageUrl = _ensureAbsoluteUrl(product.primaryImage!['image_url']);
     } else if (product.images != null && product.images!.isNotEmpty) {
-      imageUrl = product.images!.first;
+      imageUrl = _ensureAbsoluteUrl(product.images!.first);
     }
 
     return Card(
