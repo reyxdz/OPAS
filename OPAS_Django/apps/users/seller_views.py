@@ -6,10 +6,11 @@ inventory, forecasting, payouts, and analytics.
 Includes 2 Permission Classes and 10 ViewSets with 46 endpoints (43 original + 3 new registration endpoints)
 """
 
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework.permissions import IsAuthenticated, BasePermission, AllowAny
+from rest_framework.exceptions import NotFound
 from django.utils import timezone
 from django.db import models, transaction
 from django.db.models import Q, Sum, Avg, Count, F
@@ -19,7 +20,7 @@ import logging
 from .models import User, UserRole, SellerStatus
 from .seller_models import (
     SellerProduct, SellerOrder, SellToOPAS, 
-    SellerPayout, SellerForecast,
+    SellerPayout, SellerForecast, ProductImage,
     ProductStatus, OrderStatus,
     Notification, Announcement, SellerAnnouncementRead
 )
@@ -41,6 +42,9 @@ from .seller_serializers import (
     NotificationListSerializer,
     AnnouncementSerializer,
     AnnouncementListSerializer,
+    ProductListBuyerSerializer,
+    ProductDetailBuyerSerializer,
+    SellerPublicProfileSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -2433,3 +2437,252 @@ class AnnouncementViewSet(viewsets.ReadOnlyModelViewSet):
         action_type = 'created' if created else 'already exists'
         logger.info(f'Announcement {announcement.id} read status {action_type} for {request.user.email}')
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ==================== BUYER MARKETPLACE VIEWSETS ====================
+
+class MarketplaceViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Buyer-facing marketplace endpoint for browsing products.
+    
+    Endpoints:
+    - GET /api/products/ - List all marketplace products with filtering
+    - GET /api/products/{id}/ - Get detailed product information
+    
+    Filtering:
+    - product_type: Filter by product type (e.g., VEGETABLE, FRUIT)
+    - min_price: Minimum price filter
+    - max_price: Maximum price filter
+    - search: Search by product name
+    - ordering: Sort by field (price, -price, -created_at, name)
+    
+    Query Examples:
+    - GET /api/products/?search=tomato
+    - GET /api/products/?product_type=VEGETABLE&min_price=40&max_price=100
+    - GET /api/products/?ordering=-price
+    
+    Permissions:
+    - AllowAny: Anyone can browse (no authentication required)
+    
+    Performance:
+    - Pagination: 20 items per page (default DRF pagination)
+    - Select related: seller
+    - Prefetch related: product_images
+    - Only active, non-deleted products shown
+    - Only from approved sellers
+    """
+    queryset = SellerProduct.objects.none()
+    permission_classes = [permissions.AllowAny]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'product_type', 'description']
+    ordering_fields = ['price', 'created_at', 'name', 'quality_grade']
+    ordering = ['-created_at']
+
+    def get_serializer_class(self):
+        """Use different serializers for list and detail views"""
+        if self.action == 'retrieve':
+            return ProductDetailBuyerSerializer
+        return ProductListBuyerSerializer
+
+    def get_queryset(self):
+        """
+        Return only active, published products.
+        Filter by:
+        - Status: ACTIVE
+        - Not deleted
+        - In stock or specified availability
+        - Only from approved sellers
+        """
+        queryset = SellerProduct.objects.filter(
+            status=ProductStatus.ACTIVE,
+            is_deleted=False,
+            stock_level__gt=0,
+            seller__seller_status=SellerStatus.APPROVED
+        ).select_related('seller').prefetch_related('product_images')
+
+        # Product type filtering
+        product_type = self.request.query_params.get('product_type')
+        if product_type:
+            queryset = queryset.filter(product_type=product_type)
+
+        # Price range filtering
+        min_price = self.request.query_params.get('min_price')
+        max_price = self.request.query_params.get('max_price')
+
+        if min_price:
+            try:
+                queryset = queryset.filter(price__gte=Decimal(min_price))
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid min_price value: {min_price}")
+
+        if max_price:
+            try:
+                queryset = queryset.filter(price__lte=Decimal(max_price))
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid max_price value: {max_price}")
+
+        return queryset.order_by('-created_at')
+
+    def list(self, request, *args, **kwargs):
+        """
+        List all marketplace products with pagination and filtering.
+        
+        Query Parameters:
+        - page: Page number (default: 1)
+        - search: Search term
+        - category: Product type filter
+        - min_price: Minimum price
+        - max_price: Maximum price
+        - ordering: Field to sort by
+        
+        Example:
+        GET /api/products/?category=VEGETABLE&min_price=40&max_price=100&search=tomato
+        """
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error listing marketplace products: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch products'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Get detailed product information including images and seller profile.
+        
+        Response includes:
+        - All product details
+        - All product images
+        - Seller profile information
+        - Price comparison data
+        
+        Example:
+        GET /api/products/123/
+        """
+        try:
+            return super().retrieve(request, *args, **kwargs)
+        except SellerProduct.DoesNotExist:
+            return Response(
+                {'error': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error retrieving product: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch product details'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class SellerPublicViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Public seller profile endpoint for buyers.
+    
+    Endpoints:
+    - GET /api/seller/{id}/ - Get seller shop profile
+    - GET /api/seller/{id}/products/ - Get seller's products
+    
+    Includes:
+    - Seller information
+    - Shop details
+    - Rating and reviews summary
+    
+    Permissions:
+    - AllowAny: Anyone can view seller profiles
+    """
+    permission_classes = [permissions.AllowAny]
+    serializer_class = SellerPublicProfileSerializer
+    lookup_field = 'id'
+    lookup_url_kwarg = 'id'
+
+    def get_queryset(self):
+        """Return only approved sellers"""
+        return User.objects.filter(
+            role=UserRole.SELLER,
+            seller_status=SellerStatus.APPROVED
+        )
+
+    def get_object(self):
+        """Get seller by ID"""
+        try:
+            seller_id = self.kwargs.get('id')
+            seller = User.objects.get(
+                id=seller_id,
+                role=UserRole.SELLER,
+                seller_status=SellerStatus.APPROVED
+            )
+            return seller
+        except User.DoesNotExist:
+            raise NotFound("Seller not found or not approved")
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Get seller shop profile.
+        
+        Response includes:
+        - Seller name and store info
+        - Total products
+        - Rating and reviews count
+        - Verification status
+        
+        Example:
+        GET /api/seller/5/
+        """
+        try:
+            return super().retrieve(request, *args, **kwargs)
+        except NotFound as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error retrieving seller profile: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch seller profile'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'], url_path='products')
+    def seller_products(self, request, id=None):
+        """
+        Get all products from a specific seller.
+        
+        Filters to only active, published products.
+        Supports same filtering as marketplace list view.
+        
+        Example:
+        GET /api/seller/5/products/?page=1&search=tomato
+        """
+        try:
+            seller = self.get_object()
+            products = SellerProduct.objects.filter(
+                seller=seller,
+                status=ProductStatus.ACTIVE,
+                is_deleted=False,
+                stock_level__gt=0
+            ).select_related('seller').prefetch_related('product_images')
+
+            # Apply same filtering as marketplace
+            page = self.paginate_queryset(products)
+            if page is not None:
+                serializer = ProductListBuyerSerializer(
+                    page,
+                    many=True,
+                    context={'request': request}
+                )
+                return self.get_paginated_response(serializer.data)
+
+            serializer = ProductListBuyerSerializer(
+                products,
+                many=True,
+                context={'request': request}
+            )
+            return Response(serializer.data)
+
+        except Exception as e:
+            logger.error(f"Error retrieving seller products: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch seller products'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

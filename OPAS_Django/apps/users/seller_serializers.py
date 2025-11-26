@@ -1438,3 +1438,239 @@ class SellerRegistrationStatusSerializer(serializers.ModelSerializer):
         elif obj.is_rejected():
             return f"Your application was not approved. Reason: {obj.rejection_reason}"
         return None
+
+
+# ==================== BUYER-FACING PRODUCT SERIALIZERS ====================
+
+class ProductImagePublicSerializer(serializers.ModelSerializer):
+    """
+    Serializer for product images in buyer marketplace view.
+    Simplified version for public viewing.
+    """
+    image_url = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ProductImage
+        fields = ['id', 'image_url', 'is_primary', 'alt_text']
+        read_only_fields = ['id', 'image_url', 'is_primary', 'alt_text']
+
+    def get_image_url(self, obj):
+        """Get absolute URL for image"""
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+
+
+class SellerPublicProfileSerializer(serializers.ModelSerializer):
+    """
+    Serializer for seller profile information visible to buyers.
+    Limited to non-sensitive information only.
+    
+    Used in:
+    - GET /api/products/{id}/ (nested seller info)
+    - GET /api/seller/{id}/ (seller shop profile)
+    """
+    full_name = serializers.CharField(read_only=True)
+    seller_rating = serializers.SerializerMethodField(read_only=True)
+    total_products = serializers.SerializerMethodField(read_only=True)
+    successful_orders = serializers.SerializerMethodField(read_only=True)
+    established_since = serializers.SerializerMethodField(read_only=True)
+    is_verified = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'full_name',
+            'store_name',
+            'store_description',
+            'address',
+            'seller_rating',
+            'total_products',
+            'successful_orders',
+            'established_since',
+            'is_verified',
+        ]
+        read_only_fields = [
+            'id',
+            'full_name',
+            'store_name',
+            'store_description',
+            'address',
+        ]
+
+    def get_seller_rating(self, obj):
+        """Get seller's average rating"""
+        # Placeholder - implement based on review model
+        return 4.5
+
+    def get_total_products(self, obj):
+        """Count total active products from this seller"""
+        return obj.products.filter(
+            status=ProductStatus.ACTIVE,
+            is_deleted=False
+        ).count()
+
+    def get_successful_orders(self, obj):
+        """Count successful orders for this seller"""
+        # Placeholder - implement based on order model
+        return 0
+
+    def get_established_since(self, obj):
+        """Get year seller established"""
+        if obj.created_at:
+            return obj.created_at.year
+        return None
+
+    def get_is_verified(self, obj):
+        """Check if seller is verified"""
+        return obj.is_seller_approved
+
+
+class ProductListBuyerSerializer(serializers.ModelSerializer):
+    """
+    Serializer for listing products in marketplace.
+    Used in: GET /api/products/
+    
+    Optimized for:
+    - Fast list rendering
+    - Minimal data transfer
+    - Pagination support
+    
+    Includes:
+    - Product basics
+    - Primary image
+    - Seller name
+    - Price comparison
+    """
+    seller_name = serializers.CharField(source='seller.store_name', read_only=True)
+    seller_id = serializers.CharField(source='seller.id', read_only=True)
+    primary_image = serializers.SerializerMethodField(read_only=True)
+    is_price_compliant = serializers.SerializerMethodField(read_only=True)
+    price_difference = serializers.SerializerMethodField(read_only=True)
+    is_in_stock = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = SellerProduct
+        fields = [
+            'id',
+            'name',
+            'product_type',
+            'price',
+            'unit',
+            'stock_level',
+            'seller_id',
+            'seller_name',
+            'primary_image',
+            'quality_grade',
+            'is_price_compliant',
+            'price_difference',
+            'is_in_stock',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_primary_image(self, obj):
+        """Get primary product image"""
+        from .seller_models import ProductImage
+        primary = obj.product_images.filter(is_primary=True).first()
+        if primary:
+            request = self.context.get('request')
+            if request and primary.image:
+                return request.build_absolute_uri(primary.image.url)
+            return primary.image.url if primary.image else None
+        return None
+
+    def get_is_price_compliant(self, obj):
+        """Check if product price is within ceiling"""
+        if obj.ceiling_price:
+            return obj.price <= obj.ceiling_price
+        return True
+
+    def get_price_difference(self, obj):
+        """Calculate difference from ceiling price"""
+        if obj.ceiling_price:
+            return float(obj.ceiling_price - obj.price)
+        return None
+
+    def get_is_in_stock(self, obj):
+        """Check if product is in stock"""
+        return obj.stock_level > 0
+
+
+class ProductDetailBuyerSerializer(serializers.ModelSerializer):
+    """
+    Serializer for detailed product information in marketplace.
+    Used in: GET /api/products/{id}/
+    
+    Includes:
+    - All product details
+    - All images
+    - Seller profile
+    - Price history (optional)
+    - Related products (optional)
+    """
+    seller_name = serializers.CharField(source='seller.store_name', read_only=True)
+    seller_info = serializers.SerializerMethodField(read_only=True)
+    images = serializers.SerializerMethodField(read_only=True)
+    is_available = serializers.SerializerMethodField(read_only=True)
+    price_info = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = SellerProduct
+        fields = [
+            'id',
+            'name',
+            'description',
+            'product_type',
+            'price',
+            'ceiling_price',
+            'unit',
+            'stock_level',
+            'quality_grade',
+            'seller_name',
+            'seller_info',
+            'images',
+            'is_available',
+            'price_info',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_seller_info(self, obj):
+        """Get seller profile information"""
+        serializer = SellerPublicProfileSerializer(
+            obj.seller,
+            context=self.context
+        )
+        return serializer.data
+
+    def get_images(self, obj):
+        """Get all product images"""
+        images = obj.product_images.all().order_by('-is_primary', 'order')
+        serializer = ProductImagePublicSerializer(
+            images,
+            many=True,
+            context=self.context
+        )
+        return serializer.data
+
+    def get_is_available(self, obj):
+        """Check if product is available for purchase"""
+        return (
+            obj.status == ProductStatus.ACTIVE and
+            not obj.is_deleted and
+            obj.stock_level > 0
+        )
+
+    def get_price_info(self, obj):
+        """Get price comparison info"""
+        return {
+            'selling_price': float(obj.price),
+            'ceiling_price': float(obj.ceiling_price) if obj.ceiling_price else None,
+            'price_difference': float(obj.ceiling_price - obj.price) if obj.ceiling_price else None,
+            'is_within_ceiling': obj.price <= obj.ceiling_price if obj.ceiling_price else True,
+        }

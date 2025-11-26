@@ -14,6 +14,7 @@ urlpatterns = [
     path('api/auth/', include('apps.authentication.urls')),
     path('api/users/', include('apps.users.urls')),
     path('api/admin/', include('apps.users.admin_urls')),
+    path('api/', include('apps.users.urls')),  # Buyer endpoints at /api/products and /api/seller
 ]
 
 # Serve media files in development

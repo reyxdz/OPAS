@@ -15,10 +15,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
-from django.db.models import Q, Count, Sum, Avg
+from django.db.models import Q, Count, Sum, Avg, F, DecimalField
 from django.shortcuts import get_object_or_404
 from datetime import timedelta
 from decimal import Decimal
+import logging
 
 from apps.users.models import (
     User, UserRole, SellerStatus, SellerApplication,
@@ -2531,6 +2532,499 @@ class DashboardViewSet(viewsets.ViewSet):
             )
 
 
+# ==================== PART 3: ADMIN MARKETPLACE CONTROL VIEWSETS ====================
+
+class AdminMarketplaceViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for admin marketplace product monitoring.
+    
+    Purpose: Admins monitor all marketplace products:
+    - View all products with full details
+    - Filter by category, seller, status
+    - Track stock levels
+    - Monitor price compliance
+    - Identify problematic sellers
+    
+    Endpoints:
+    - GET /api/admin/marketplace/products/ - List all products
+    - GET /api/admin/marketplace/products/{id}/ - Product details
+    - GET /api/admin/marketplace/overview/ - Marketplace overview
+    
+    Permissions:
+    - IsAuthenticated: User must be logged in
+    - IsAdmin: User must have admin role
+    
+    Query Parameters:
+    - product_type: Filter by category (VEGETABLE, FRUIT, GRAIN)
+    - seller_id: Filter by seller
+    - status: Filter by status (ACTIVE, EXPIRED, DRAFT)
+    - search: Search by product name
+    - min_price/max_price: Filter by price range
+    - ordering: Sort by field (-created_at, price, name)
+    
+    Optimization:
+    - select_related('seller'): Avoid N+1 on seller lookups
+    - Prefetch related images
+    - Database indexes on frequently filtered fields
+    - Pagination for large datasets
+    """
+    permission_classes = [IsAuthenticated, IsAdmin]
+    queryset = SellerProduct.objects.all()
+    
+    def get_serializer_class(self):
+        """Use appropriate serializer based on action."""
+        from .admin_serializers import (
+            AdminProductListSerializer, AdminProductDetailSerializer,
+            AdminMarketplaceOverviewSerializer
+        )
+        
+        if self.action == 'retrieve':
+            return AdminProductDetailSerializer
+        elif self.action == 'overview':
+            return AdminMarketplaceOverviewSerializer
+        return AdminProductListSerializer
+    
+    def get_queryset(self):
+        """Get marketplace products with filtering."""
+        queryset = SellerProduct.objects.select_related(
+            'seller'
+        ).prefetch_related(
+            'product_images'
+        ).order_by('-created_at')
+        
+        # Filter by product type
+        product_type = self.request.query_params.get('product_type', None)
+        if product_type:
+            queryset = queryset.filter(product_type=product_type)
+        
+        # Filter by seller
+        seller_id = self.request.query_params.get('seller_id', None)
+        if seller_id:
+            queryset = queryset.filter(seller_id=seller_id)
+        
+        # Filter by status
+        status_filter = self.request.query_params.get('status', None)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        # Filter by price range
+        min_price = self.request.query_params.get('min_price', None)
+        max_price = self.request.query_params.get('max_price', None)
+        if min_price:
+            queryset = queryset.filter(price__gte=min_price)
+        if max_price:
+            queryset = queryset.filter(price__lte=max_price)
+        
+        # Search by name or description
+        search = self.request.query_params.get('search', None)
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(description__icontains=search) |
+                Q(product_type__icontains=search)
+            )
+        
+        # Ordering
+        ordering = self.request.query_params.get('ordering', '-created_at')
+        queryset = queryset.order_by(ordering)
+        
+        return queryset
+    
+    def list(self, request, *args, **kwargs):
+        """
+        List all marketplace products with optional filtering.
+        
+        Query parameters:
+        - product_type: VEGETABLE, FRUIT, GRAIN
+        - seller_id: Filter by seller
+        - status: ACTIVE, EXPIRED, DRAFT
+        - min_price/max_price: Price range
+        - search: Search term
+        - ordering: Sort field
+        - page: Pagination
+        
+        Returns paginated list of products.
+        """
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error listing marketplace products: {str(e)}')
+            return Response(
+                {'error': 'Failed to list marketplace products'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Get detailed product information including:
+        - Full product details
+        - All images
+        - Seller information
+        - Price compliance status
+        - Sales metrics
+        """
+        try:
+            return super().retrieve(request, *args, **kwargs)
+        except SellerProduct.DoesNotExist:
+            return Response(
+                {'error': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error retrieving product details: {str(e)}')
+            return Response(
+                {'error': 'Failed to retrieve product details'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'], url_path='overview')
+    def overview(self, request):
+        """
+        Get marketplace overview dashboard data.
+        
+        Returns aggregated metrics:
+        - Total and active product counts
+        - Seller statistics
+        - Price violation metrics
+        - Marketplace health score
+        - Compliance percentage
+        
+        Purpose: Admin dashboard view of marketplace health
+        """
+        try:
+            from .admin_serializers import AdminMarketplaceOverviewSerializer
+            
+            # Calculate all metrics
+            total_products = SellerProduct.objects.count()
+            active_products = SellerProduct.objects.filter(
+                status=ProductStatus.ACTIVE
+            ).count()
+            inactive_products = total_products - active_products
+            
+            # Seller metrics
+            total_sellers = User.objects.filter(
+                role=UserRole.SELLER
+            ).count()
+            active_sellers = User.objects.filter(
+                role=UserRole.SELLER,
+                seller_status=SellerStatus.APPROVED
+            ).count()
+            suspended_sellers = SellerSuspension.objects.filter(
+                is_active=True
+            ).values('seller').distinct().count()
+            
+            # Stock value calculation
+            total_stock_value = SellerProduct.objects.aggregate(
+                total=Sum('price') * Sum('stock_level')
+            )['total'] or Decimal('0.00')
+            
+            # Price violation metrics
+            price_violations_count = PriceNonCompliance.objects.filter(
+                is_resolved=False
+            ).count()
+            
+            price_violations_critical = PriceNonCompliance.objects.filter(
+                is_resolved=False,
+                violation_status='CRITICAL'
+            ).count()
+            
+            price_violations_warning = PriceNonCompliance.objects.filter(
+                is_resolved=False,
+                violation_status='WARNING'
+            ).count()
+            
+            # Compliance percentage
+            compliant_products = SellerProduct.objects.annotate(
+                has_violation=Count(
+                    'id',
+                    filter=Q(
+                        price__gt=F('product_type__priceCeiling__ceiling_price')
+                    )
+                )
+            ).filter(has_violation=0).count()
+            
+            compliance_percentage = (
+                (compliant_products / total_products * 100) 
+                if total_products > 0 else 100
+            )
+            
+            # Marketplace health score (0-100)
+            health_score = min(
+                100,
+                int(compliance_percentage * 0.7 +
+                    (100 - (price_violations_count / max(total_products, 1) * 100)) * 0.3)
+            )
+            
+            data = {
+                'total_products': total_products,
+                'active_products': active_products,
+                'inactive_products': inactive_products,
+                'total_sellers': total_sellers,
+                'active_sellers': active_sellers,
+                'suspended_sellers': suspended_sellers,
+                'total_stock_value': total_stock_value,
+                'price_violations_count': price_violations_count,
+                'price_violations_critical': price_violations_critical,
+                'price_violations_warning': price_violations_warning,
+                'compliance_percentage': compliance_percentage,
+                'marketplace_health_score': health_score,
+                'timestamp': timezone.now()
+            }
+            
+            serializer = AdminMarketplaceOverviewSerializer(data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error calculating marketplace overview: {str(e)}')
+            return Response(
+                {'error': 'Failed to calculate marketplace overview'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class AdminPriceMonitoringViewSet(viewsets.ViewSet):
+    """
+    ViewSet for admin price violation monitoring.
+    
+    Purpose: Track and manage price ceiling violations:
+    - List all price violations
+    - Filter by seller, product, severity
+    - View violation details
+    - Trigger corrective actions
+    - Audit violation history
+    
+    Endpoints:
+    - GET /api/admin/marketplace/violations/ - List violations
+    - GET /api/admin/marketplace/violations/{id}/ - Violation details
+    - POST /api/admin/marketplace/violations/{id}/resolve/ - Resolve violation
+    - GET /api/admin/marketplace/violations/{id}/audit/ - Violation audit trail
+    
+    Permissions:
+    - IsAuthenticated: User must be logged in
+    - IsAdmin: User must have admin role
+    
+    Query Parameters:
+    - seller_id: Filter by seller
+    - product_id: Filter by product
+    - status: ACTIVE, RESOLVED, WARNING
+    - severity: CRITICAL, WARNING
+    - date_from/date_to: Date range
+    
+    Optimization:
+    - Direct model queries without expensive joins
+    - Indexed on violation_status and created_at
+    """
+    permission_classes = [IsAuthenticated, IsAdmin]
+    
+    def list(self, request):
+        """
+        List all price violations.
+        
+        Query parameters:
+        - seller_id: Filter by seller
+        - product_id: Filter by product
+        - status: ACTIVE, RESOLVED
+        - severity: CRITICAL, WARNING
+        - date_from/date_to: Date range filter
+        
+        Returns list of violations with details.
+        """
+        try:
+            from .admin_serializers import AdminPriceViolationSerializer
+            
+            # Get violations
+            violations = PriceNonCompliance.objects.filter(
+                is_resolved=False
+            ).select_related(
+                'product', 'product__seller'
+            ).order_by('-created_at')
+            
+            # Apply filters
+            seller_id = request.query_params.get('seller_id', None)
+            if seller_id:
+                violations = violations.filter(product__seller_id=seller_id)
+            
+            product_id = request.query_params.get('product_id', None)
+            if product_id:
+                violations = violations.filter(product_id=product_id)
+            
+            severity = request.query_params.get('severity', None)
+            if severity:
+                violations = violations.filter(violation_status=severity)
+            
+            # Date range filter
+            date_from = request.query_params.get('date_from', None)
+            date_to = request.query_params.get('date_to', None)
+            if date_from:
+                violations = violations.filter(created_at__gte=date_from)
+            if date_to:
+                violations = violations.filter(created_at__lte=date_to)
+            
+            # Serialize violations
+            violations_data = []
+            for violation in violations:
+                ceiling = PriceCeiling.objects.filter(
+                    product_type=violation.product.product_type
+                ).first()
+                
+                excess_amount = violation.product.price - ceiling.ceiling_price if ceiling else 0
+                violation_percentage = (
+                    (excess_amount / ceiling.ceiling_price * 100) 
+                    if ceiling and ceiling.ceiling_price > 0 else 0
+                )
+                
+                violations_data.append({
+                    'product_id': violation.product.id,
+                    'product_name': violation.product.name,
+                    'product_type': violation.product.product_type,
+                    'seller_id': violation.product.seller.id,
+                    'seller_name': violation.product.seller.full_name,
+                    'current_price': str(violation.product.price),
+                    'ceiling_price': str(ceiling.ceiling_price) if ceiling else '0.00',
+                    'excess_amount': str(excess_amount),
+                    'violation_percentage': violation_percentage,
+                    'violation_status': violation.violation_status,
+                    'detected_at': violation.created_at,
+                    'resolved_at': violation.resolved_at,
+                    'admin_notes': violation.admin_notes
+                })
+            
+            # Paginate results
+            paginator = self.request.META.get('HTTP_X_PAGINATION', 20)
+            page = int(request.query_params.get('page', 1))
+            start = (page - 1) * int(paginator)
+            end = start + int(paginator)
+            
+            return Response({
+                'count': len(violations_data),
+                'next': f'?page={page + 1}' if end < len(violations_data) else None,
+                'previous': f'?page={page - 1}' if page > 1 else None,
+                'results': violations_data[start:end]
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error listing price violations: {str(e)}')
+            return Response(
+                {'error': 'Failed to list price violations'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def retrieve(self, request, pk=None):
+        """
+        Get detailed violation information.
+        
+        Includes:
+        - Violation details
+        - Product information
+        - Seller information
+        - Previous violations by same seller
+        - Actions taken
+        """
+        try:
+            from .admin_serializers import AdminPriceViolationSerializer
+            
+            violation = get_object_or_404(PriceNonCompliance, id=pk)
+            product = violation.product
+            ceiling = PriceCeiling.objects.filter(
+                product_type=product.product_type
+            ).first()
+            
+            excess_amount = product.price - ceiling.ceiling_price if ceiling else 0
+            violation_percentage = (
+                (excess_amount / ceiling.ceiling_price * 100) 
+                if ceiling and ceiling.ceiling_price > 0 else 0
+            )
+            
+            data = {
+                'product_id': product.id,
+                'product_name': product.name,
+                'product_type': product.product_type,
+                'seller_id': product.seller.id,
+                'seller_name': product.seller.full_name,
+                'current_price': str(product.price),
+                'ceiling_price': str(ceiling.ceiling_price) if ceiling else '0.00',
+                'excess_amount': str(excess_amount),
+                'violation_percentage': violation_percentage,
+                'violation_status': violation.violation_status,
+                'detected_at': violation.created_at,
+                'resolved_at': violation.resolved_at,
+                'admin_notes': violation.admin_notes
+            }
+            
+            serializer = AdminPriceViolationSerializer(data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except PriceNonCompliance.DoesNotExist:
+            return Response(
+                {'error': 'Violation not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error retrieving violation details: {str(e)}')
+            return Response(
+                {'error': 'Failed to retrieve violation details'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['post'], url_path='resolve')
+    def resolve(self, request, pk=None):
+        """
+        Resolve a price violation.
+        
+        Requires:
+        - admin_notes: Notes about the resolution
+        
+        Can trigger:
+        - Seller notification
+        - Price adjustment (if auto-correct enabled)
+        - Suspension (if repeated violations)
+        """
+        try:
+            violation = get_object_or_404(PriceNonCompliance, id=pk)
+            
+            # Update violation
+            violation.is_resolved = True
+            violation.resolved_at = timezone.now()
+            violation.admin_notes = request.data.get('admin_notes', '')
+            violation.save()
+            
+            # Log action
+            admin_user = AdminUser.objects.get_or_create(user=request.user)[0]
+            AdminAuditLog.objects.create(
+                admin=admin_user,
+                action_type='Price Violation Resolved',
+                action_category='RESOLUTION',
+                description=f'Resolved price violation for product {violation.product.name}',
+                product=violation.product
+            )
+            
+            return Response(
+                {'message': 'Violation resolved successfully'},
+                status=status.HTTP_200_OK
+            )
+        
+        except PriceNonCompliance.DoesNotExist:
+            return Response(
+                {'error': 'Violation not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error resolving violation: {str(e)}')
+            return Response(
+                {'error': 'Failed to resolve violation'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+import logging
+
+
 __all__ = [
     'SellerManagementViewSet',
     'PriceManagementViewSet',
@@ -2540,4 +3034,6 @@ __all__ = [
     'AdminNotificationsViewSet',
     'AdminAuditViewSet',
     'DashboardViewSet',
+    'AdminMarketplaceViewSet',
+    'AdminPriceMonitoringViewSet',
 ]

@@ -38,6 +38,8 @@ from .seller_views import (
     NotificationViewSet,
     AnnouncementViewSet as SellerAnnouncementViewSet,
     SellerRegistrationViewSet,
+    MarketplaceViewSet,
+    SellerPublicViewSet,
 )
 
 
@@ -45,6 +47,9 @@ from .seller_views import (
 
 # Seller Router
 seller_router = DefaultRouter()
+
+# Buyer/Marketplace Router
+buyer_router = DefaultRouter()
 
 # Seller Profile Router
 seller_router.register(
@@ -123,6 +128,22 @@ seller_router.register(
     basename='seller-registration'
 )
 
+# ==================== BUYER MARKETPLACE ROUTERS ====================
+
+# Marketplace Products Router
+buyer_router.register(
+    r'products',
+    MarketplaceViewSet,
+    basename='marketplace-products'
+)
+
+# Seller Public Profile Router
+buyer_router.register(
+    r'seller',
+    SellerPublicViewSet,
+    basename='seller-public'
+)
+
 
 # ==================== URL PATTERNS ====================
 
@@ -140,6 +161,9 @@ urlpatterns = [
     path('fcm-token/', FCMTokenView.as_view(), name='fcm-token'),
     
     # Include seller router URLs
-    path('', include(seller_router.urls)),
+    path('users/', include(seller_router.urls)),
+    
+    # Include buyer/marketplace router URLs
+    path('', include(buyer_router.urls)),
 ]
 

@@ -1,11 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import User, SellerApplication
-from .seller_models import SellerProduct, SellerOrder, SellToOPAS, SellerPayout, SellerForecast
+from .seller_models import SellerProduct, SellerOrder, SellToOPAS, SellerPayout, SellerForecast, ProductImage
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ('phone_number', 'username', 'first_name', 'last_name', 'municipality', 'barangay', 'farm_municipality', 'farm_barangay', 'role', 'created_at')
+    list_display = ('id', 'phone_number', 'username', 'first_name', 'last_name', 'municipality', 'barangay', 'farm_municipality', 'farm_barangay', 'role', 'created_at')
     search_fields = ('phone_number', 'username', 'first_name', 'last_name', 'municipality', 'barangay', 'farm_municipality', 'farm_barangay')
     list_filter = ('role', 'municipality', 'farm_municipality', 'created_at')
     ordering = ('-created_at',)
@@ -86,6 +86,28 @@ class SellerProductAdmin(admin.ModelAdmin):
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(ProductImage)
+class ProductImageAdmin(admin.ModelAdmin):
+    list_display = ('product', 'is_primary', 'order', 'uploaded_at')
+    search_fields = ('product__name', 'alt_text')
+    list_filter = ('is_primary', 'uploaded_at')
+    ordering = ('-uploaded_at',)
+    readonly_fields = ('uploaded_at',)
+    
+    fieldsets = (
+        ('Product Image', {
+            'fields': ('product', 'image', 'alt_text')
+        }),
+        ('Display Settings', {
+            'fields': ('is_primary', 'order')
+        }),
+        ('Upload Information', {
+            'fields': ('uploaded_at',),
             'classes': ('collapse',)
         }),
     )

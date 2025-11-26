@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.db.models import Count, Q, Sum
 
 from apps.users.models import User, SellerProduct, SellToOPAS, SellerApplication
+from apps.users.seller_models import ProductImage
 from apps.users.admin_models import (
     AdminUser, SellerRegistrationRequest, SellerDocumentVerification,
     SellerApprovalHistory, SellerSuspension,
@@ -872,5 +873,236 @@ class AdminDashboardStatsSerializer(serializers.Serializer):
         max_value=100,
         read_only=True
     )
+
+
+# ==================== PART 3: ADMIN MARKETPLACE CONTROL SERIALIZERS ====================
+
+class AdminProductImageSerializer(serializers.ModelSerializer):
+    """
+    Serializer for admin marketplace product images.
+    
+    Provides admin with:
+    - Image metadata and URLs
+    - Primary image indicator
+    - Upload timestamps for audit
+    
+    Used in: AdminProductDetailSerializer (nested)
+    """
+    class Meta:
+        model = ProductImage
+        fields = ['id', 'image', 'is_primary', 'created_at']
+        read_only_fields = fields
+
+
+class AdminProductListSerializer(serializers.ModelSerializer):
+    """
+    Serializer for admin marketplace product listing.
+    
+    Purpose: List all marketplace products with:
+    - Product details
+    - Seller information
+    - Price compliance status
+    - Stock information
+    - Status tracking
+    
+    Used in: GET /api/admin/marketplace/products/
+    
+    Optimization:
+    - select_related('seller'): Avoid N+1 on seller lookups
+    - Prefetch related images for minimal queries
+    - Only essential fields for list view
+    
+    Response includes:
+    - Product identification and classification
+    - Current pricing and compliance flags
+    - Seller name and status
+    - Availability metrics
+    - Creation/update timestamps
+    """
+    seller_name = serializers.CharField(source='seller.full_name', read_only=True)
+    seller_email = serializers.CharField(source='seller.email', read_only=True)
+    primary_image = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = SellerProduct
+        fields = [
+            'id', 'name', 'product_type', 'price', 'stock_level', 'unit',
+            'seller_name', 'seller_email', 'primary_image', 'status',
+            'status_display', 'quality_grade', 'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+    
+    def get_primary_image(self, obj):
+        """Get primary product image URL."""
+        from .seller_models import ProductImage
+        try:
+            primary = obj.product_images.get(is_primary=True)
+            return primary.image.url if primary.image else None
+        except ProductImage.DoesNotExist:
+            return None
+
+
+class AdminSellerComplianceSerializer(serializers.Serializer):
+    """
+    Serializer for seller compliance metrics.
+    
+    Provides admin with seller's compliance status:
+    - Price ceiling violations count
+    - Approval/rejection history
+    - Current seller status
+    
+    Used in: AdminProductDetailSerializer (nested)
+    """
+    seller_id = serializers.IntegerField()
+    seller_status = serializers.CharField()
+    total_violations = serializers.IntegerField()
+    violations_this_month = serializers.IntegerField()
+    last_violation_date = serializers.DateTimeField(allow_null=True)
+    is_suspended = serializers.BooleanField()
+
+
+class AdminProductDetailSerializer(serializers.ModelSerializer):
+    """
+    Serializer for admin marketplace product details.
+    
+    Purpose: Comprehensive product information for admin review:
+    - Full product details
+    - All images
+    - Seller compliance info
+    - Price violation flags
+    - Sales metrics
+    - Audit information
+    
+    Used in: GET /api/admin/marketplace/products/{id}/
+    
+    Includes:
+    - Product data (name, type, price, stock, description)
+    - Seller information and compliance status
+    - All product images with metadata
+    - Price comparison (actual vs ceiling)
+    - Status and visibility flags
+    - Creation and modification audit trail
+    """
+    seller_name = serializers.CharField(source='seller.full_name', read_only=True)
+    seller_email = serializers.CharField(source='seller.email', read_only=True)
+    seller_status = serializers.CharField(source='seller.seller_status', read_only=True)
+    images = AdminProductImageSerializer(
+        source='product_images',
+        many=True,
+        read_only=True
+    )
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    price_ceiling = serializers.SerializerMethodField()
+    price_compliant = serializers.SerializerMethodField()
+    excess_price = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SellerProduct
+        fields = [
+            'id', 'name', 'product_type', 'description', 'price', 'stock_level',
+            'unit', 'quality_grade', 'status', 'status_display',
+            'seller_name', 'seller_email', 'seller_status', 'images',
+            'price_ceiling', 'price_compliant', 'excess_price',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = fields
+    
+    def get_price_ceiling(self, obj):
+        """Get price ceiling for product type."""
+        try:
+            ceiling = PriceCeiling.objects.get(product_type=obj.product_type)
+            return str(ceiling.ceiling_price)
+        except PriceCeiling.DoesNotExist:
+            return None
+    
+    def get_price_compliant(self, obj):
+        """Check if product price is within ceiling."""
+        try:
+            ceiling = PriceCeiling.objects.get(product_type=obj.product_type)
+            return obj.price <= ceiling.ceiling_price
+        except PriceCeiling.DoesNotExist:
+            return None
+    
+    def get_excess_price(self, obj):
+        """Calculate excess price above ceiling."""
+        try:
+            ceiling = PriceCeiling.objects.get(product_type=obj.product_type)
+            if obj.price > ceiling.ceiling_price:
+                excess = obj.price - ceiling.ceiling_price
+                return str(excess)
+            return "0.00"
+        except PriceCeiling.DoesNotExist:
+            return None
+
+
+class AdminPriceViolationSerializer(serializers.Serializer):
+    """
+    Serializer for price violation alerts.
+    
+    Purpose: Report products exceeding OPAS price ceilings:
+    - Violation details
+    - Excess amount calculation
+    - Seller information
+    - Actions taken/available
+    
+    Used in: GET /api/admin/marketplace/violations/
+    
+    Response includes:
+    - Product identification
+    - Violation type (EXCEEDED, WARNING)
+    - Price comparison details
+    - Violation timestamp
+    - Audit trail of actions taken
+    """
+    product_id = serializers.IntegerField()
+    product_name = serializers.CharField()
+    product_type = serializers.CharField()
+    seller_id = serializers.IntegerField()
+    seller_name = serializers.CharField()
+    current_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    ceiling_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    excess_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    violation_percentage = serializers.FloatField()
+    violation_status = serializers.CharField()  # ACTIVE, RESOLVED, WARNING
+    detected_at = serializers.DateTimeField()
+    resolved_at = serializers.DateTimeField(allow_null=True)
+    admin_notes = serializers.CharField(allow_null=True)
+
+
+class AdminMarketplaceOverviewSerializer(serializers.Serializer):
+    """
+    Serializer for admin marketplace overview dashboard.
+    
+    Purpose: Comprehensive marketplace health snapshot:
+    - Total products and active count
+    - Price compliance metrics
+    - Seller statistics
+    - Alert summary
+    - Recent violations
+    
+    Used in: GET /api/admin/marketplace/overview/
+    
+    Combines data from:
+    - SellerProduct model (product count, status)
+    - PriceNonCompliance model (violations)
+    - User model (seller metrics)
+    - AdminAuditLog (recent actions)
+    
+    Returns aggregated, read-only data for dashboard display
+    """
+    total_products = serializers.IntegerField()
+    active_products = serializers.IntegerField()
+    inactive_products = serializers.IntegerField()
+    total_sellers = serializers.IntegerField()
+    active_sellers = serializers.IntegerField()
+    suspended_sellers = serializers.IntegerField()
+    total_stock_value = serializers.DecimalField(max_digits=15, decimal_places=2)
+    price_violations_count = serializers.IntegerField()
+    price_violations_critical = serializers.IntegerField()
+    price_violations_warning = serializers.IntegerField()
+    compliance_percentage = serializers.FloatField()
+    marketplace_health_score = serializers.IntegerField()
+    timestamp = serializers.DateTimeField()
 
 
