@@ -136,15 +136,16 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     - Product basics (name, price, stock)
     - Status information
     - Quick reference fields
-    - Minimal data to avoid N+1 queries
+    - Product images from ProductImage relationship
     
-    NOTE: Images are NOT included in list view to avoid performance issues.
-    Use SellerProductDetailSerializer for full product data including images.
+    NOTE: Optimized for list views with efficient image loading.
     """
     seller_id = serializers.IntegerField(source='seller.id', read_only=True)
     seller_name = serializers.CharField(source='seller.full_name', read_only=True)
     category = serializers.CharField(source='product_type', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    images = serializers.SerializerMethodField(read_only=True)
+    primary_image = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SellerProduct
@@ -167,6 +168,7 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'seller_name',
             'image_url',
             'images',
+            'primary_image',
             'created_at',
             'updated_at',
         ]
@@ -180,6 +182,36 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'seller_name',
             'category',
         ]
+
+    def get_images(self, obj):
+        """Get list of image URLs from ProductImage relationship"""
+        from .seller_models import ProductImage
+        images = obj.product_images.all().order_by('created_at')
+        request = self.context.get('request')
+        image_urls = []
+        for img in images:
+            if img.image:
+                url = img.image.url
+                if request:
+                    url = request.build_absolute_uri(url)
+                image_urls.append(url)
+        return image_urls
+
+    def get_primary_image(self, obj):
+        """Get primary product image as dictionary with image_url"""
+        from .seller_models import ProductImage
+        primary = obj.product_images.filter(is_primary=True).first()
+        if primary and primary.image:
+            request = self.context.get('request')
+            url = primary.image.url
+            if request:
+                url = request.build_absolute_uri(url)
+            return {
+                'id': primary.id,
+                'image_url': url,
+                'is_primary': True,
+            }
+        return None
 
 
 class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):

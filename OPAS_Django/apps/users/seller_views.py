@@ -558,7 +558,7 @@ class ProductManagementViewSet(viewsets.ViewSet):
             # Optimize query with select_related to avoid N+1 queries
             products = SellerProduct.objects.filter(
                 seller=request.user
-            ).select_related('seller').order_by('-created_at')
+            ).select_related('seller').prefetch_related('product_images').order_by('-created_at')
             
             serializer = SellerProductListSerializer(
                 products, 
