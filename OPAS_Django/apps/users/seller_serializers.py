@@ -222,6 +222,16 @@ class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+        extra_kwargs = {
+            'image_url': {'required': False, 'allow_null': True},
+            'images': {'required': False, 'allow_null': True},
+            'status': {'required': False},
+            'minimum_stock': {'required': False},
+            'ceiling_price': {'required': False, 'allow_null': True},
+            'description': {'required': False, 'allow_blank': True},
+            'quality_grade': {'required': False},
+            'expiry_date': {'required': False, 'allow_null': True},
+        }
 
     def validate_price(self, value):
         """Validate that price is positive"""

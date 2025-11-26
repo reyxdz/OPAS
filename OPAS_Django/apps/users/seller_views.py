@@ -590,12 +590,14 @@ class ProductManagementViewSet(viewsets.ViewSet):
                 logger.info(f'Product created by: {request.user.email}')
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             
+            # Log detailed validation errors
+            logger.warning(f'Product creation validation failed for {request.user.email}: {serializer.errors}')
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         except Exception as e:
             logger.error(f'Error creating product: {str(e)}')
             return Response(
-                {'error': 'Failed to create product'},
+                {'error': f'Failed to create product: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
