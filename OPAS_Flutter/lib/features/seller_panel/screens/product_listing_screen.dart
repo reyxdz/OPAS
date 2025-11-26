@@ -446,20 +446,27 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
           child: imageUrl != null
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: imageUrl,
+                  child: Image.network(
+                    imageUrl,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) {
+                        print('Image loaded: $imageUrl');
+                        return child;
+                      }
+                      return Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         ),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) {
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      print('Image error for $imageUrl: $error');
                       return const Icon(Icons.image_not_supported);
                     },
                   ),
