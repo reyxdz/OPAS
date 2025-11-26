@@ -37,6 +37,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Future<void> _loadFormDraft() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      
+      // Load quality grade and migrate old values (A/B/C) to new values (PREMIUM/STANDARD/BASIC)
+      String qualityGrade = prefs.getString('draft_product_quality') ?? 'STANDARD';
+      if (qualityGrade == 'A') {
+        qualityGrade = 'PREMIUM';
+      } else if (qualityGrade == 'B') {
+        qualityGrade = 'STANDARD';
+      } else if (qualityGrade == 'C') {
+        qualityGrade = 'BASIC';
+      }
+      
       setState(() {
         _nameController.text = prefs.getString('draft_product_name') ?? '';
         _descriptionController.text =
@@ -45,8 +56,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _quantityController.text = prefs.getString('draft_product_quantity') ?? '';
         _selectedProductType =
             prefs.getString('draft_product_type') ?? 'VEGETABLE';
-        _selectedQualityGrade =
-            prefs.getString('draft_product_quality') ?? 'A';
+        _selectedQualityGrade = qualityGrade;
         _selectedUnit = prefs.getString('draft_product_unit') ?? 'kg';
       });
     } catch (e) {
