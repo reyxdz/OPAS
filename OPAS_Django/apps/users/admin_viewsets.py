@@ -172,11 +172,19 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         # Get or create AdminUser record (for audit logs)
         admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         
+        print(f"DEBUG APPROVE: Starting approval for {user.email}, app ID: {application.id}")
+        
         # Update application status
         application.status = 'APPROVED'
         application.reviewed_at = timezone.now()
         application.reviewed_by = request.user
         application.save()
+        
+        print(f"DEBUG APPROVE: Application saved - ID: {application.id}, Status: {application.status}")
+        
+        # Verify it was saved
+        refreshed_app = SellerApplication.objects.get(id=application.id)
+        print(f"DEBUG APPROVE: Verified in DB - Status: {refreshed_app.status}")
         
         # Update user role and status
         user.role = UserRole.SELLER
@@ -243,16 +251,21 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         user = application.user  # Get the User object
         admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         
+        print(f"DEBUG REJECT: Starting rejection for {user.email}, app ID: {application.id}")
+        
         # Rejection reason is now required (enforced by serializer)
         rejection_reason = request.data.get('rejection_reason', '').strip()
         admin_notes = request.data.get('admin_notes', '').strip()
         
         # Validate rejection reason is not empty
         if not rejection_reason:
+            print(f"DEBUG REJECT: Rejection reason is empty!")
             return Response(
                 {'error': 'rejection_reason is required and cannot be empty'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        print(f"DEBUG REJECT: Rejection reason: {rejection_reason}")
         
         # Update application status
         application.status = 'REJECTED'
@@ -261,9 +274,17 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         application.reviewed_by = request.user
         application.save()
         
+        print(f"DEBUG REJECT: Application saved - ID: {application.id}, Status: {application.status}")
+        
+        # Verify it was saved
+        refreshed_app = SellerApplication.objects.get(id=application.id)
+        print(f"DEBUG REJECT: Verified in DB - Status: {refreshed_app.status}, Reason: {refreshed_app.rejection_reason}")
+        
         # Update user status
         user.seller_status = SellerStatus.REJECTED
         user.save()
+        
+        print(f"DEBUG REJECT: User {user.email} status updated to REJECTED")
         
         # Record in approval history
         SellerApprovalHistory.objects.create(
@@ -284,6 +305,8 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
             description=f"Rejected seller registration: {rejection_reason}",
             new_value=SellerStatus.REJECTED
         )
+        
+        print(f"DEBUG REJECT: Rejection process completed for {user.email}")
         
         # Send rejection notification with reason to the user
         NotificationService.send_registration_rejected_notification(

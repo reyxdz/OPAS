@@ -212,8 +212,14 @@ class SellerRegistrationCacheService {
 
   /// Clear all admin registrations cache
   Future<void> clearAllAdminRegistrations() async {
-    await initialize();
-    await _database!.delete(_admRegistrationsTable);
+    try {
+      await initialize();
+      final count = await _database!.delete(_admRegistrationsTable);
+      print('✅ Cleared admin registrations cache: $count items deleted');
+    } catch (e) {
+      print('❌ Error clearing admin registrations cache: $e');
+      rethrow;
+    }
   }
 
   /// Cache filter state
