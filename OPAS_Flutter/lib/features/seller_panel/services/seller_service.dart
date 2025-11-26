@@ -136,6 +136,10 @@ class SellerService {
     final response = await _makeRequest('GET', '/users/seller/products/');
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
+      print('DEBUG: API Response - ${data.length} products');
+      if (data.isNotEmpty) {
+        print('DEBUG: First product JSON: ${jsonEncode(data[0])}');
+      }
       return data.map((p) => SellerProduct.fromJson(p)).toList();
     }
     throw Exception('Failed to fetch products: ${response.statusCode}');
