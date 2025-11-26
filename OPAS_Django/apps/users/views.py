@@ -62,12 +62,16 @@ class SellerApplicationView(APIView):
         existing_app = SellerApplication.objects.filter(user=request.user).first()
         
         if existing_app:
+            print(f"DEBUG: Found existing application - ID: {existing_app.id}, Status: {existing_app.status}, Rejection reason: {existing_app.rejection_reason}")
+            
             if existing_app.status == 'PENDING':
+                print(f"DEBUG: Application is PENDING - blocking resubmission")
                 return Response(
                     {'error': 'You already have a pending application. Please wait for admin review.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             elif existing_app.status == 'APPROVED':
+                print(f"DEBUG: Application is APPROVED")
                 return Response(
                     {'error': 'Your application has already been approved. You are now a seller!'},
                     status=status.HTTP_400_BAD_REQUEST
@@ -146,6 +150,10 @@ class UserStatusView(APIView):
         seller_app = SellerApplication.objects.filter(user=user).first()
         app_status = seller_app.status if seller_app else None
         rejection_reason = seller_app.rejection_reason if seller_app else None
+        
+        # Debug logging
+        if seller_app:
+            print(f"DEBUG UserStatusView: user={user.email}, app_status={app_status}, rejection_reason={rejection_reason}")
         
         return Response({
             'user_id': user.id,
