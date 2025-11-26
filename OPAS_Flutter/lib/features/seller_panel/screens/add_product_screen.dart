@@ -20,7 +20,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final ImagePicker _imagePicker = ImagePicker();
 
   String _selectedProductType = 'VEGETABLE';
-  String _selectedQualityGrade = 'A';
+  String _selectedQualityGrade = 'STANDARD';
   String _selectedUnit = 'kg';
   final List<File> _selectedImages = [];
   double? _ceilingPrice;
@@ -433,9 +433,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
               DropdownButtonFormField<String>(
                 value: _selectedQualityGrade,
                 items: const [
-                  DropdownMenuItem(value: 'A', child: Text('Grade A - Premium')),
-                  DropdownMenuItem(value: 'B', child: Text('Grade B - Standard')),
-                  DropdownMenuItem(value: 'C', child: Text('Grade C - Economy')),
+                  DropdownMenuItem(value: 'PREMIUM', child: Text('Premium')),
+                  DropdownMenuItem(value: 'STANDARD', child: Text('Standard')),
+                  DropdownMenuItem(value: 'BASIC', child: Text('Basic')),
                 ],
                 onChanged: (value) {
                   if (value != null) {
