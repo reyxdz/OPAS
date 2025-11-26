@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/seller_home_screen.dart';
 import '../screens/seller_profile_screen.dart';
 import '../screens/notifications_screen.dart';
+import '../../profile/services/notification_history_service.dart';
 
 /// Seller Layout Widget
 /// Main wrapper for seller screens with navigation and state management
@@ -90,7 +91,23 @@ class _SellerLayoutState extends State<SellerLayout> with WidgetsBindingObserver
 
     if (confirmed == true) {
       final prefs = await SharedPreferences.getInstance();
+      
+      // Get the notification key using the same logic as NotificationHistoryService
+      final currentUserNotificationKey = await NotificationHistoryService.getStorageKeyForLogout();
+      final currentUserNotifications = prefs.getStringList(currentUserNotificationKey);
+      
+      debugPrint('🔐 Logout: Backing up notifications from key=$currentUserNotificationKey');
+      
+      // Clear all preferences
       await prefs.clear();
+      
+      // Restore ONLY the notification history
+      // This ensures different users don't access each other's notifications
+      if (currentUserNotifications != null) {
+        await prefs.setStringList(currentUserNotificationKey, currentUserNotifications);
+        debugPrint('✅ Logout: Preserved ${currentUserNotifications.length} notifications under key=$currentUserNotificationKey');
+      }
+      
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(
           context,

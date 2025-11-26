@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../core/services/api_service.dart';
+import '../../profile/services/notification_history_service.dart';
 import 'edit_seller_profile_screen.dart';
 
 class SellerProfileScreen extends StatefulWidget {
@@ -138,7 +139,23 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
 
   Future<void> _handleLogout() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    // Get the notification key using the same logic as NotificationHistoryService
+    final currentUserNotificationKey = await NotificationHistoryService.getStorageKeyForLogout();
+    final currentUserNotifications = prefs.getStringList(currentUserNotificationKey);
+    
+    debugPrint('🔐 Logout: Backing up notifications from key=$currentUserNotificationKey');
+    
+    // Clear all preferences
     await prefs.clear();
+    
+    // Restore ONLY the notification history
+    // This ensures different users don't access each other's notifications
+    if (currentUserNotifications != null) {
+      await prefs.setStringList(currentUserNotificationKey, currentUserNotifications);
+      debugPrint('✅ Logout: Preserved ${currentUserNotifications.length} notifications under key=$currentUserNotificationKey');
+    }
+    
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/login');
     }

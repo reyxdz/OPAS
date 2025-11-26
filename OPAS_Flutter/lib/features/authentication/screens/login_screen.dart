@@ -160,11 +160,24 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setString('access', response['access'] ?? '');
       await prefs.setString('refresh', response['refresh'] ?? '');
       await prefs.setString('phone_number', response['phone_number'] ?? '');
+      debugPrint('📱 Login: Stored phone_number=${response['phone_number']}');
       await prefs.setString('email', response['email'] ?? '');
       await prefs.setString('first_name', response['first_name'] ?? '');
       await prefs.setString('last_name', response['last_name'] ?? '');
       await prefs.setString('address', response['address'] ?? '');
       await prefs.setString('role', response['role'] ?? 'BUYER');
+      
+      // Store user_id for notification history tracking
+      // user_id is the database primary key and never changes, making it ideal for persistent storage keys
+      if (response['id'] != null) {
+        await prefs.setString('user_id', response['id'].toString());
+        debugPrint('👤 Login: Stored user_id (PK) from response[id]=${response['id']}');
+      } else if (response['user_id'] != null) {
+        await prefs.setString('user_id', response['user_id'].toString());
+        debugPrint('👤 Login: Stored user_id (PK) from response[user_id]=${response['user_id']}');
+      } else {
+        debugPrint('⚠️ Login: No user_id found in response');
+      }
       
       // Store seller information if available
       if (response['store_name'] != null) {

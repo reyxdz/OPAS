@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/admin_home_screen.dart';
 import '../screens/admin_profile_screen.dart';
 import '../../../services/seller_registration_cache_service.dart';
+import '../../profile/services/notification_history_service.dart';
 
 /// Admin Layout Widget
 /// Main wrapper for admin screens with navigation and state management
@@ -87,9 +88,21 @@ class _AdminLayoutState extends State<AdminLayout> with WidgetsBindingObserver {
     );
 
     if (confirmed == true) {
-      // Clear SharedPreferences
+      // Backup notifications before clearing preferences
       final prefs = await SharedPreferences.getInstance();
+      final currentUserNotificationKey = await NotificationHistoryService.getStorageKeyForLogout();
+      final currentUserNotifications = prefs.getStringList(currentUserNotificationKey);
+      
+      debugPrint('🔐 Admin Logout: Backing up notifications from key=$currentUserNotificationKey');
+      
+      // Clear SharedPreferences
       await prefs.clear();
+      
+      // Restore ONLY the notification history
+      if (currentUserNotifications != null) {
+        await prefs.setStringList(currentUserNotificationKey, currentUserNotifications);
+        debugPrint('✅ Admin Logout: Preserved ${currentUserNotifications.length} notifications');
+      }
       
       // Clear admin registration caches
       try {

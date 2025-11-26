@@ -163,4 +163,29 @@ class NotificationHistory {
         isRead: true,
         data: data,
       );
+
+  /// Create a copy with optional field overrides
+  NotificationHistory copyWith({
+    String? id,
+    String? type,
+    String? title,
+    String? body,
+    String? rejectionReason,
+    String? approvalNotes,
+    DateTime? receivedAt,
+    DateTime? actionTakenAt,
+    bool? isRead,
+    Map<String, dynamic>? data,
+  }) => NotificationHistory(
+        id: id ?? this.id,
+        type: type ?? this.type,
+        title: title ?? this.title,
+        body: body ?? this.body,
+        rejectionReason: rejectionReason ?? this.rejectionReason,
+        approvalNotes: approvalNotes ?? this.approvalNotes,
+        receivedAt: receivedAt ?? this.receivedAt,
+        actionTakenAt: actionTakenAt ?? this.actionTakenAt,
+        isRead: isRead ?? this.isRead,
+        data: data ?? this.data,
+      );
 }

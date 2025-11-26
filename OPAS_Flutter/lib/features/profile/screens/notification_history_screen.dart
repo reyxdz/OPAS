@@ -99,18 +99,19 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
         if (reasonStr.isNotEmpty && reasonStr != 'null') {
           debugPrint('🔄 Found rejection reason from server: "$reasonStr"');
           
-          // Check if we already have this rejection in history
+          // Check if we already have this rejection in history (by ID or by content)
           final existing = await NotificationHistoryService.getAllNotifications();
           final hasRejection = existing.any((n) => 
-            n.type == 'REGISTRATION_REJECTED' && 
-            n.rejectionReason != null &&
-            n.rejectionReason == reasonStr
+            (n.type == 'REGISTRATION_REJECTED' && 
+             n.rejectionReason != null &&
+             n.rejectionReason == reasonStr) ||
+            n.id == 'REJECTION_SYNC' // Consistent ID
           );
           
           if (!hasRejection) {
             debugPrint('➕ Adding rejection to history (fallback sync)');
             final notification = NotificationHistory(
-              id: 'REJECTION_SYNC_${DateTime.now().millisecondsSinceEpoch}',
+              id: 'REJECTION_SYNC', // Consistent ID for this notification type
               type: 'REGISTRATION_REJECTED',
               title: 'Registration Rejected ❌',
               body: reasonStr,
@@ -169,13 +170,14 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
         // Check if we already have this approval in history
         final existing = await NotificationHistoryService.getAllNotifications();
         final hasApproval = existing.any((n) => 
-          n.type == 'REGISTRATION_APPROVED'
+          n.type == 'REGISTRATION_APPROVED' ||
+          n.id.contains('APPROVAL_SYNC') // Don't re-add sync notifications
         );
         
         if (!hasApproval) {
           debugPrint('➕ Adding approval to history (fallback sync)');
           final notification = NotificationHistory(
-            id: 'APPROVAL_SYNC_${DateTime.now().millisecondsSinceEpoch}',
+            id: 'APPROVAL_SYNC_permanent', // Use consistent ID
             type: 'REGISTRATION_APPROVED',
             title: 'Registration Approved ✅',
             body: 'Congratulations! Your seller registration has been approved. You can now access your seller dashboard.',
@@ -447,18 +449,11 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
               // Actions menu
               PopupMenuButton(
                 onSelected: (value) {
-                  if (value == 'read') {
-                    _markAsRead(notification.id);
-                  } else if (value == 'delete') {
+                  if (value == 'delete') {
                     _deleteNotification(notification.id);
                   }
                 },
                 itemBuilder: (context) => [
-                  if (!notification.isRead)
-                    const PopupMenuItem(
-                      value: 'read',
-                      child: Text('Mark as read'),
-                    ),
                   const PopupMenuItem(
                     value: 'delete',
                     child: Text('Delete', style: TextStyle(color: Colors.red)),

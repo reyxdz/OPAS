@@ -11,19 +11,85 @@ class NotificationHistoryService {
 
   /// Get user-specific storage key
   /// This ensures each user has their own notification history
+  /// PRIMARY: Uses user_id (database primary key) as it never changes
+  /// FALLBACK: Uses phone_number if user_id is missing (for backward compatibility)
+  /// NEVER uses 'anonymous' as it would cause multiple accounts to share notifications
   static Future<String> _getStorageKey() async {
     final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('user_id') ?? 'anonymous';
-    return '${_baseStorageKey}_$userId';
+    
+    // Try to get user_id first (most reliable identifier)
+    String? userId = prefs.getString('user_id');
+    
+    // If user_id is missing, use phone_number as fallback
+    if (userId == null || userId.isEmpty) {
+      final phoneNumber = prefs.getString('phone_number') ?? '';
+      if (phoneNumber.isNotEmpty) {
+        userId = phoneNumber;
+        debugPrint('⚠️ NotificationService._getStorageKey() -> user_id missing, using phone_number=$userId');
+      } else {
+        // Only log this if truly no identifiers are available
+        debugPrint('❌ NotificationService._getStorageKey() -> No user_id or phone_number found!');
+        // Don't use 'anonymous' - it would cause multiple accounts to share notifications
+        // Instead, generate a unique key based on timestamp to prevent data leakage
+        userId = 'unknown_${DateTime.now().millisecondsSinceEpoch}';
+      }
+    }
+    
+    final key = '${_baseStorageKey}_$userId';
+    debugPrint('🔑 NotificationService._getStorageKey() -> key=$key (identifier=$userId)');
+    return key;
+  }
+
+  /// Get the notification storage key without loading all notifications
+  /// Used during logout to backup notifications before clearing preferences
+  static Future<String> getStorageKeyForLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Use same logic as _getStorageKey() for consistency
+    String? identifier = prefs.getString('user_id');
+    
+    if (identifier == null || identifier.isEmpty) {
+      identifier = prefs.getString('phone_number') ?? '';
+    }
+    
+    if (identifier.isEmpty) {
+      identifier = 'unknown_${DateTime.now().millisecondsSinceEpoch}';
+    }
+    
+    return '${_baseStorageKey}_$identifier';
   }
 
   /// Save a new notification to history
+  /// IMPORTANT: If notification already exists, preserve its read state!
   static Future<void> saveNotification(NotificationHistory notification) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final storageKey = await _getStorageKey();
       final history = await getAllNotifications();
-      history.insert(0, notification);
+      
+      // Check if this notification already exists (by type + rejection reason or approval notes)
+      final existingIndex = history.indexWhere((n) {
+        final sameType = n.type == notification.type;
+        final sameReason = n.rejectionReason == notification.rejectionReason;
+        final sameNotes = n.approvalNotes == notification.approvalNotes;
+        return sameType && sameReason && sameNotes;
+      });
+      
+      if (existingIndex != -1) {
+        debugPrint('⚠️ Notification already exists at index $existingIndex, preserving isRead=${history[existingIndex].isRead}');
+        // Preserve the existing notification's read state
+        final existingNotif = history[existingIndex];
+        final updatedNotif = notification.copyWith(
+          id: existingNotif.id,
+          isRead: existingNotif.isRead,
+        );
+        history[existingIndex] = updatedNotif;
+      } else {
+        // New notification, insert at top
+        history.insert(0, notification);
+        debugPrint('✅ New notification added to history: ${notification.type}');
+      }
+      
       final limited = history.length > _maxHistoryItems 
           ? history.take(_maxHistoryItems).toList() 
           : history;
@@ -41,12 +107,23 @@ class NotificationHistoryService {
       final prefs = await SharedPreferences.getInstance();
       final storageKey = await _getStorageKey();
       final jsonList = prefs.getStringList(storageKey) ?? [];
-      debugPrint('📖 Retrieved ${jsonList.length} notification JSONs from storage');
+      debugPrint('📖 getAllNotifications: Retrieved ${jsonList.length} notifications from key=$storageKey');
+      
+      if (jsonList.isEmpty) {
+        debugPrint('⚠️ No notifications found for this user');
+      }
 
-      return jsonList
+      final notifications = jsonList
           .map((json) => NotificationHistory.fromJson(
               jsonDecode(json) as Map<String, dynamic>))
           .toList();
+      
+      // Log the read state of each notification
+      for (var notif in notifications) {
+        debugPrint('  - ID: ${notif.id}, Type: ${notif.type}, isRead: ${notif.isRead}');
+      }
+      
+      return notifications;
     } catch (e) {
       debugPrint('❌ Error getting notifications: $e');
       return [];
@@ -77,6 +154,7 @@ class NotificationHistoryService {
     try {
       final all = await getAllNotifications();
       final index = all.indexWhere((n) => n.id == notificationId);
+      debugPrint('✏️ markAsRead: notificationId=$notificationId, index=$index');
 
       if (index != -1) {
         all[index] = all[index].copyWithRead();
@@ -85,9 +163,12 @@ class NotificationHistoryService {
         final storageKey = await _getStorageKey();
         final jsonList = all.map((n) => jsonEncode(n.toJson())).toList();
         await prefs.setStringList(storageKey, jsonList);
+        debugPrint('✅ markAsRead: Successfully saved ${jsonList.length} notifications to storage');
+      } else {
+        debugPrint('⚠️ markAsRead: Notification not found');
       }
     } catch (e) {
-      debugPrint('Error marking as read: $e');
+      debugPrint('❌ Error marking as read: $e');
     }
   }
 
