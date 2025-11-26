@@ -281,11 +281,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error creating product: $e'),
-            backgroundColor: Colors.red,
-          ),
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Error Creating Product'),
+              content: SingleChildScrollView(
+                child: Text('$e'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
         );
       }
     } finally {
