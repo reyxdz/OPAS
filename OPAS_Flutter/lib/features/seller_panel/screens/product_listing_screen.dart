@@ -140,13 +140,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Products'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: Stack(
+    return Stack(
         children: [
           FutureBuilder<List<SellerProduct>>(
             future: _productsFuture,
