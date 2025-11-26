@@ -454,26 +454,6 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              // Body
-              Text(
-                'Message',
-                style: Theme.of(context)
-                    .textTheme
-                    .labelLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  notification.body,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
               // Rejection reason
               if (notification.rejectionReason != null &&
                   notification.rejectionReason!.isNotEmpty) ...[
