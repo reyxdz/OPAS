@@ -186,7 +186,7 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     def get_images(self, obj):
         """Get list of image URLs from ProductImage relationship"""
         from .seller_models import ProductImage
-        images = obj.product_images.all().order_by('created_at')
+        images = obj.product_images.all().order_by('uploaded_at')
         request = self.context.get('request')
         image_urls = []
         for img in images:
