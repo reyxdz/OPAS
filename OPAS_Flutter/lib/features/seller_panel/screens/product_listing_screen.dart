@@ -67,14 +67,6 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
   }
 
   void _applyFiltersAndSort() {
-    setState(() {
-      _filteredProducts = _getFilteredAndSortedProducts();
-    });
-  }
-
-  /// Returns filtered and sorted products without calling setState
-  /// Safe to call from build methods
-  List<SellerProduct> _getFilteredAndSortedProducts() {
     List<SellerProduct> filtered = _allProducts;
 
     // Apply status filter
@@ -116,7 +108,9 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
         break;
     }
 
-    return filtered;
+    setState(() {
+      _filteredProducts = filtered;
+    });
   }
 
   void _onFilterChanged(String newFilter) {
@@ -141,7 +135,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
   @override
   Widget build(BuildContext context) {
     return Stack(
-        children: [
+      children: [
           FutureBuilder<List<SellerProduct>>(
             future: _productsFuture,
             builder: (context, snapshot) {
@@ -185,12 +179,8 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
 
               if (_allProducts.isEmpty && snapshot.hasData) {
                 _allProducts = snapshot.data ?? [];
-                // Don't call setState here - the FutureBuilder will rebuild
-                // and _filteredProducts will be computed via getter
+                _applyFiltersAndSort();
               }
-
-              // Get filtered and sorted products
-              _filteredProducts = _getFilteredAndSortedProducts();
 
               return RefreshIndicator(
                 onRefresh: _refreshProducts,
@@ -393,8 +383,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
               child: const Icon(Icons.add, color: Colors.white),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 
