@@ -388,18 +388,6 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
               );
             },
           ),
-          Positioned(
-            bottom: 105,
-            right: 30,
-            child: FloatingActionButton(
-              onPressed: () {
-                Navigator.of(context).pushNamed('/seller/products/add');
-              },
-              backgroundColor: const Color(0xFF00B464),
-              elevation: 0,
-              child: const Icon(Icons.add, color: Colors.white),
-            ),
-          ),
       ],
     );
   }
