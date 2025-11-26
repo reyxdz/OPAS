@@ -160,6 +160,7 @@ class NotificationService {
   Future<void> _handleForegroundMessage(firebase.RemoteMessage message) async {
     // Log notification
     await _logNotification(message, 'RECEIVED');
+    debugPrint('🔔 FOREGROUND MESSAGE: action=${message.data['action']}, title=${message.notification?.title}');
     
     // Save to notification history
     final type = message.data['action'] ?? 'UNKNOWN';
@@ -170,6 +171,7 @@ class NotificationService {
       data: message.data,
     );
     await NotificationHistoryService.saveNotification(notification);
+    debugPrint('✅ Saved to notification history: type=$type');
     
     // Show local notification
     _showLocalNotification(
@@ -269,6 +271,7 @@ class NotificationService {
   Future<void> handleBackgroundMessage(firebase.RemoteMessage message) async {
     // Save to local cache for later processing
     await _cacheNotification(message);
+    debugPrint('🔔 BACKGROUND MESSAGE: action=${message.data['action']}, title=${message.notification?.title}');
     
     // Save to notification history
     final type = message.data['action'] ?? 'UNKNOWN';
@@ -279,6 +282,7 @@ class NotificationService {
       data: message.data,
     );
     await NotificationHistoryService.saveNotification(notification);
+    debugPrint('✅ Saved background notification to history: type=$type');
     
     // Cache rejection reason if present
     final data = message.data;
@@ -323,15 +327,22 @@ class NotificationService {
     try {
       final token = await _messaging.getToken();
       if (token != null) {
+        debugPrint('🔑 Got FCM token: ${token.substring(0, 20)}...');
+        
         // Log token locally
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('fcm_token', token);
         
         // Send to backend
-        await _apiService.post(
-          '/api/v1/users/fcm-token/',
-          body: {'token': token},
-        );
+        try {
+          await _apiService.post(
+            '/api/users/fcm-token/',
+            body: {'fcm_token': token},
+          );
+          debugPrint('✅ FCM token sent to backend');
+        } catch (e) {
+          debugPrint('⚠️ Failed to send FCM token to backend: $e');
+        }
       }
     } catch (e) {
       debugPrint('$_logTag: Failed to update FCM token: $e');

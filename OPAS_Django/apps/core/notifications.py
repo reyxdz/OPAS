@@ -179,10 +179,8 @@ You can now access your seller dashboard: {context['dashboard_url']}
                 import firebase_admin
                 from firebase_admin import messaging
                 
-                # Get user's FCM token from profile
-                from apps.users.models import UserProfile
-                profile = UserProfile.objects.filter(user=user).first()
-                if profile and profile.fcm_token:
+                # Get user's FCM token
+                if user.fcm_token:
                     approval_message = f"Congratulations! Your seller registration has been approved. You can now access your seller dashboard."
                     
                     message_data = {
@@ -198,11 +196,13 @@ You can now access your seller dashboard: {context['dashboard_url']}
                             title='Registration Approved ✅',
                             body=approval_message,
                         ),
-                        token=profile.fcm_token,
+                        token=user.fcm_token,
                     )
                     
                     messaging.send(push_message)
                     logger.info(f"Approval push notification sent to {user.email}")
+                else:
+                    logger.warning(f"No FCM token for user {user.email}")
             except Exception as e:
                 logger.warning(f"Failed to send approval push notification: {str(e)}")
             
@@ -282,10 +282,8 @@ For assistance, contact: {context['support_email']}
                 import firebase_admin
                 from firebase_admin import messaging
                 
-                # Get user's FCM token from profile
-                from apps.users.models import UserProfile
-                profile = UserProfile.objects.filter(user=user).first()
-                if profile and profile.fcm_token:
+                # Get user's FCM token
+                if user.fcm_token:
                     message_data = {
                         'action': 'REGISTRATION_REJECTED',
                         'registration_id': str(registration.id if hasattr(registration, 'id') else user.id),
@@ -300,11 +298,13 @@ For assistance, contact: {context['support_email']}
                             title='Registration Rejected ❌',
                             body=rejection_reason if len(rejection_reason) <= 240 else f"{rejection_reason[:237]}...",
                         ),
-                        token=profile.fcm_token,
+                        token=user.fcm_token,
                     )
                     
                     messaging.send(push_message)
                     logger.info(f"Push notification sent to {user.email}")
+                else:
+                    logger.warning(f"No FCM token for user {user.email}")
             except Exception as e:
                 logger.warning(f"Failed to send push notification: {str(e)}")
             

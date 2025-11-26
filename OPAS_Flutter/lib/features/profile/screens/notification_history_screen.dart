@@ -35,11 +35,17 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
             await NotificationHistoryService.getRejectionNotifications();
       }
 
+      debugPrint('📋 Loaded ${notifications.length} notifications');
+      for (var n in notifications) {
+        debugPrint('  - ${n.type}: ${n.title}');
+      }
+
       setState(() {
         _notifications = notifications;
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('❌ Error loading notifications: $e');
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

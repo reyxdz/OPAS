@@ -25,7 +25,7 @@ Note: Admin routes are now consolidated in apps.users.admin_urls at /api/admin/
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import UpgradeToSellerView, SellerApplicationView, UserStatusView
+from .views import UpgradeToSellerView, SellerApplicationView, UserStatusView, FCMTokenView
 from .seller_views import (
     SellerProfileViewSet,
     ProductManagementViewSet,
@@ -135,6 +135,9 @@ urlpatterns = [
     
     # Seller application submission
     path('seller-application/', SellerApplicationView.as_view(), name='seller-application'),
+    
+    # FCM token for push notifications
+    path('fcm-token/', FCMTokenView.as_view(), name='fcm-token'),
     
     # Include seller router URLs
     path('', include(seller_router.urls)),

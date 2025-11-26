@@ -156,3 +156,35 @@ class UserStatusView(APIView):
             'is_seller': user.role == 'SELLER',
         }, status=status.HTTP_200_OK)
 
+
+class FCMTokenView(APIView):
+    """Update user's FCM token for push notifications"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """
+        Save or update the user's FCM token
+        
+        Request body:
+        {
+            "fcm_token": "firebase_cloud_messaging_token"
+        }
+        """
+        fcm_token = request.data.get('fcm_token')
+        
+        if not fcm_token:
+            return Response(
+                {'error': 'FCM token is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Save FCM token to user
+        request.user.fcm_token = fcm_token
+        request.user.save(update_fields=['fcm_token'])
+        
+        return Response({
+            'message': 'FCM token updated successfully',
+            'user_id': request.user.id,
+        }, status=status.HTTP_200_OK)
+
+

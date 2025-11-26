@@ -137,6 +137,14 @@ class User(AbstractUser):
         help_text='Timestamp when account was suspended'
     )
     
+    # ==================== PUSH NOTIFICATIONS ====================
+    fcm_token = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text='Firebase Cloud Messaging token for push notifications'
+    )
+    
     # ==================== AUDIT FIELDS ====================
     created_at = models.DateTimeField(
         auto_now_add=True,
