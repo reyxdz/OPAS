@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/admin_home_screen.dart';
 import '../screens/admin_profile_screen.dart';
+import '../../../services/seller_registration_cache_service.dart';
 
 /// Admin Layout Widget
 /// Main wrapper for admin screens with navigation and state management
@@ -86,8 +87,19 @@ class _AdminLayoutState extends State<AdminLayout> with WidgetsBindingObserver {
     );
 
     if (confirmed == true) {
+      // Clear SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
+      
+      // Clear admin registration caches
+      try {
+        final cacheService = SellerRegistrationCacheService();
+        await cacheService.clearAllAdminRegistrations();
+        debugPrint('✅ Admin registration cache cleared on logout');
+      } catch (e) {
+        debugPrint('⚠️ Error clearing admin cache: $e');
+      }
+      
       if (mounted) {
         Navigator.pushNamedAndRemoveUntil(
           context,
