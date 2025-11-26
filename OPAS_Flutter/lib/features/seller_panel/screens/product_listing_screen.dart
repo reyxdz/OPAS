@@ -67,6 +67,14 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
   }
 
   void _applyFiltersAndSort() {
+    setState(() {
+      _filteredProducts = _getFilteredAndSortedProducts();
+    });
+  }
+
+  /// Returns filtered and sorted products without calling setState
+  /// Safe to call from build methods
+  List<SellerProduct> _getFilteredAndSortedProducts() {
     List<SellerProduct> filtered = _allProducts;
 
     // Apply status filter
@@ -108,9 +116,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
         break;
     }
 
-    setState(() {
-      _filteredProducts = filtered;
-    });
+    return filtered;
   }
 
   void _onFilterChanged(String newFilter) {
@@ -185,8 +191,12 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
 
               if (_allProducts.isEmpty && snapshot.hasData) {
                 _allProducts = snapshot.data ?? [];
-                _applyFiltersAndSort();
+                // Don't call setState here - the FutureBuilder will rebuild
+                // and _filteredProducts will be computed via getter
               }
+
+              // Get filtered and sorted products
+              _filteredProducts = _getFilteredAndSortedProducts();
 
               return RefreshIndicator(
                 onRefresh: _refreshProducts,
