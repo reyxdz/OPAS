@@ -379,21 +379,10 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 4),
-              // Main body
-              NotificationText(
-                notification.body,
-                baseStyle: NotificationBuilder.getBodyStyle(context, notification.isRead),
-                isRead: notification.isRead,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
               // Notification type badge
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: NotificationBuilder.buildTypeBadge(
-                  notification.type,
-                  isRead: notification.isRead,
-                ),
+              NotificationBuilder.buildTypeBadge(
+                notification.type,
+                isRead: notification.isRead,
               ),
               // Rejection reason if available
               if (notification.rejectionReason != null)
@@ -401,8 +390,11 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: NotificationBuilder.buildInfoBoxDecoration('rejection'),
-                    color: NotificationBuilder.getInfoBoxBackgroundColor('rejection'),
+                    decoration: BoxDecoration(
+                      color: NotificationBuilder.getInfoBoxBackgroundColor('rejection'),
+                      border: Border.all(color: Colors.red.shade300),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                     child: Text(
                       'Reason: ${notification.rejectionReason}',
                       maxLines: 2,
@@ -419,8 +411,11 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: NotificationBuilder.buildInfoBoxDecoration('approval'),
-                    color: NotificationBuilder.getInfoBoxBackgroundColor('approval'),
+                    decoration: BoxDecoration(
+                      color: NotificationBuilder.getInfoBoxBackgroundColor('approval'),
+                      border: Border.all(color: Colors.green.shade300),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                     child: Text(
                       'Approval Notes: ${notification.approvalNotes}',
                       maxLines: 2,
@@ -524,44 +519,14 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              // Main body
-              Text(
-                'Details',
-                style: Theme.of(context)
-                    .textTheme
-                    .labelLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  notification.body,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
               // Rejection reason
               if (notification.rejectionReason != null &&
                   notification.rejectionReason!.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Text(
-                  'Rejection Reason',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: NotificationBuilder.getInfoBoxBackgroundColor('rejection'),
-                    border: Border.all(color: NotificationBuilder.getStyle(notification.type).color),
+                    border: Border.all(color: Colors.red.shade300),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -575,20 +540,12 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
               // Approval notes
               if (notification.approvalNotes != null &&
                   notification.approvalNotes!.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Text(
-                  'Approval Notes',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: NotificationBuilder.getInfoBoxBackgroundColor('approval'),
-                    border: Border.all(color: NotificationBuilder.getStyle(notification.type).color),
+                    border: Border.all(color: Colors.green.shade300),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(

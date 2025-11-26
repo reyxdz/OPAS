@@ -69,7 +69,7 @@ class NotificationBuilder {
       label: 'Approved',
     ),
     'REJECTED': NotificationTypeStyle(
-      icon: Icons.close_circle,
+      icon: Icons.cancel,
       color: Colors.deepOrange,
       label: 'Rejected',
     ),
