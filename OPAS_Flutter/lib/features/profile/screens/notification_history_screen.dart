@@ -28,8 +28,9 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
   Future<void> _loadNotifications() async {
     setState(() => _isLoading = true);
     try {
-      // First, check if there's a pending rejection from the server
+      // First, check if there's a pending rejection or approval from the server
       await _syncPendingRejections();
+      await _syncPendingApprovals();
       
       List<NotificationHistory> notifications;
       if (_filterType == 'ALL') {
@@ -127,6 +128,66 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
       }
     } catch (e, stackTrace) {
       debugPrint('⚠️ Error syncing rejections: $e');
+      debugPrint('Stack trace: $stackTrace');
+      // Don't throw - this is a background sync
+    }
+  }
+
+  Future<void> _syncPendingApprovals() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access') ?? '';
+      
+      if (accessToken.isEmpty) {
+        debugPrint('⚠️ No access token available for approval sync');
+        return;
+      }
+      
+      final response = await ApiService.getUserStatus(accessToken: accessToken);
+      
+      if (response == null) {
+        debugPrint('⚠️ No response from getUserStatus for approval sync');
+        return;
+      }
+      
+      final sellerStatus = response['seller_status'];
+      final applicationStatus = response['application_status'];
+      
+      debugPrint('🔄 Approval sync check - seller_status: $sellerStatus, application_status: $applicationStatus');
+      
+      // Check if the seller status is APPROVED
+      if (sellerStatus == 'APPROVED' && applicationStatus == 'APPROVED') {
+        debugPrint('🔄 Found APPROVED status from server');
+        
+        // Check if we already have this approval in history
+        final existing = await NotificationHistoryService.getAllNotifications();
+        final hasApproval = existing.any((n) => 
+          n.type == 'REGISTRATION_APPROVED'
+        );
+        
+        if (!hasApproval) {
+          debugPrint('➕ Adding approval to history (fallback sync)');
+          final notification = NotificationHistory(
+            id: 'APPROVAL_SYNC_${DateTime.now().millisecondsSinceEpoch}',
+            type: 'REGISTRATION_APPROVED',
+            title: 'Registration Approved ✅',
+            body: 'Congratulations! Your seller registration has been approved. You can now access your seller dashboard.',
+            receivedAt: DateTime.now(),
+            isRead: false,
+            data: {
+              'action': 'REGISTRATION_APPROVED',
+            },
+          );
+          await NotificationHistoryService.saveNotification(notification);
+          debugPrint('✅ Approval notification added via fallback sync');
+        } else {
+          debugPrint('ℹ️ Approval already in history');
+        }
+      } else {
+        debugPrint('ℹ️ Not APPROVED status: seller_status=$sellerStatus, application_status=$applicationStatus');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ Error syncing approvals: $e');
       debugPrint('Stack trace: $stackTrace');
       // Don't throw - this is a background sync
     }
