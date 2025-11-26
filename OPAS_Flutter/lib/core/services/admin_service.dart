@@ -147,7 +147,7 @@ class AdminService {
       final fullUrl = '$adminEndpoint/sellers/pending-approvals/';
       debugPrint('DEBUG: Full API URL: $fullUrl');
       debugPrint('DEBUG: Admin endpoint: $adminEndpoint');
-      debugPrint('DEBUG: Base URL: ${baseUrl}');
+      debugPrint('DEBUG: Base URL: $baseUrl');
       debugPrint('DEBUG: Admin pending approvals headers: $headers');
       
       final response = await http.get(
@@ -259,7 +259,7 @@ class AdminService {
   }) async {
     try {
       final body = {
-        'reason': reason,
+        'rejection_reason': reason,  // Changed from 'reason' to match backend expectation
         'admin_notes': notes ?? '',
       };
 

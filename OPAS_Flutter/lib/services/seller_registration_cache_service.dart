@@ -1,6 +1,10 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+
+// Import sqflite_common_ffi for desktop platforms
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Cache service for seller registration data with offline-first support
 /// CORE PRINCIPLE: Resource Management - Efficient caching reduces API calls
@@ -18,6 +22,7 @@ class SellerRegistrationCacheService {
 
   Database? _database;
   bool _isInitialized = false;
+  static bool _factoryInitialized = false;
 
   SellerRegistrationCacheService._internal();
 
@@ -30,16 +35,45 @@ class SellerRegistrationCacheService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, _dbName);
+    // Initialize database factory for desktop platforms (Windows, Linux, macOS)
+    if (!_factoryInitialized && _isDesktopPlatform()) {
+      try {
+        sqfliteFfiInit();
+        databaseFactory = databaseFactoryFfi;
+        _factoryInitialized = true;
+        print('✅ SQLite FFI initialized for desktop platform');
+      } catch (e) {
+        print('⚠️ SQLite FFI initialization warning: $e');
+        _factoryInitialized = true; // Mark as attempted to avoid retry loop
+      }
+    }
 
-    _database = await openDatabase(
-      path,
-      version: 1,
-      onCreate: _createTables,
-    );
+    try {
+      final dbPath = await getDatabasesPath();
+      final path = join(dbPath, _dbName);
 
-    _isInitialized = true;
+      _database = await openDatabase(
+        path,
+        version: 1,
+        onCreate: _createTables,
+      );
+
+      _isInitialized = true;
+      print('✅ Database initialized successfully');
+    } catch (e) {
+      print('❌ Database initialization error: $e');
+      _isInitialized = false;
+      rethrow;
+    }
+  }
+
+  /// Check if running on desktop platform
+  static bool _isDesktopPlatform() {
+    try {
+      return Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+    } catch (e) {
+      return false;
+    }
   }
 
   /// Create all necessary tables
@@ -214,11 +248,14 @@ class SellerRegistrationCacheService {
   Future<void> clearAllAdminRegistrations() async {
     try {
       await initialize();
-      final count = await _database!.delete(_admRegistrationsTable);
-      print('✅ Cleared admin registrations cache: $count items deleted');
+      if (_database != null) {
+        final count = await _database!.delete(_admRegistrationsTable);
+        print('✅ Cleared admin registrations cache: $count items deleted');
+      }
     } catch (e) {
-      print('❌ Error clearing admin registrations cache: $e');
-      rethrow;
+      // Log the error but don't crash - database caching is non-critical
+      print('⚠️ Warning: Could not clear admin registrations cache: $e');
+      // Don't rethrow - this is a non-critical operation
     }
   }
 
