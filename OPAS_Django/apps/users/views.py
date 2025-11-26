@@ -144,6 +144,7 @@ class UserStatusView(APIView):
         # Get the user's seller application if exists
         seller_app = SellerApplication.objects.filter(user=user).first()
         app_status = seller_app.status if seller_app else None
+        rejection_reason = seller_app.rejection_reason if seller_app else None
         
         return Response({
             'user_id': user.id,
@@ -152,6 +153,7 @@ class UserStatusView(APIView):
             'role': user.role,
             'seller_status': user.seller_status,
             'application_status': app_status,
+            'rejection_reason': rejection_reason,
             'store_name': user.store_name,
             'is_seller': user.role == 'SELLER',
         }, status=status.HTTP_200_OK)

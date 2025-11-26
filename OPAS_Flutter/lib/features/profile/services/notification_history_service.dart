@@ -20,8 +20,9 @@ class NotificationHistoryService {
           : history;
       final jsonList = limited.map((n) => jsonEncode(n.toJson())).toList();
       await prefs.setStringList(_storageKey, jsonList);
+      debugPrint('💾 Saved notification to history: ${notification.type} (Total: ${limited.length})');
     } catch (e) {
-      debugPrint('Error saving notification: $e');
+      debugPrint('❌ Error saving notification: $e');
     }
   }
 
@@ -30,13 +31,14 @@ class NotificationHistoryService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonList = prefs.getStringList(_storageKey) ?? [];
+      debugPrint('📖 Retrieved ${jsonList.length} notification JSONs from storage');
 
       return jsonList
           .map((json) => NotificationHistory.fromJson(
               jsonDecode(json) as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      debugPrint('Error getting notifications: $e');
+      debugPrint('❌ Error getting notifications: $e');
       return [];
     }
   }

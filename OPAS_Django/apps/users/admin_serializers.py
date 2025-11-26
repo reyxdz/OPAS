@@ -124,7 +124,12 @@ class SellerApprovalRequestSerializer(serializers.Serializer):
 class SellerRejectionRequestSerializer(serializers.Serializer):
     """Serializer for seller rejection request (POST)."""
     seller_id = serializers.IntegerField()
-    rejection_reason = serializers.CharField(max_length=500, help_text="Reason for rejection")
+    rejection_reason = serializers.CharField(
+        max_length=500,
+        required=True,
+        allow_blank=False,
+        help_text="Reason for rejection (required)"
+    )
     
     class Meta:
         fields = ['seller_id', 'rejection_reason']

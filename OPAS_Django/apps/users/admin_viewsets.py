@@ -243,8 +243,16 @@ class SellerManagementViewSet(viewsets.ModelViewSet):
         user = application.user  # Get the User object
         admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
         
-        rejection_reason = request.data.get('rejection_reason', 'No reason provided')
-        admin_notes = request.data.get('admin_notes', '')
+        # Rejection reason is now required (enforced by serializer)
+        rejection_reason = request.data.get('rejection_reason', '').strip()
+        admin_notes = request.data.get('admin_notes', '').strip()
+        
+        # Validate rejection reason is not empty
+        if not rejection_reason:
+            return Response(
+                {'error': 'rejection_reason is required and cannot be empty'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # Update application status
         application.status = 'REJECTED'

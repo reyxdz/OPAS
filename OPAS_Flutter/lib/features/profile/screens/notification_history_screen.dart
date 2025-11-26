@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/api_service.dart';
 import '../models/notification_history_model.dart';
 import '../services/notification_history_service.dart';
 
@@ -26,6 +28,9 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
   Future<void> _loadNotifications() async {
     setState(() => _isLoading = true);
     try {
+      // First, check if there's a pending rejection from the server
+      await _syncPendingRejections();
+      
       List<NotificationHistory> notifications;
       if (_filterType == 'ALL') {
         notifications =
@@ -52,6 +57,58 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
           SnackBar(content: Text('Error loading notifications: $e')),
         );
       }
+    }
+  }
+
+  /// Check server for pending rejections and sync to local history
+  Future<void> _syncPendingRejections() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access') ?? '';
+      
+      if (accessToken.isEmpty) {
+        debugPrint('⚠️ No access token available for sync');
+        return;
+      }
+      
+      final response = await ApiService.getUserStatus(accessToken: accessToken);
+      
+      if (response != null && response['rejection_reason'] != null) {
+        final rejectionReason = response['rejection_reason'];
+        final status = response['application_status'];
+        
+        if (status == 'REJECTED' && rejectionReason.isNotEmpty) {
+          debugPrint('🔄 Found pending rejection from server: $rejectionReason');
+          
+          // Check if we already have this rejection in history
+          final existing = await NotificationHistoryService.getAllNotifications();
+          final hasRejection = existing.any((n) => 
+            n.type == 'REGISTRATION_REJECTED' && 
+            n.rejectionReason == rejectionReason
+          );
+          
+          if (!hasRejection) {
+            debugPrint('➕ Adding rejection to history');
+            final notification = NotificationHistory(
+              id: 'REJECTION_${DateTime.now().millisecondsSinceEpoch}',
+              type: 'REGISTRATION_REJECTED',
+              title: 'Registration Rejected ❌',
+              body: rejectionReason,
+              rejectionReason: rejectionReason,
+              receivedAt: DateTime.now(),
+              isRead: false,
+              data: {
+                'action': 'REGISTRATION_REJECTED',
+                'rejection_reason': rejectionReason,
+              },
+            );
+            await NotificationHistoryService.saveNotification(notification);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error syncing rejections: $e');
+      // Don't throw - this is a background sync
     }
   }
 
@@ -398,7 +455,8 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                 ),
               ),
               // Rejection reason
-              if (notification.rejectionReason != null) ...[
+              if (notification.rejectionReason != null &&
+                  notification.rejectionReason!.isNotEmpty) ...[
                 const SizedBox(height: 24),
                 Text(
                   'Rejection Reason',

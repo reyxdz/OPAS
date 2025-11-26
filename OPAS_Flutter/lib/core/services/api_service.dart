@@ -380,4 +380,27 @@ class ApiService {
       throw Exception('Failed to submit seller application: $e');
     }
   }
+
+  static Future<Map<String, dynamic>?> getUserStatus({
+    required String accessToken,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/me/'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else if (response.statusCode == 401) {
+        return null;
+      } else {
+        return null;
+      }
+    } catch (e) {
+      return null;
+    }
+  }
 }
