@@ -27,12 +27,14 @@ class _EditProductScreenState extends State<EditProductScreen> {
   final ImagePicker _imagePicker = ImagePicker();
 
   late String _selectedProductType;
+  late String _selectedQualityGrade;
   List<File> _newImages = [];
   List<String> _existingImages = [];
   double? _ceilingPrice;
   bool _isLoading = false;
   bool _priceExceedsCeiling = false;
   DateTime? _lastEditTime;
+  bool _isOptimisticUpdating = false;
 
   @override
   void initState() {
@@ -49,6 +51,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
         TextEditingController(text: widget.product.category ?? '');
 
     _selectedProductType = 'VEGETABLE';
+    _selectedQualityGrade = 'A';
     _existingImages = widget.product.images ?? [];
     _lastEditTime = widget.product.updatedAt ?? DateTime.now();
 
@@ -135,13 +138,24 @@ class _EditProductScreenState extends State<EditProductScreen> {
         'description': _descriptionController.text,
         'price': double.parse(_priceController.text),
         'stock_level': int.parse(_quantityController.text),
+        'quality_grade': _selectedQualityGrade,
         'category': _categoryController.text.isEmpty ? null : _categoryController.text,
       };
+
+      // Start optimistic update
+      setState(() {
+        _isOptimisticUpdating = true;
+      });
 
       final updatedProduct = await SellerService.updateProduct(
         widget.product.id,
         productData,
       );
+
+      // Complete optimistic update
+      setState(() {
+        _isOptimisticUpdating = false;
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -536,19 +550,30 @@ class _EditProductScreenState extends State<EditProductScreen> {
                 ),
                 const SizedBox(height: 28),
 
-                // Category (Optional)
+                // Quality Grade
                 Text(
-                  'Category (Optional)',
+                  'Quality Grade',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
                 ),
                 const SizedBox(height: 6),
-                TextFormField(
-                  controller: _categoryController,
+                DropdownButtonFormField<String>(
+                  value: _selectedQualityGrade,
+                  items: const [
+                    DropdownMenuItem(value: 'A', child: Text('Grade A - Premium')),
+                    DropdownMenuItem(value: 'B', child: Text('Grade B - Standard')),
+                    DropdownMenuItem(value: 'C', child: Text('Grade C - Economy')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _selectedQualityGrade = value;
+                      });
+                    }
+                  },
                   decoration: InputDecoration(
-                    hintText: 'e.g., Organic, Premium',
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -563,13 +588,45 @@ class _EditProductScreenState extends State<EditProductScreen> {
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: Color(0xFF00B464), width: 2),
                     ),
+                  ),
+                ),
+                const SizedBox(height: 28),
+
+                // Category (Read-Only)
+                Text(
+                  'Category (Cannot be changed)',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _categoryController,
+                  enabled: false,
+                  decoration: InputDecoration(
+                    hintText: 'Category cannot be changed',
+                    filled: true,
+                    fillColor: Colors.grey.withOpacity(0.1),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                    ),
+                    disabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
+                    ),
                     prefixIcon: Padding(
                       padding: const EdgeInsets.only(right: 12),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const SizedBox(width: 12),
-                          const Icon(Icons.tag, color: Color(0xFF00B464)),
+                          const Icon(Icons.lock, color: Colors.grey),
                           Container(
                             width: 1,
                             height: 24,
