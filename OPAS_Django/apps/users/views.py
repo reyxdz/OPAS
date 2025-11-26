@@ -183,6 +183,8 @@ class FCMTokenView(APIView):
         """
         fcm_token = request.data.get('fcm_token')
         
+        print(f"DEBUG FCMTokenView: User {request.user.email} sending FCM token: {fcm_token[:50] if fcm_token else 'NONE'}...")
+        
         if not fcm_token:
             return Response(
                 {'error': 'FCM token is required'},
@@ -192,6 +194,8 @@ class FCMTokenView(APIView):
         # Save FCM token to user
         request.user.fcm_token = fcm_token
         request.user.save(update_fields=['fcm_token'])
+        
+        print(f"DEBUG FCMTokenView: Successfully saved FCM token for {request.user.email}")
         
         return Response({
             'message': 'FCM token updated successfully',
