@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/admin_service.dart';
 import '../../../core/utils/admin_permissions.dart';
+import '../../../services/seller_registration_cache_service.dart';
 
 class PendingSellerApprovalsScreen extends StatefulWidget {
   const PendingSellerApprovalsScreen({super.key});
@@ -456,6 +457,16 @@ class _PendingSellerApprovalsScreenState
               
               try {
                 await AdminService.approveSeller(approval['id'].toString());
+                
+                // Invalidate cache to prevent approved apps from staying in pending list
+                try {
+                  final cacheService = SellerRegistrationCacheService();
+                  await cacheService.clearAllAdminRegistrations();
+                  debugPrint('✅ Cache invalidated after approval');
+                } catch (cacheError) {
+                  debugPrint('⚠️ Error clearing cache after approval: $cacheError');
+                }
+                
                 if (!mounted) return;
                 setState(() => _pendingApprovals.removeAt(index));
 
@@ -535,6 +546,16 @@ class _PendingSellerApprovalsScreenState
                   approval['id'].toString(),
                   reason: reasonController.text.isEmpty ? '' : reasonController.text,
                 );
+                
+                // Invalidate cache to prevent rejected apps from reappearing
+                try {
+                  final cacheService = SellerRegistrationCacheService();
+                  await cacheService.clearAllAdminRegistrations();
+                  debugPrint('✅ Cache invalidated after rejection');
+                } catch (cacheError) {
+                  debugPrint('⚠️ Error clearing cache after rejection: $cacheError');
+                }
+                
                 if (!mounted) return;
                 reasonController.dispose();
                 setState(() => _pendingApprovals.removeAt(index));
