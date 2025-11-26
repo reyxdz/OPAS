@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/seller_product_model.dart';
 import '../services/seller_service.dart';
 
@@ -14,12 +16,28 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
   List<SellerProduct> _allProducts = [];
   List<SellerProduct> _filteredProducts = [];
   String _filterStatus = 'ALL'; // ALL, ACTIVE, EXPIRED, PENDING
+  String _sortOrder = 'newest'; // newest, price_asc, price_desc, stock_low
   bool _isLoading = false;
+  
+  // Search
+  final _searchController = TextEditingController();
+  Timer? _searchDebounceTimer;
 
   @override
   void initState() {
     super.initState();
     _productsFuture = SellerService.getProducts();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    // Cancel previous timer
+    _searchDebounceTimer?.cancel();
+
+    // Start new debounce timer (500ms)
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _applyFiltersAndSort();
+    });
   }
 
   Future<void> _refreshProducts() async {
@@ -30,7 +48,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
       final products = await SellerService.getProducts();
       setState(() {
         _allProducts = products;
-        _applyFilter();
+        _applyFiltersAndSort();
         _isLoading = false;
       });
     } catch (e) {
@@ -39,162 +57,326 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error refreshing products: $e')),
+          SnackBar(
+            content: Text('Error refreshing products: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
-  void _applyFilter() {
+  void _applyFiltersAndSort() {
+    List<SellerProduct> filtered = _allProducts;
+
+    // Apply status filter
     if (_filterStatus == 'ALL') {
-      _filteredProducts = _allProducts;
+      // Keep all
     } else if (_filterStatus == 'ACTIVE') {
-      _filteredProducts = _allProducts.where((p) => p.isActive).toList();
+      filtered = filtered.where((p) => p.isActive).toList();
     } else if (_filterStatus == 'EXPIRED') {
-      _filteredProducts = _allProducts.where((p) => p.isExpired).toList();
+      filtered = filtered.where((p) => p.isExpired).toList();
     } else if (_filterStatus == 'PENDING') {
-      _filteredProducts = _allProducts.where((p) => p.isPending).toList();
+      filtered = filtered.where((p) => p.isPending).toList();
     }
+
+    // Apply search filter (case-insensitive)
+    final searchQuery = _searchController.text.toLowerCase();
+    if (searchQuery.isNotEmpty) {
+      filtered = filtered
+          .where((p) =>
+              p.name.toLowerCase().contains(searchQuery) ||
+              p.category.toLowerCase().contains(searchQuery))
+          .toList();
+    }
+
+    // Apply sort
+    switch (_sortOrder) {
+      case 'price_asc':
+        filtered.sort((a, b) => a.price.compareTo(b.price));
+        break;
+      case 'price_desc':
+        filtered.sort((a, b) => b.price.compareTo(a.price));
+        break;
+      case 'stock_low':
+        filtered.sort((a, b) => a.stockLevel.compareTo(b.stockLevel));
+        break;
+      case 'newest':
+      default:
+        filtered.sort((a, b) => (b.createdAt ?? DateTime.now())
+            .compareTo(a.createdAt ?? DateTime.now()));
+        break;
+    }
+
+    setState(() {
+      _filteredProducts = filtered;
+    });
   }
 
   void _onFilterChanged(String newFilter) {
     setState(() {
       _filterStatus = newFilter;
-      _applyFilter();
     });
+    _applyFiltersAndSort();
+  }
+
+  void _onSortChanged(String newSort) {
+    setState(() {
+      _sortOrder = newSort;
+    });
+    _applyFiltersAndSort();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    _applyFiltersAndSort();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Products'),
+        centerTitle: true,
+        elevation: 0,
+      ),
       body: Stack(
         children: [
           FutureBuilder<List<SellerProduct>>(
-        future: _productsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && _allProducts.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+            future: _productsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  _allProducts.isEmpty) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error loading products',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${snapshot.error}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _refreshProducts,
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          if (_allProducts.isEmpty && snapshot.hasData) {
-            _allProducts = snapshot.data ?? [];
-            _applyFilter();
-          }
-
-          return RefreshIndicator(
-            onRefresh: _refreshProducts,
-            child: _allProducts.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 64,
-                          color: Colors.grey.withOpacity(0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No products yet',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Create your first product to get started',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  )
-                : Column(
+              if (snapshot.hasError) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Filter header
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _buildFilterChip('ALL', 'All (${_allProducts.length})',
-                                  _filterStatus == 'ALL'),
-                              const SizedBox(width: 8),
-                              _buildFilterChip(
-                                'ACTIVE',
-                                'Active (${_allProducts.where((p) => p.isActive).length})',
-                                _filterStatus == 'ACTIVE',
-                              ),
-                              const SizedBox(width: 8),
-                              _buildFilterChip(
-                                'PENDING',
-                                'Pending (${_allProducts.where((p) => p.isPending).length})',
-                                _filterStatus == 'PENDING',
-                              ),
-                              const SizedBox(width: 8),
-                              _buildFilterChip(
-                                'EXPIRED',
-                                'Expired (${_allProducts.where((p) => p.isExpired).length})',
-                                _filterStatus == 'EXPIRED',
-                              ),
-                            ],
-                          ),
-                        ),
+                      const Icon(Icons.error_outline,
+                          size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error loading products',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      // Product List
-                      Expanded(
-                        child: _isLoading
-                            ? const Center(child: CircularProgressIndicator())
-                            : _filteredProducts.isEmpty
-                                ? Center(
-                                    child: Text(
-                                      'No $_filterStatus products',
-                                      style: Theme.of(context).textTheme.bodyMedium,
-                                    ),
-                                  )
-                                : ListView.builder(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 8)
-                                      .copyWith(bottom: 100),
-                                    itemCount: _filteredProducts.length,
-                                    itemBuilder: (context, index) {
-                                      final product = _filteredProducts[index];
-                                      return _buildProductCard(context, product);
-                                    },
-                                  ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${snapshot.error}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _refreshProducts,
+                        child: const Text('Retry'),
                       ),
                     ],
                   ),
-          );
-        },
-      ),
+                );
+              }
+
+              if (_allProducts.isEmpty && snapshot.hasData) {
+                _allProducts = snapshot.data ?? [];
+                _applyFiltersAndSort();
+              }
+
+              return RefreshIndicator(
+                onRefresh: _refreshProducts,
+                child: _allProducts.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.inventory_2_outlined,
+                              size: 64,
+                              color: Colors.grey.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No products yet',
+                              style:
+                                  Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Create your first product to get started',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Column(
+                        children: [
+                          // Search Bar
+                          Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                hintText: 'Search products...',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _searchController.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: _clearSearch,
+                                      )
+                                    : null,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+
+                          // Filter and Sort Bar
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12.0,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Row(
+                                      children: [
+                                        _buildFilterChip(
+                                          'ALL',
+                                          'All (${_allProducts.length})',
+                                          _filterStatus == 'ALL',
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _buildFilterChip(
+                                          'ACTIVE',
+                                          'Active (${_allProducts.where((p) => p.isActive).length})',
+                                          _filterStatus == 'ACTIVE',
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _buildFilterChip(
+                                          'PENDING',
+                                          'Pending (${_allProducts.where((p) => p.isPending).length})',
+                                          _filterStatus == 'PENDING',
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _buildFilterChip(
+                                          'EXPIRED',
+                                          'Expired (${_allProducts.where((p) => p.isExpired).length})',
+                                          _filterStatus == 'EXPIRED',
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Sort Dropdown
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12.0),
+                            child: DropdownButton<String>(
+                              value: _sortOrder,
+                              isExpanded: true,
+                              items: [
+                                const DropdownMenuItem(
+                                  value: 'newest',
+                                  child: Text('Newest First'),
+                                ),
+                                const DropdownMenuItem(
+                                  value: 'price_asc',
+                                  child: Text('Price: Low to High'),
+                                ),
+                                const DropdownMenuItem(
+                                  value: 'price_desc',
+                                  child: Text('Price: High to Low'),
+                                ),
+                                const DropdownMenuItem(
+                                  value: 'stock_low',
+                                  child: Text('Low Stock First'),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  _onSortChanged(value);
+                                }
+                              },
+                            ),
+                          ),
+
+                          // Product count
+                          if (_filteredProducts.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12.0, vertical: 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '${_filteredProducts.length} product${_filteredProducts.length != 1 ? 's' : ''}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
+                            ),
+
+                          // Product List
+                          Expanded(
+                            child: _isLoading
+                                ? const Center(
+                                    child: CircularProgressIndicator())
+                                : _filteredProducts.isEmpty
+                                    ? Center(
+                                        child: Text(
+                                          'No $_filterStatus products',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium,
+                                        ),
+                                      )
+                                    : ListView.builder(
+                                        padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8)
+                                            .copyWith(bottom: 100),
+                                        itemCount: _filteredProducts.length,
+                                        itemBuilder: (context, index) {
+                                          final product =
+                                              _filteredProducts[index];
+                                          return _buildProductCard(
+                                              context, product);
+                                        },
+                                      ),
+                          ),
+                        ],
+                      ),
+              );
+            },
+          ),
           Positioned(
             bottom: 105,
             right: 30,
@@ -244,7 +426,8 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
 
     // Get image URL with priority: primaryImage > images array > null
     String? imageUrl;
-    if (product.primaryImage != null && product.primaryImage!['image_url'] != null) {
+    if (product.primaryImage != null &&
+        product.primaryImage!['image_url'] != null) {
       imageUrl = product.primaryImage!['image_url'];
     } else if (product.images != null && product.images!.isNotEmpty) {
       imageUrl = product.images!.first;
@@ -265,10 +448,20 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
           child: imageUrl != null
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    imageUrl,
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
+                    placeholder: (context, url) => Container(
+                      color: Colors.grey[200],
+                      child: const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) {
                       return const Icon(Icons.image_not_supported);
                     },
                   ),
@@ -321,7 +514,8 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
             children: [
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -412,7 +606,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
       await SellerService.deleteProduct(product.id);
       setState(() {
         _allProducts.removeWhere((p) => p.id == product.id);
-        _applyFilter();
+        _applyFiltersAndSort();
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -422,9 +616,19 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting product: $e')),
+          SnackBar(
+            content: Text('Error deleting product: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchDebounceTimer?.cancel();
+    super.dispose();
   }
 }

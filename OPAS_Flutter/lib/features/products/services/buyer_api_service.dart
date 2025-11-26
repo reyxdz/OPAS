@@ -456,7 +456,60 @@ class BuyerApiService {
     }
   }
 
+  /// Get products with advanced filtering and pagination
+  /// Params: page, limit, category, min_price, max_price, search, ordering, in_stock
+  static Future<Map<String, dynamic>> getProductsPaginated(
+      Map<String, dynamic> params) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access') ?? '';
+
+      // Convert params to string map for URI
+      final Map<String, String> queryParams = {};
+      params.forEach((key, value) {
+        if (value != null) {
+          queryParams[key] = value.toString();
+        }
+      });
+
+      final uri = Uri.parse('$baseUrl/products/').replace(
+        queryParameters: queryParams,
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        
+        // Parse products list
+        final List<dynamic> results = data['results'] ?? [];
+        final products = results.map((json) {
+          return Product.fromJson(json as Map<String, dynamic>);
+        }).toList();
+
+        return {
+          'count': data['count'] ?? 0,
+          'next': data['next'],
+          'previous': data['previous'],
+          'results': products,
+        };
+      } else {
+        throw Exception(
+            'Failed to load products: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to load products: $e');
+    }
+  }
+
   /// Submit seller feedback
+
   static Future<SellerFeedback> submitSellerFeedback({
     required int orderId,
     required double rating,
