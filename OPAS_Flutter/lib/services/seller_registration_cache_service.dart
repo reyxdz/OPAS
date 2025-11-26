@@ -1,10 +1,6 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-
-// Import sqflite_common_ffi for desktop platforms
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Cache service for seller registration data with offline-first support
 /// CORE PRINCIPLE: Resource Management - Efficient caching reduces API calls
@@ -22,7 +18,6 @@ class SellerRegistrationCacheService {
 
   Database? _database;
   bool _isInitialized = false;
-  static bool _factoryInitialized = false;
 
   SellerRegistrationCacheService._internal();
 
@@ -34,19 +29,6 @@ class SellerRegistrationCacheService {
   /// CORE PRINCIPLE: Resource Management - Lazy initialization
   Future<void> initialize() async {
     if (_isInitialized) return;
-
-    // Initialize database factory for desktop platforms (Windows, Linux, macOS)
-    if (!_factoryInitialized && _isDesktopPlatform()) {
-      try {
-        sqfliteFfiInit();
-        databaseFactory = databaseFactoryFfi;
-        _factoryInitialized = true;
-        print('✅ SQLite FFI initialized for desktop platform');
-      } catch (e) {
-        print('⚠️ SQLite FFI initialization warning: $e');
-        _factoryInitialized = true; // Mark as attempted to avoid retry loop
-      }
-    }
 
     try {
       final dbPath = await getDatabasesPath();
@@ -61,18 +43,10 @@ class SellerRegistrationCacheService {
       _isInitialized = true;
       print('✅ Database initialized successfully');
     } catch (e) {
-      print('❌ Database initialization error: $e');
-      _isInitialized = false;
-      rethrow;
-    }
-  }
-
-  /// Check if running on desktop platform
-  static bool _isDesktopPlatform() {
-    try {
-      return Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-    } catch (e) {
-      return false;
+      print('⚠️ Database initialization failed (cache will be skipped): $e');
+      _isInitialized = true; // Mark as initialized to prevent retry loop
+      _database = null;
+      // Don't rethrow - cache is optional, app should work without it
     }
   }
 

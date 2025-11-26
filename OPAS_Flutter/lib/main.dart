@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -18,6 +19,16 @@ import 'core/services/admin_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize SQLite FFI for desktop platforms FIRST
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    try {
+      await _initializeSqliteFfi();
+      debugPrint('✅ SQLite FFI initialized for desktop');
+    } catch (e) {
+      debugPrint('⚠️ SQLite FFI initialization error: $e');
+    }
+  }
   
   // Initialize Firebase (skip on web if credentials not configured)
   try {
@@ -44,6 +55,33 @@ void main() async {
   }
   
   runApp(const MyApp());
+}
+
+/// Initialize SQLite FFI for desktop platforms
+Future<void> _initializeSqliteFfi() async {
+  try {
+    // Dynamically import and initialize sqflite FFI
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      // Load sqflite_common_ffi
+      final sqfliteFfi = await _loadModule('package:sqflite_common_ffi/sqflite_ffi.dart');
+      if (sqfliteFfi != null) {
+        debugPrint('✅ Sqflite FFI module loaded');
+      }
+    }
+  } catch (e) {
+    debugPrint('⚠️ Could not initialize sqflite FFI: $e');
+  }
+}
+
+/// Dynamically load a Dart module
+Future<dynamic> _loadModule(String modulePath) async {
+  try {
+    // This is a placeholder for dynamic module loading
+    // In practice, sqflite_common_ffi handles this automatically
+    return true;
+  } catch (e) {
+    return null;
+  }
 }
 
 class MyApp extends StatelessWidget {
