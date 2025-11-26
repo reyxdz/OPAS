@@ -14,7 +14,6 @@ class ProductListingScreen extends StatefulWidget {
 class _ProductListingScreenState extends State<ProductListingScreen> {
   late Future<List<SellerProduct>> _productsFuture;
   List<SellerProduct> _allProducts = [];
-  List<SellerProduct> _filteredProducts = [];
   String _filterStatus = 'ALL'; // ALL, ACTIVE, EXPIRED, PENDING
   String _sortOrder = 'newest'; // newest, price_asc, price_desc, stock_low
   bool _isLoading = false;
@@ -48,7 +47,6 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
       final products = await SellerService.getProducts();
       setState(() {
         _allProducts = products;
-        _applyFiltersAndSort();
         _isLoading = false;
       });
     } catch (e) {
@@ -66,8 +64,9 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
     }
   }
 
-  void _applyFiltersAndSort() {
-    List<SellerProduct> filtered = _allProducts;
+  // Pure function - no setState, safe to call from build
+  List<SellerProduct> _getFilteredAndSortedProducts(List<SellerProduct> allProducts) {
+    List<SellerProduct> filtered = allProducts;
 
     // Apply status filter
     if (_filterStatus == 'ALL') {
@@ -108,9 +107,12 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
         break;
     }
 
-    setState(() {
-      _filteredProducts = filtered;
-    });
+    return filtered;
+  }
+
+  void _applyFiltersAndSort() {
+    // Just trigger rebuild - filtering is now done in build method
+    setState(() {});
   }
 
   void _onFilterChanged(String newFilter) {
@@ -179,8 +181,10 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
 
               if (_allProducts.isEmpty && snapshot.hasData) {
                 _allProducts = snapshot.data ?? [];
-                _applyFiltersAndSort();
               }
+
+              // Use pure function to get filtered/sorted products
+              final displayProducts = _getFilteredAndSortedProducts(_allProducts);
 
               return RefreshIndicator(
                 onRefresh: _refreshProducts,
@@ -326,14 +330,14 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
                           ),
 
                           // Product count
-                          if (_filteredProducts.isNotEmpty)
+                          if (displayProducts.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12.0, vertical: 8),
                               child: Align(
                                 alignment: Alignment.centerLeft,
                                 child: Text(
-                                  '${_filteredProducts.length} product${_filteredProducts.length != 1 ? 's' : ''}',
+                                  '${displayProducts.length} product${displayProducts.length != 1 ? 's' : ''}',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ),
@@ -344,7 +348,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
                             child: _isLoading
                                 ? const Center(
                                     child: CircularProgressIndicator())
-                                : _filteredProducts.isEmpty
+                                : displayProducts.isEmpty
                                     ? Center(
                                         child: Text(
                                           'No $_filterStatus products',
@@ -357,10 +361,10 @@ class _ProductListingScreenState extends State<ProductListingScreen> {
                                         padding: const EdgeInsets.symmetric(
                                                 horizontal: 12, vertical: 8)
                                             .copyWith(bottom: 100),
-                                        itemCount: _filteredProducts.length,
+                                        itemCount: displayProducts.length,
                                         itemBuilder: (context, index) {
                                           final product =
-                                              _filteredProducts[index];
+                                              displayProducts[index];
                                           return _buildProductCard(
                                               context, product);
                                         },
