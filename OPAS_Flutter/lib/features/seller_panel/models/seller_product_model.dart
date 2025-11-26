@@ -37,13 +37,13 @@ class SellerProduct {
 
   factory SellerProduct.fromJson(Map<String, dynamic> json) {
     return SellerProduct(
-      id: json['id'] ?? 0,
-      sellerId: json['seller_id'] ?? 0,
+      id: _parseInt(json['id']),
+      sellerId: _parseInt(json['seller_id']),
       name: json['name'] ?? '',
       description: json['description'] ?? '',
       price: _parseDouble(json['price']),
       ceilingPrice: _parseDouble(json['ceiling_price']),
-      stockLevel: json['stock_level'] ?? 0,
+      stockLevel: _parseInt(json['stock_level']),
       status: json['status'] ?? 'PENDING',
       category: json['category'],
       images: _parseImages(json['images']),
@@ -59,6 +59,15 @@ class SellerProduct {
           ? DateTime.parse(json['expiry_date'])
           : null,
     );
+  }
+
+  /// Parse int from various formats (int, string, null)
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? 0;
+    if (value is double) return value.toInt();
+    return 0;
   }
 
   /// Parse double from various formats (num, string, null)

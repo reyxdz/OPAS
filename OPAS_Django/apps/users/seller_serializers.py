@@ -141,7 +141,7 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     NOTE: Images are NOT included in list view to avoid performance issues.
     Use SellerProductDetailSerializer for full product data including images.
     """
-    seller_id = serializers.CharField(source='seller.id', read_only=True)
+    seller_id = serializers.IntegerField(source='seller.id', read_only=True)
     seller_name = serializers.CharField(source='seller.full_name', read_only=True)
     category = serializers.CharField(source='product_type', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
