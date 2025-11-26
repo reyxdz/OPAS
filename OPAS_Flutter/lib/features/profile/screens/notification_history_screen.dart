@@ -73,12 +73,16 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
       
       final response = await ApiService.getUserStatus(accessToken: accessToken);
       
-      if (response != null && response['rejection_reason'] != null) {
+      if (response != null) {
         final rejectionReason = response['rejection_reason'];
         final status = response['application_status'];
         
-        if (status == 'REJECTED' && rejectionReason.isNotEmpty) {
-          debugPrint('🔄 Found pending rejection from server: $rejectionReason');
+        debugPrint('🔄 Sync check - Status: $status, Has rejection reason: ${rejectionReason != null && (rejectionReason as String).isNotEmpty}');
+        
+        // Sync rejection even if status is PENDING but rejection_reason exists
+        // This handles the case where user resubmits after rejection
+        if (rejectionReason != null && (rejectionReason as String).isNotEmpty) {
+          debugPrint('🔄 Found rejection reason from server: $rejectionReason');
           
           // Check if we already have this rejection in history
           final existing = await NotificationHistoryService.getAllNotifications();
@@ -103,6 +107,9 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
               },
             );
             await NotificationHistoryService.saveNotification(notification);
+            debugPrint('✅ Rejection notification saved to history');
+          } else {
+            debugPrint('ℹ️ Rejection already in history');
           }
         }
       }

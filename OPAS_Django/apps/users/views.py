@@ -82,7 +82,8 @@ class SellerApplicationView(APIView):
                 existing_app.status = 'PENDING'
                 existing_app.reviewed_at = None
                 existing_app.reviewed_by = None
-                existing_app.rejection_reason = None
+                # IMPORTANT: Keep rejection_reason for history tracking
+                # DO NOT clear it: existing_app.rejection_reason = None
                 existing_app.save()
                 
                 # Update user seller_status to PENDING
