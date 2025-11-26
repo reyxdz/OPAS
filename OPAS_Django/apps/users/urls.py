@@ -160,8 +160,8 @@ urlpatterns = [
     # FCM token for push notifications
     path('fcm-token/', FCMTokenView.as_view(), name='fcm-token'),
     
-    # Include seller router URLs
-    path('users/', include(seller_router.urls)),
+    # Include seller router URLs (without 'users/' prefix since it's already in core urls.py)
+    path('', include(seller_router.urls)),
     
     # Include buyer/marketplace router URLs
     path('', include(buyer_router.urls)),

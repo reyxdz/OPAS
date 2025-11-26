@@ -141,18 +141,19 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     NOTE: Images are NOT included in list view to avoid performance issues.
     Use SellerProductDetailSerializer for full product data including images.
     """
+    seller_id = serializers.CharField(source='seller.id', read_only=True)
     seller_name = serializers.CharField(source='seller.full_name', read_only=True)
+    category = serializers.CharField(source='product_type', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    is_active = serializers.SerializerMethodField(read_only=True)
-    is_low_stock = serializers.SerializerMethodField(read_only=True)
-    price_exceeds_ceiling = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SellerProduct
         fields = [
             'id',
+            'seller_id',
             'name',
-            'product_type',
+            'description',
+            'category',
             'price',
             'ceiling_price',
             'unit',
@@ -161,35 +162,24 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'quality_grade',
             'status',
             'status_display',
-            'is_active',
-            'is_low_stock',
-            'price_exceeds_ceiling',
             'listed_date',
             'expiry_date',
             'seller_name',
+            'image_url',
+            'images',
             'created_at',
             'updated_at',
         ]
         read_only_fields = [
             'id',
+            'seller_id',
             'listed_date',
             'created_at',
             'updated_at',
             'status_display',
             'seller_name',
+            'category',
         ]
-
-    def get_is_active(self, obj):
-        """Check if product is active"""
-        return obj.is_active
-
-    def get_is_low_stock(self, obj):
-        """Check if stock is low"""
-        return obj.is_low_stock
-
-    def get_price_exceeds_ceiling(self, obj):
-        """Check if price exceeds ceiling"""
-        return obj.price_exceeds_ceiling
 
 
 class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
