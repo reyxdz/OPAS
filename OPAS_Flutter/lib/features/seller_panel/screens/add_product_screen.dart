@@ -40,12 +40,24 @@ class _AddProductScreenState extends State<AddProductScreen> {
       
       // Load quality grade and migrate old values (A/B/C) to new values (PREMIUM/STANDARD/BASIC)
       String qualityGrade = prefs.getString('draft_product_quality') ?? 'STANDARD';
-      if (qualityGrade == 'A') {
-        qualityGrade = 'PREMIUM';
-      } else if (qualityGrade == 'B') {
+      
+      // Migrate old values
+      final qualityGradeMigration = {
+        'A': 'PREMIUM',
+        'B': 'STANDARD',
+        'C': 'BASIC',
+      };
+      
+      if (qualityGradeMigration.containsKey(qualityGrade)) {
+        qualityGrade = qualityGradeMigration[qualityGrade]!;
+        // Update stored value to new format
+        await prefs.setString('draft_product_quality', qualityGrade);
+      }
+      
+      // Ensure the value is valid
+      final validGrades = ['PREMIUM', 'STANDARD', 'BASIC'];
+      if (!validGrades.contains(qualityGrade)) {
         qualityGrade = 'STANDARD';
-      } else if (qualityGrade == 'C') {
-        qualityGrade = 'BASIC';
       }
       
       setState(() {
