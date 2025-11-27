@@ -3054,7 +3054,7 @@ class ProductApprovalViewSet(viewsets.ViewSet):
                 status=ProductStatus.PENDING
             ).select_related('seller').order_by('-created_at')
             
-            serializer = SellerProductListSerializer(products, many=True)
+            serializer = SellerProductListSerializer(products, many=True, context={'request': request})
             logger_instance = logging.getLogger(__name__)
             logger_instance.info(f'Retrieved {products.count()} pending products for: {request.user.email}')
             return Response({
@@ -3099,7 +3099,7 @@ class ProductApprovalViewSet(viewsets.ViewSet):
                 new_value=ProductStatus.ACTIVE
             )
             
-            serializer = SellerProductListSerializer(product)
+            serializer = SellerProductListSerializer(product, context={'request': request})
             logger_instance = logging.getLogger(__name__)
             logger_instance.info(f'Product {product.name} (ID: {pk}) approved by: {request.user.email}')
             
@@ -3157,7 +3157,7 @@ class ProductApprovalViewSet(viewsets.ViewSet):
                 new_value=ProductStatus.REJECTED
             )
             
-            serializer = SellerProductListSerializer(product)
+            serializer = SellerProductListSerializer(product, context={'request': request})
             logger_instance = logging.getLogger(__name__)
             logger_instance.info(f'Product {product.name} (ID: {pk}) rejected by: {request.user.email}. Reason: {reason}')
             

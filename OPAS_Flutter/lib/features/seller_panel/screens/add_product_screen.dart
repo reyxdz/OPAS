@@ -83,6 +83,32 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _selectedProductType =
             prefs.getString('draft_product_type') ?? 'VEGETABLE';
         _selectedUnit = prefs.getString('draft_product_unit') ?? 'kg';
+        
+        // Load category selections
+        final draftCategoryId = prefs.getInt('draft_product_category_id');
+        final draftTypeId = prefs.getInt('draft_product_type_id');
+        final draftSubtypeId = prefs.getInt('draft_product_subtype_id');
+        
+        if (draftCategoryId != null && _categories.isNotEmpty) {
+          _selectedCategory = _categories.firstWhere(
+            (c) => c.id == draftCategoryId,
+            orElse: () => _categories.first,
+          );
+        }
+        
+        if (draftTypeId != null && _selectedCategory?.children != null) {
+          _selectedType = _selectedCategory!.children!.firstWhere(
+            (c) => c.id == draftTypeId,
+            orElse: () => _selectedCategory!.children!.first,
+          );
+        }
+        
+        if (draftSubtypeId != null && _selectedType?.children != null) {
+          _selectedSubtype = _selectedType!.children!.firstWhere(
+            (c) => c.id == draftSubtypeId,
+            orElse: () => _selectedType!.children!.first,
+          );
+        }
       });
     } catch (e) {
       // Fail silently
@@ -99,6 +125,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.setString('draft_product_quantity', _quantityController.text);
       await prefs.setString('draft_product_type', _selectedProductType);
       await prefs.setString('draft_product_unit', _selectedUnit);
+      
+      // Save category selections
+      if (_selectedCategory != null) {
+        await prefs.setInt('draft_product_category_id', _selectedCategory!.id);
+      }
+      if (_selectedType != null) {
+        await prefs.setInt('draft_product_type_id', _selectedType!.id);
+      }
+      if (_selectedSubtype != null) {
+        await prefs.setInt('draft_product_subtype_id', _selectedSubtype!.id);
+      }
     } catch (e) {
       // Fail silently
     }
@@ -113,6 +150,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.remove('draft_product_quantity');
       await prefs.remove('draft_product_type');
       await prefs.remove('draft_product_unit');
+      await prefs.remove('draft_product_category_id');
+      await prefs.remove('draft_product_type_id');
+      await prefs.remove('draft_product_subtype_id');
     } catch (e) {
       // Fail silently
     }
@@ -126,6 +166,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
     setState(() {
       _selectedProductType = 'VEGETABLE';
       _selectedUnit = 'kg';
+      _selectedCategory = null;
+      _selectedType = null;
+      _selectedSubtype = null;
       _selectedImages.clear();
       _ceilingPrice = null;
       _priceExceedsCeiling = false;
@@ -143,6 +186,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.setString('draft_product_quantity', '');
       await prefs.setString('draft_product_type', 'VEGETABLE');
       await prefs.setString('draft_product_unit', 'kg');
+      await prefs.remove('draft_product_category_id');
+      await prefs.remove('draft_product_type_id');
+      await prefs.remove('draft_product_subtype_id');
     } catch (e) {
       // Fail silently
     }

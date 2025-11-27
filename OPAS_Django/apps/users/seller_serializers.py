@@ -180,6 +180,7 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     images = serializers.SerializerMethodField(read_only=True)
     primary_image = serializers.SerializerMethodField(read_only=True)
+    image_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SellerProduct
@@ -226,9 +227,14 @@ class SellerProductListSerializer(serializers.ModelSerializer):
         image_urls = []
         for img in images:
             if img.image:
-                url = img.image.url
+                relative_url = img.image.url
                 if request:
-                    url = request.build_absolute_uri(url)
+                    # Manually construct to avoid build_absolute_uri port issues
+                    scheme = request.scheme
+                    host = request.get_host()
+                    url = f'{scheme}://{host}{relative_url}'
+                else:
+                    url = relative_url
                 image_urls.append(url)
         return image_urls
 
@@ -238,14 +244,48 @@ class SellerProductListSerializer(serializers.ModelSerializer):
         primary = obj.product_images.filter(is_primary=True).first()
         if primary and primary.image:
             request = self.context.get('request')
-            url = primary.image.url
+            relative_url = primary.image.url
             if request:
-                url = request.build_absolute_uri(url)
+                # Manually construct to avoid build_absolute_uri port issues
+                scheme = request.scheme
+                host = request.get_host()
+                url = f'{scheme}://{host}{relative_url}'
+            else:
+                url = relative_url
             return {
                 'id': primary.id,
                 'image_url': url,
                 'is_primary': True,
             }
+        return None
+
+    def get_image_url(self, obj):
+        """Get primary product image URL for direct use in UI"""
+        from .seller_models import ProductImage
+        
+        # Try to get primary image first
+        primary = obj.product_images.filter(is_primary=True).first()
+        # If no primary, get the first image
+        if not primary:
+            primary = obj.product_images.first()
+        
+        if primary and primary.image:
+            request = self.context.get('request')
+            relative_url = primary.image.url
+            
+            if request:
+                try:
+                    # Manually construct the URL to avoid build_absolute_uri port issues
+                    scheme = request.scheme
+                    host = request.get_host()  # This includes port like "10.198.118.34:8000"
+                    absolute_url = f'{scheme}://{host}{relative_url}'
+                    return absolute_url
+                except Exception as e:
+                    # Fallback: return relative URL
+                    return relative_url
+            
+            # If no request context, return relative URL
+            return relative_url
         return None
 
 
