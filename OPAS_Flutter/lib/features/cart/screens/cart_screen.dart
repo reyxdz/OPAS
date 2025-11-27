@@ -21,8 +21,51 @@ class _CartScreenState extends State<CartScreen> {
 
   void _loadCart() {
     setState(() {
-      _cartFuture = BuyerApiService.getCart();
+      // _cartFuture = BuyerApiService.getCart();
+      // Use mock data for presentation
+      _cartFuture = Future.delayed(
+        const Duration(milliseconds: 500),
+        () => _generateMockCartItems(),
+      );
     });
+  }
+
+  List<CartItem> _generateMockCartItems() {
+    return [
+      CartItem(
+        id: 1,
+        productId: 101,
+        productName: 'Fresh Tomatoes',
+        quantity: 2,
+        pricePerKilo: 45.0,
+        unit: 'kg',
+        imageUrl: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=300&q=80',
+        sellerId: 1,
+        sellerName: 'Fresh Farm Co.',
+      ),
+      CartItem(
+        id: 2,
+        productId: 102,
+        productName: 'Organic Lettuce',
+        quantity: 1,
+        pricePerKilo: 60.0,
+        unit: 'kg',
+        imageUrl: 'https://images.unsplash.com/photo-1622206151226-18ca2c9ab4a1?auto=format&fit=crop&w=300&q=80',
+        sellerId: 1,
+        sellerName: 'Fresh Farm Co.',
+      ),
+      CartItem(
+        id: 3,
+        productId: 103,
+        productName: 'Yellow Mangoes',
+        quantity: 3,
+        pricePerKilo: 120.0,
+        unit: 'kg',
+        imageUrl: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=300&q=80',
+        sellerId: 2,
+        sellerName: 'Tropical Fruits Inc.',
+      ),
+    ];
   }
 
   Future<void> _updateQuantity(CartItem item, int newQuantity) async {
@@ -77,10 +120,6 @@ class _CartScreenState extends State<CartScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Shopping Cart'),
-        centerTitle: true,
-      ),
       body: FutureBuilder<List<CartItem>>(
         future: _cartFuture,
         builder: (context, snapshot) {
@@ -141,7 +180,7 @@ class _CartScreenState extends State<CartScreen> {
             children: [
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 200), // Extra bottom padding for floating summary
                   itemCount: cartItems.length,
                   itemBuilder: (context, index) {
                     final item = cartItems[index];
@@ -149,70 +188,47 @@ class _CartScreenState extends State<CartScreen> {
                   },
                 ),
               ),
-              // Cart Summary
+              // Floating Cart Summary
               Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 90), // Floating margin
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  border: Border(
-                    top: BorderSide(color: Colors.grey[300]!),
-                  ),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20), // Fully rounded
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Subtotal:',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          'Total',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[800],
+                          ),
                         ),
                         Text(
                           '₱${totalAmount.toStringAsFixed(2)}',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Delivery Fee:',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        Text(
-                          '₱0.00',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Total:',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          '₱${totalAmount.toStringAsFixed(2)}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                color: const Color(0xFF00B464),
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: const Color(0xFF00B464),
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
+                      height: 48,
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.push(
@@ -228,9 +244,18 @@ class _CartScreenState extends State<CartScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF00B464),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        child: const Text('Proceed to Checkout'),
+                        child: const Text(
+                          'Checkout',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -244,8 +269,19 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildCartItemCard(BuildContext context, CartItem item) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
@@ -253,104 +289,137 @@ class _CartScreenState extends State<CartScreen> {
           children: [
             // Product Image
             Container(
-              width: 80,
-              height: 80,
+              width: 90,
+              height: 90,
               decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+                image: item.imageUrl.isNotEmpty
+                    ? DecorationImage(
+                        image: NetworkImage(item.imageUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
-              child: item.imageUrl.isNotEmpty
-                  ? Image.network(
-                      item.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(
-                          Icons.image_not_supported,
-                          color: Colors.grey[400],
-                        );
-                      },
-                    )
-                  : Icon(
-                      Icons.image_not_supported,
-                      color: Colors.grey[400],
-                    ),
+              child: item.imageUrl.isEmpty
+                  ? Icon(Icons.image_not_supported, color: Colors.grey[400])
+                  : null,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
+            
             // Product Details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item.productName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.productName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item.sellerName,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _removeItem(item.id),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '₱${item.pricePerKilo.toStringAsFixed(2)}/${item.unit}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Subtotal: ₱${item.subtotal.toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  const SizedBox(height: 12),
+                  
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Price
+                      Text(
+                        '₱${item.pricePerKilo.toStringAsFixed(2)}/${item.unit}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: const Color(0xFF00B464),
                           fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      
+                      // Quantity Selector
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            _buildQuantityButton(
+                              icon: Icons.remove,
+                              onPressed: item.quantity > 1
+                                  ? () => _updateQuantity(item, item.quantity - 1)
+                                  : null,
+                            ),
+                            SizedBox(
+                              width: 32,
+                              child: Text(
+                                item.quantity.toString(),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            _buildQuantityButton(
+                              icon: Icons.add,
+                              onPressed: () => _updateQuantity(item, item.quantity + 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            // Quantity and Actions
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 80,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.remove),
-                        iconSize: 16,
-                        padding: EdgeInsets.zero,
-                        onPressed: item.quantity > 1
-                            ? () =>
-                                _updateQuantity(item, item.quantity - 1)
-                            : null,
-                      ),
-                      SizedBox(
-                        width: 30,
-                        child: Text(
-                          item.quantity.toString(),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add),
-                        iconSize: 16,
-                        padding: EdgeInsets.zero,
-                        onPressed: () =>
-                            _updateQuantity(item, item.quantity + 1),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: Colors.red, size: 18),
-                  padding: EdgeInsets.zero,
-                  onPressed: () => _removeItem(item.id),
-                ),
-              ],
-            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuantityButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            icon,
+            size: 16,
+            color: onPressed == null ? Colors.grey[400] : Colors.black87,
+          ),
         ),
       ),
     );

@@ -24,17 +24,96 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
   void _loadOrders() {
     setState(() {
-      _ordersFuture = BuyerApiService.getBuyerOrders();
+      // _ordersFuture = BuyerApiService.getBuyerOrders();
+      // Use mock data for presentation
+      _ordersFuture = Future.delayed(
+        const Duration(milliseconds: 500),
+        () => _generateMockOrders(),
+      );
     });
+  }
+
+  List<Order> _generateMockOrders() {
+    return [
+      Order(
+        id: 1,
+        orderNumber: 'ORD-2023-001',
+        items: [
+          OrderItem(
+            id: 1, productId: 101, productName: 'Fresh Tomatoes',
+            pricePerKilo: 45.0, quantity: 2, unit: 'kg', subtotal: 90.0,
+            imageUrl: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=300&q=80',
+          ),
+          OrderItem(
+            id: 2, productId: 102, productName: 'Organic Lettuce',
+            pricePerKilo: 60.0, quantity: 1, unit: 'kg', subtotal: 60.0,
+            imageUrl: 'https://images.unsplash.com/photo-1622206151226-18ca2c9ab4a1?auto=format&fit=crop&w=300&q=80',
+          ),
+          OrderItem(
+            id: 6, productId: 106, productName: 'Chicken Breast',
+            pricePerKilo: 180.0, quantity: 2, unit: 'kg', subtotal: 360.0,
+            imageUrl: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=300&q=80',
+          ),
+        ],
+        totalAmount: 510.0,
+        status: 'completed',
+        paymentMethod: 'cash_on_delivery',
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
+        deliveryAddress: '123 Main St, Baguio City',
+        buyerName: 'Juan Dela Cruz',
+        buyerPhone: '09123456789',
+      ),
+      Order(
+        id: 2,
+        orderNumber: 'ORD-2023-002',
+        items: [
+          OrderItem(
+            id: 5, productId: 105, productName: 'Yellow Mangoes',
+            pricePerKilo: 120.0, quantity: 3, unit: 'kg', subtotal: 360.0,
+            imageUrl: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=300&q=80',
+          ),
+        ],
+        totalAmount: 360.0,
+        status: 'pending',
+        paymentMethod: 'gcash',
+        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
+        deliveryAddress: '123 Main St, Baguio City',
+        buyerName: 'Juan Dela Cruz',
+        buyerPhone: '09123456789',
+      ),
+      Order(
+        id: 3,
+        orderNumber: 'ORD-2023-003',
+        items: [
+          OrderItem(
+            id: 3, productId: 103, productName: 'Red Onions',
+            pricePerKilo: 80.0, quantity: 1, unit: 'kg', subtotal: 80.0,
+            imageUrl: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=300&q=80',
+          ),
+          OrderItem(
+            id: 4, productId: 104, productName: 'Green Apples',
+            pricePerKilo: 50.0, quantity: 2, unit: 'kg', subtotal: 100.0,
+            imageUrl: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=300&q=80',
+          ),
+        ],
+        totalAmount: 180.0,
+        status: 'cancelled',
+        paymentMethod: 'cash_on_delivery',
+        createdAt: DateTime.now().subtract(const Duration(days: 10)),
+        deliveryAddress: '123 Main St, Baguio City',
+        buyerName: 'Juan Dela Cruz',
+        buyerPhone: '09123456789',
+      ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Order History'),
-        centerTitle: true,
-      ),
+      // appBar: AppBar(
+      //   title: const Text('Order History'),
+      //   centerTitle: true,
+      // ),
       body: Column(
         children: [
           // Filter Chips
@@ -151,80 +230,144 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
           ),
         );
       },
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header: Order # and Status
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    order.orderNumber,
-                    style: Theme.of(context).textTheme.titleSmall,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.orderNumber,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${order.createdAt.year}-${order.createdAt.month.toString().padLeft(2, '0')}-${order.createdAt.day.toString().padLeft(2, '0')}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 12,
+                      vertical: 6,
                     ),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(statusIcon, size: 14, color: statusColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          order.status.toUpperCase(),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                color: statusColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                      ],
+                    child: Text(
+                      order.status.toUpperCase(),
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Divider(),
+              ),
+              
+              // Product Images Preview
+              SizedBox(
+                height: 60,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: order.items.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final item = order.items[index];
+                    return Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        image: item.imageUrl.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(item.imageUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: item.imageUrl.isEmpty
+                          ? Icon(Icons.image, color: Colors.grey[400], size: 20)
+                          : null,
+                    );
+                  },
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Footer: Total and Action
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Text(
-                      '${order.items.length} items',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: Colors.grey[600]),
-                    ),
-                  ),
-                  Text(
-                    '₱${order.totalAmount.toStringAsFixed(2)}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total Amount',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        '₱${order.totalAmount.toStringAsFixed(2)}',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: const Color(0xFF00B464),
                           fontWeight: FontWeight.bold,
                         ),
+                      ),
+                    ],
+                  ),
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => OrderDetailScreen(order: order),
+                        ),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF00B464),
+                      side: const BorderSide(color: Color(0xFF00B464)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('View Details'),
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Ordered on ${order.createdAt.year}-${order.createdAt.month.toString().padLeft(2, '0')}-${order.createdAt.day.toString().padLeft(2, '0')}',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.grey[600]),
               ),
             ],
           ),

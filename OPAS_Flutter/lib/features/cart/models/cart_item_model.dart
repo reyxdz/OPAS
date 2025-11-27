@@ -6,6 +6,8 @@ class CartItem {
   int quantity;
   final String unit;
   final String imageUrl;
+  final int sellerId;
+  final String sellerName;
 
   CartItem({
     required this.id,
@@ -15,6 +17,8 @@ class CartItem {
     required this.quantity,
     required this.unit,
     required this.imageUrl,
+    this.sellerId = 0,
+    this.sellerName = 'Unknown Seller',
   });
 
   double get subtotal => pricePerKilo * quantity;
@@ -28,6 +32,8 @@ class CartItem {
       quantity: json['quantity'] ?? 1,
       unit: json['unit'] ?? 'kg',
       imageUrl: json['image_url'] ?? '',
+      sellerId: json['seller_id'] ?? 0,
+      sellerName: json['seller_name'] ?? 'Unknown Seller',
     );
   }
 
@@ -39,5 +45,7 @@ class CartItem {
     'quantity': quantity,
     'unit': unit,
     'image_url': imageUrl,
+    'seller_id': sellerId,
+    'seller_name': sellerName,
   };
 }

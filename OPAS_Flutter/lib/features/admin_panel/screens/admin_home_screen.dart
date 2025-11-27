@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'pending_seller_approvals_screen.dart';
+import 'pending_product_approvals_screen.dart';
 import '../../../core/services/admin_service.dart';
 import '../../../core/utils/admin_permissions.dart';
 
@@ -330,6 +331,24 @@ class _UserManagementTab extends StatelessWidget {
               Icons.pending_actions,
               Colors.orange,
               loadingPendingCount ? 'Loading...' : '$pendingApprovalCount pending',
+            ),
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PendingProductApprovalsScreen(),
+                ),
+              );
+            },
+            child: _buildManagementSection(
+              context,
+              'Pending Product Approvals',
+              Icons.inventory_2,
+              Colors.purple,
+              'Review products',
             ),
           ),
           const SizedBox(height: 12),

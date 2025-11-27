@@ -147,7 +147,23 @@ class SellerService {
     if (response.statusCode == 201) {
       return SellerProduct.fromJson(jsonDecode(response.body));
     }
-    throw Exception('Failed to create product: ${response.statusCode}');
+
+    // Try to include server error details in the thrown exception to aid debugging
+    String body = response.body;
+    String message = 'Failed to create product: ${response.statusCode}';
+    try {
+      final parsed = jsonDecode(body);
+      if (parsed is Map && parsed.isNotEmpty) {
+        message = '$message - ${parsed.toString()}';
+      } else if (parsed is List && parsed.isNotEmpty) {
+        message = '$message - ${parsed.take(3).toList().toString()}';
+      }
+    } catch (_) {
+      // keep raw body on failure to parse
+      if (body.trim().isNotEmpty) message = '$message - $body';
+    }
+
+    throw Exception(message);
   }
 
   /// GET /api/seller/products/{id}/ - Get specific product
@@ -165,7 +181,22 @@ class SellerService {
     if (response.statusCode == 200) {
       return SellerProduct.fromJson(jsonDecode(response.body));
     }
-    throw Exception('Failed to update product: ${response.statusCode}');
+
+    // Expose server response when update fails to make debugging easier
+    String body = response.body;
+    String message = 'Failed to update product: ${response.statusCode}';
+    try {
+      final parsed = jsonDecode(body);
+      if (parsed is Map && parsed.isNotEmpty) {
+        message = '$message - ${parsed.toString()}';
+      } else if (parsed is List && parsed.isNotEmpty) {
+        message = '$message - ${parsed.take(3).toList().toString()}';
+      }
+    } catch (_) {
+      if (body.trim().isNotEmpty) message = '$message - $body';
+    }
+
+    throw Exception(message);
   }
 
   /// DELETE /api/seller/products/{id}/ - Delete product
@@ -203,6 +234,16 @@ class SellerService {
       return jsonDecode(response.body);
     }
     throw Exception('Failed to check ceiling price: ${response.statusCode}');
+  }
+
+  /// GET /api/seller/products/get_categories/ - Get product categories
+  static Future<List<Map<String, dynamic>>> getProductCategories() async {
+    final response = await _makeRequest('GET', '/users/seller/products/get_categories/');
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((c) => c as Map<String, dynamic>).toList();
+    }
+    throw Exception('Failed to fetch product categories: ${response.statusCode}');
   }
 
   /// POST /api/seller/products/check_stock_availability/ - Check stock availability

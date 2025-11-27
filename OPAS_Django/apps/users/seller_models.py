@@ -23,6 +23,60 @@ class ProductStatus(models.TextChoices):
     REJECTED = 'REJECTED', 'Rejected'
 
 
+class ProductCategory(models.Model):
+    """Hierarchical category/type/subtype node for seller products.
+
+    This supports a flexible taxonomy (category -> type -> subtype) using a
+    self-referential parent link. Admins manage category nodes; sellers will
+    assign products to one node.
+    """
+    slug = models.SlugField(max_length=120, unique=True, help_text='Canonical slug (e.g., TOMATO)')
+    name = models.CharField(max_length=255, help_text='Human-friendly name')
+    parent = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='children'
+    )
+    description = models.TextField(blank=True, null=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'product_categories'
+        verbose_name = 'Product Category'
+        verbose_name_plural = 'Product Categories'
+        indexes = [models.Index(fields=['slug'])]
+
+    def __str__(self):
+        return self.name
+
+
+class CategoryPriceCeiling(models.Model):
+    """Admin-managed category-level price ceiling attached to a ProductCategory node.
+
+    This model is separate from the per-product PriceCeiling (admin_models.PriceCeiling)
+    which is one-to-one with a SellerProduct. CategoryPriceCeiling applies ceilings at
+    the taxonomy level (category / type / subtype) and will be used for category-wide
+    enforcement or lookups.
+    """
+    category = models.ForeignKey(ProductCategory, on_delete=models.CASCADE, related_name='category_price_ceilings')
+    ceiling_price = models.DecimalField(max_digits=10, decimal_places=2)
+    active = models.BooleanField(default=True)
+    start_date = models.DateTimeField(null=True, blank=True)
+    end_date = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='ceilings_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'category_price_ceilings'
+        verbose_name = 'Category Price Ceiling'
+        verbose_name_plural = 'Category Price Ceilings'
+        indexes = [models.Index(fields=['category', 'active'])]
+
+    def __str__(self):
+        return f"{self.category.slug} — {self.ceiling_price}"
+
+
 class SellerProductQuerySet(models.QuerySet):
     """Custom QuerySet for SellerProduct model"""
     
@@ -124,6 +178,16 @@ class SellerProduct(models.Model):
         max_length=100,
         help_text='Category or type of product (e.g., vegetables, fruits)'
     )
+
+    # New: link each SellerProduct to a canonical ProductCategory node
+    category = models.ForeignKey(
+        'ProductCategory',
+        on_delete=models.SET_NULL,
+        related_name='products',
+        blank=True,
+        null=True,
+        help_text='Canonical category/type/subtype node for the product (admin-managed)'
+    )
     
     # ==================== PRICING ====================
     price = models.DecimalField(
@@ -210,6 +274,16 @@ class SellerProduct(models.Model):
         null=True,
         help_text='When the product listing expires'
     )
+    # Store the previous status before the product was expired so reactivation
+    # can restore the prior state (e.g., ACTIVE/PENDING) rather than guessing.
+    previous_status = models.CharField(
+        max_length=20,
+        choices=ProductStatus.choices,
+        blank=True,
+        null=True,
+        help_text='Previous status of the product before it was set to EXPIRED',
+    )
+
     
     # ==================== TIMESTAMPS ====================
     created_at = models.DateTimeField(

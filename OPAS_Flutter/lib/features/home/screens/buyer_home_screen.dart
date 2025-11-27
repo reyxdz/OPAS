@@ -136,6 +136,15 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
 
   /// Generate mock products for demo
   List<Product> _generateMockProducts(int count) {
+    final List<String> images = [
+      'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=300&q=80', // Tomatoes
+      'https://images.unsplash.com/photo-1622206151226-18ca2c9ab4a1?auto=format&fit=crop&w=300&q=80', // Lettuce
+      'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=300&q=80', // Onions
+      'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=300&q=80', // Apples
+      'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=300&q=80', // Mangoes
+      'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=300&q=80', // Chicken
+    ];
+
     return List.generate(count, (index) => Product(
       id: index + 1,
       name: ['Fresh Tomatoes', 'Organic Lettuce', 'Red Onions', 'Green Apples', 'Yellow Mangoes', 'Chicken Breast'][index],
@@ -145,7 +154,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
       opasRegulatedPrice: 75.0,
       stock: 100 - (index * 5),
       unit: 'kg',
-      imageUrl: '',
+      imageUrl: images[index % images.length],
       sellerId: index + 1,
       sellerName: 'Fresh Farm Co. #${index + 1}',
       sellerRating: 4.5 + (index * 0.1),
@@ -563,8 +572,16 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                   topLeft: Radius.circular(12),
                   topRight: Radius.circular(12),
                 ),
+                image: product.imageUrl.isNotEmpty
+                    ? DecorationImage(
+                        image: NetworkImage(product.imageUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
-              child: Icon(Icons.image, size: 40, color: Colors.grey[400]),
+              child: product.imageUrl.isEmpty
+                  ? Icon(Icons.image, size: 40, color: Colors.grey[400])
+                  : null,
             ),
             // Product Details
             Expanded(

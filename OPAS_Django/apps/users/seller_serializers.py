@@ -21,12 +21,46 @@ from .models import User, UserRole, SellerStatus
 from .seller_models import (
     SellerProduct, SellerOrder, SellToOPAS, 
     SellerPayout, SellerForecast, ProductStatus, OrderStatus, ProductImage,
-    Notification, Announcement, SellerAnnouncementRead
+    Notification, Announcement, SellerAnnouncementRead, ProductCategory
 )
 from .admin_models import (
     SellerRegistrationRequest, SellerDocumentVerification,
     SellerApprovalHistory, DocumentVerificationStatus, SellerRegistrationStatus
 )
+
+
+# ==================== PRODUCT CATEGORY SERIALIZERS (2) ====================
+
+class ProductCategorySerializer(serializers.ModelSerializer):
+    """
+    Basic serializer for product categories.
+    Returns flat category data with parent_id for building hierarchical structure.
+    """
+    parent_id = serializers.IntegerField(source='parent.id', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = ProductCategory
+        fields = ['id', 'slug', 'name', 'parent_id', 'description', 'active']
+        read_only_fields = ['id', 'slug', 'parent_id']
+
+
+class ProductCategoryTreeSerializer(serializers.ModelSerializer):
+    """
+    Hierarchical serializer for product categories.
+    Returns nested category structure with children.
+    Used for cascading dropdowns (Category → Type → Subtype).
+    """
+    children = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ProductCategory
+        fields = ['id', 'slug', 'name', 'description', 'active', 'children']
+        read_only_fields = ['id', 'slug']
+    
+    def get_children(self, obj):
+        """Get child categories recursively"""
+        children = obj.children.filter(active=True)
+        return ProductCategoryTreeSerializer(children, many=True).data
 
 
 # ==================== SELLER PROFILE SERIALIZERS (1) ====================
@@ -162,6 +196,7 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'minimum_stock',
             'quality_grade',
             'status',
+            'previous_status',
             'status_display',
             'listed_date',
             'expiry_date',
@@ -263,6 +298,7 @@ class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
             'description': {'required': False, 'allow_blank': True},
             'quality_grade': {'required': False},
             'expiry_date': {'required': False, 'allow_null': True},
+            'previous_status': {'required': False, 'allow_null': True},
         }
 
     def validate_price(self, value):
@@ -276,6 +312,20 @@ class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
         if value < 0:
             raise serializers.ValidationError("Stock level cannot be negative")
         return value
+    
+    def validate_status(self, value):
+        """Prevent sellers from setting status to ACTIVE - only admins can approve"""
+        request = self.context.get('request')
+        if request and request.user:
+            # Only allow sellers to set INACTIVE status (to delist their own products)
+            # PENDING is set automatically on creation
+            # ACTIVE and REJECTED can only be set by admins
+            if value in [ProductStatus.ACTIVE, ProductStatus.REJECTED]:
+                if not request.user.is_staff:
+                    raise serializers.ValidationError(
+                        "Only OPAS administrators can approve or reject products"
+                    )
+        return value
 
     def validate(self, data):
         """Validate product data"""
@@ -288,10 +338,36 @@ class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        """Create product with current seller"""
+        """Create product with current seller and PENDING status"""
         request = self.context.get('request')
         validated_data['seller'] = request.user
+        
+        # Force status to PENDING for new products (sellers cannot create pre-approved products)
+        if 'status' not in validated_data or not request.user.is_staff:
+            validated_data['status'] = ProductStatus.PENDING
+            
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        """When marking a product EXPIRED, record the previous status automatically
+        (unless provided). When changing status away from EXPIRED, clear previous_status.
+        """
+        try:
+            # If updating to EXPIRED and previous_status not provided, persist current status
+            new_status = validated_data.get('status', None)
+            if new_status == 'EXPIRED':
+                if 'previous_status' not in validated_data or not validated_data.get('previous_status'):
+                    validated_data['previous_status'] = instance.status
+
+            # If changing status away from EXPIRED, clear previous_status
+            if instance.status == 'EXPIRED' and new_status and new_status != 'EXPIRED':
+                validated_data['previous_status'] = None
+
+        except Exception:
+            # on any unexpected issue, continue with default update
+            pass
+
+        return super().update(instance, validated_data)
 
 
 # ==================== ORDER SERIALIZERS (1) ====================

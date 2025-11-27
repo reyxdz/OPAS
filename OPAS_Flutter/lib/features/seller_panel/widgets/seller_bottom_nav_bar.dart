@@ -16,8 +16,12 @@ class SellerBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Positioned(
       bottom: 25,
-      left: 60, // Matching buyer's left positioning
-      right: 60, // Matching buyer's right positioning
+      // Use 30px side inset so the nav bar lines up visually with the
+      // FloatingActionButton in `seller_home_screen.dart` (which uses
+      // right: 30). This keeps the floating add button visually aligned
+      // with the right edge of the nav card.
+      left: 30,
+      right: 30,
       child: Container(
         height: 60,
         decoration: BoxDecoration(

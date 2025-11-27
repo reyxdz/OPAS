@@ -3022,7 +3022,168 @@ class AdminPriceMonitoringViewSet(viewsets.ViewSet):
             )
 
 
+
+
 import logging
+
+
+# ==================== PRODUCT APPROVAL VIEWSET ====================
+
+class ProductApprovalViewSet(viewsets.ViewSet):
+    """
+    ViewSet for admin product approval operations.
+    
+    Handles product approval workflow for seller listings.
+    Returns pending product listings awaiting admin approval.
+    
+    Endpoints:
+    - GET /api/admin/products/pending/ - List pending products
+    - POST /api/admin/products/{id}/approve/ - Approve product
+    - POST /api/admin/products/{id}/reject/ - Reject product
+    """
+    permission_classes = [IsAuthenticated, IsAdmin]
+    throttle_classes = [AdminReadThrottle, AdminWriteThrottle]
+
+    @action(detail=False, methods=['get'])
+    def pending(self, request):
+        """Get all products pending approval"""
+        try:
+            from .seller_serializers import SellerProductListSerializer
+            
+            products = SellerProduct.objects.filter(
+                status=ProductStatus.PENDING
+            ).select_related('seller').order_by('-created_at')
+            
+            serializer = SellerProductListSerializer(products, many=True)
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.info(f'Retrieved {products.count()} pending products for: {request.user.email}')
+            return Response({
+                'count': products.count(),
+                'results': serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error retrieving pending products: {str(e)}')
+            return Response(
+                {'error': 'Failed to retrieve pending products'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Approve a pending product"""
+        try:
+            from .seller_serializers import SellerProductListSerializer
+            
+            product = SellerProduct.objects.get(id=pk)
+            
+            if product.status == ProductStatus.ACTIVE:
+                return Response(
+                    {'message': 'Product is already approved'},
+                    status=status.HTTP_200_OK
+                )
+            
+            # Approve product
+            product.status = ProductStatus.ACTIVE
+            product.save()
+            
+            # Create audit log
+            admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+            AdminAuditLog.objects.create(
+                admin=admin_user,
+                action_type='Product Approval',
+                action_category='PRODUCT_APPROVAL',
+                affected_seller=product.seller,
+                description=f'Approved product "{product.name}" (ID: {pk})',
+                new_value=ProductStatus.ACTIVE
+            )
+            
+            serializer = SellerProductListSerializer(product)
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.info(f'Product {product.name} (ID: {pk}) approved by: {request.user.email}')
+            
+            return Response(
+                {
+                    'message': f'Product "{product.name}" approved successfully',
+                    'product': serializer.data,
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        except SellerProduct.DoesNotExist:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.warning(f'Product with ID {pk} not found')
+            return Response(
+                {'error': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error approving product: {str(e)}')
+            return Response(
+                {'error': 'Failed to approve product'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Reject a pending product"""
+        try:
+            from .seller_serializers import SellerProductListSerializer
+            
+            product = SellerProduct.objects.get(id=pk)
+            
+            if product.status == ProductStatus.REJECTED:
+                return Response(
+                    {'message': 'Product is already rejected'},
+                    status=status.HTTP_200_OK
+                )
+            
+            reason = request.data.get('reason', '')
+            
+            # Reject product
+            product.status = ProductStatus.REJECTED
+            product.save()
+            
+            # Create audit log
+            admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+            AdminAuditLog.objects.create(
+                admin=admin_user,
+                action_type='Product Rejection',
+                action_category='PRODUCT_APPROVAL',
+                affected_seller=product.seller,
+                description=f'Rejected product "{product.name}" (ID: {pk}). Reason: {reason}',
+                new_value=ProductStatus.REJECTED
+            )
+            
+            serializer = SellerProductListSerializer(product)
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.info(f'Product {product.name} (ID: {pk}) rejected by: {request.user.email}. Reason: {reason}')
+            
+            return Response(
+                {
+                    'message': f'Product "{product.name}" rejected successfully',
+                    'product': serializer.data,
+                    'reason': reason,
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        except SellerProduct.DoesNotExist:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.warning(f'Product with ID {pk} not found')
+            return Response(
+                {'error': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error rejecting product: {str(e)}')
+            return Response(
+                {'error': 'Failed to reject product'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 __all__ = [
@@ -3036,4 +3197,5 @@ __all__ = [
     'DashboardViewSet',
     'AdminMarketplaceViewSet',
     'AdminPriceMonitoringViewSet',
+    'ProductApprovalViewSet',
 ]

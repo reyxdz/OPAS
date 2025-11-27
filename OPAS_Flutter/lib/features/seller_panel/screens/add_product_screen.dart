@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/seller_service.dart';
+import '../models/product_category_model.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -20,45 +21,58 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final ImagePicker _imagePicker = ImagePicker();
 
   String _selectedProductType = 'VEGETABLE';
-  String _selectedQualityGrade = 'STANDARD';
   String _selectedUnit = 'kg';
   final List<File> _selectedImages = [];
   double? _ceilingPrice;
   bool _isLoading = false;
   bool _priceExceedsCeiling = false;
+  bool _productCreatedSuccessfully = false;
+
+  // Category dropdown state
+  List<ProductCategory> _categories = [];
+  ProductCategory? _selectedCategory;
+  ProductCategory? _selectedType;
+  ProductCategory? _selectedSubtype;
+  bool _categoriesLoading = true;
 
   @override
   void initState() {
     super.initState();
     _priceController.addListener(_checkCeilingPrice);
+    _loadCategories();
     _loadFormDraft();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categoriesData = await SellerService.getProductCategories();
+      setState(() {
+        _categories = categoriesData
+            .map((data) => ProductCategory.fromJson(data))
+            .toList();
+        _categoriesLoading = false;
+      });
+      print('Categories loaded: ${_categories.length}');
+    } catch (e) {
+      print('Error loading categories: $e');
+      setState(() {
+        _categoriesLoading = false;
+      });
+      // Show error to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load categories: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadFormDraft() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      // Load quality grade and migrate old values (A/B/C) to new values (PREMIUM/STANDARD/BASIC)
-      String qualityGrade = prefs.getString('draft_product_quality') ?? 'STANDARD';
-      
-      // Migrate old values
-      final qualityGradeMigration = {
-        'A': 'PREMIUM',
-        'B': 'STANDARD',
-        'C': 'BASIC',
-      };
-      
-      if (qualityGradeMigration.containsKey(qualityGrade)) {
-        qualityGrade = qualityGradeMigration[qualityGrade]!;
-        // Update stored value to new format
-        await prefs.setString('draft_product_quality', qualityGrade);
-      }
-      
-      // Ensure the value is valid
-      final validGrades = ['PREMIUM', 'STANDARD', 'BASIC'];
-      if (!validGrades.contains(qualityGrade)) {
-        qualityGrade = 'STANDARD';
-      }
       
       setState(() {
         _nameController.text = prefs.getString('draft_product_name') ?? '';
@@ -68,7 +82,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _quantityController.text = prefs.getString('draft_product_quantity') ?? '';
         _selectedProductType =
             prefs.getString('draft_product_type') ?? 'VEGETABLE';
-        _selectedQualityGrade = qualityGrade;
         _selectedUnit = prefs.getString('draft_product_unit') ?? 'kg';
       });
     } catch (e) {
@@ -85,7 +98,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.setString('draft_product_price', _priceController.text);
       await prefs.setString('draft_product_quantity', _quantityController.text);
       await prefs.setString('draft_product_type', _selectedProductType);
-      await prefs.setString('draft_product_quality', _selectedQualityGrade);
       await prefs.setString('draft_product_unit', _selectedUnit);
     } catch (e) {
       // Fail silently
@@ -100,8 +112,37 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.remove('draft_product_price');
       await prefs.remove('draft_product_quantity');
       await prefs.remove('draft_product_type');
-      await prefs.remove('draft_product_quality');
       await prefs.remove('draft_product_unit');
+    } catch (e) {
+      // Fail silently
+    }
+  }
+
+  void _resetForm() {
+    _nameController.clear();
+    _descriptionController.clear();
+    _priceController.clear();
+    _quantityController.clear();
+    setState(() {
+      _selectedProductType = 'VEGETABLE';
+      _selectedUnit = 'kg';
+      _selectedImages.clear();
+      _ceilingPrice = null;
+      _priceExceedsCeiling = false;
+    });
+    _formKey.currentState?.reset();
+    _saveClearedFormState();
+  }
+
+  Future<void> _saveClearedFormState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('draft_product_name', '');
+      await prefs.setString('draft_product_description', '');
+      await prefs.setString('draft_product_price', '');
+      await prefs.setString('draft_product_quantity', '');
+      await prefs.setString('draft_product_type', 'VEGETABLE');
+      await prefs.setString('draft_product_unit', 'kg');
     } catch (e) {
       // Fail silently
     }
@@ -113,7 +154,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _descriptionController.dispose();
     _priceController.dispose();
     _quantityController.dispose();
-    _saveFormDraft();
+    // Only save draft if product was NOT created successfully
+    if (!_productCreatedSuccessfully) {
+      _saveFormDraft();
+    }
     super.dispose();
   }
 
@@ -243,11 +287,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
     });
 
     try {
+      // Determine the most specific category selected
+      final categoryId = _selectedSubtype?.id ?? _selectedType?.id ?? _selectedCategory?.id;
+      
       final productData = {
         'name': name,
         'description': _descriptionController.text,
         'product_type': _selectedProductType,
-        'quality_grade': _selectedQualityGrade,
+        if (categoryId != null) 'category': categoryId,
         'price': double.parse(_priceController.text),
         'stock_level': int.parse(_quantityController.text),
         'unit': _selectedUnit,
@@ -279,24 +326,121 @@ class _AddProductScreenState extends State<AddProductScreen> {
       }
 
       await _clearFormDraft();
+      _resetForm();
+      
+      // Save cleared state to ensure it doesn't reload on next init
+      await _saveClearedFormState();
+      
+      // Mark product as successfully created
+      _productCreatedSuccessfully = true;
 
       if (mounted) {
         showDialog(
           context: context,
           barrierDismissible: false,
           builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text('Success! ✓'),
-              content: Text('${product.name} has been created successfully!'),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.pop(context, product);
-                  },
-                  child: const Text('Done'),
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Success Icon with Animation
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00B464).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(40),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.check_circle_outline,
+                          color: Color(0xFF00B464),
+                          size: 48,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // Success Title
+                    const Text(
+                      'Product Created!',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                        letterSpacing: 0.3,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Product Name
+                    Text(
+                      product.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF00B464),
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Success Message
+                    const Text(
+                      'Your product has been successfully added to your inventory.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.black54,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 28),
+                    
+                    // Done Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          // Return true to indicate product was successfully created
+                          Navigator.pop(context, true);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00B464),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Continue',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             );
           },
         );
@@ -328,6 +472,67 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
   }
 
+  InputDecoration _buildInputDecoration(String hintText, {bool hasError = false}) {
+    return InputDecoration(
+      hintText: hintText,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: hasError ? Colors.red.withOpacity(0.3) : Colors.grey.withOpacity(0.1),
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: hasError ? Colors.red.withOpacity(0.3) : Colors.grey.withOpacity(0.1),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: hasError ? Colors.red : const Color(0xFF00B464),
+          width: 2,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({required String title, required List<Widget> children}) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF00B464),
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -337,11 +542,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
         elevation: 0,
         centerTitle: true,
         title: const Text(
-          'Add Product',
+          'Add New Product',
           style: TextStyle(
             color: Colors.black,
             fontSize: 18,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
           ),
         ),
         leading: IconButton(
@@ -350,544 +556,550 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product Name
-              Text(
-                'Product Name (3-100 characters)',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-              ),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _nameController,
-                maxLength: 100,
-                decoration: InputDecoration(
-                  hintText: 'e.g., Fresh Tomatoes',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF00B464), width: 2),
-                  ),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Product name is required';
-                  }
-                  if (value.length < 3) {
-                    return 'Minimum 3 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-
-              // Product Type
-              Text(
-                'Product Type',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-              ),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: _selectedProductType,
-                items: const [
-                  DropdownMenuItem(value: 'VEGETABLE', child: Text('Vegetable')),
-                  DropdownMenuItem(value: 'FRUIT', child: Text('Fruit')),
-                  DropdownMenuItem(value: 'GRAIN', child: Text('Grain')),
-                  DropdownMenuItem(value: 'POULTRY', child: Text('Poultry')),
-                  DropdownMenuItem(value: 'DAIRY', child: Text('Dairy')),
-                  DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedProductType = value;
-                    });
-                    _checkCeilingPrice();
-                  }
-                },
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF00B464), width: 2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Quality Grade
-              Text(
-                'Quality Grade',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-              ),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: _selectedQualityGrade,
-                items: const [
-                  DropdownMenuItem(value: 'PREMIUM', child: Text('Premium')),
-                  DropdownMenuItem(value: 'STANDARD', child: Text('Standard')),
-                  DropdownMenuItem(value: 'BASIC', child: Text('Basic')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedQualityGrade = value;
-                    });
-                  }
-                },
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF00B464), width: 2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Description
-              Text(
-                'Description',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-              ),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: InputDecoration(
-                  hintText: 'Describe your product...',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF00B464), width: 2),
-                  ),
-                ),
-                maxLines: 4,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Description is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-
-              // Price & Ceiling
-              Row(
+              // Basic Information Card
+              _buildSectionCard(
+                title: 'BASIC INFORMATION',
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Price (₱)',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Product Name',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
                         ),
-                        const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _priceController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: '0.00',
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: _priceExceedsCeiling
-                                    ? Colors.red
-                                    : Colors.grey.withOpacity(0.2),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: _priceExceedsCeiling
-                                    ? Colors.red
-                                    : Colors.grey.withOpacity(0.2),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: _priceExceedsCeiling
-                                    ? Colors.red
-                                    : const Color(0xFF00B464),
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Price is required';
-                            }
-                            if (double.tryParse(value) == null) {
-                              return 'Invalid price';
-                            }
-                            if (double.parse(value) <= 0) {
-                              return 'Must be > 0';
-                            }
-                            return null;
-                          },
-                        ),
-                        if (_priceExceedsCeiling && _ceilingPrice != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              '⚠ Exceeds ceiling: ₱${_ceilingPrice?.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  if (_ceilingPrice != null)
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Ceiling (₱)',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF00B464).withOpacity(0.1),
-                              border: Border.all(
-                                  color: const Color(0xFF00B464).withOpacity(0.3)),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              _ceilingPrice?.toStringAsFixed(2) ?? '-',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: Color(0xFF00B464),
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _nameController,
+                        maxLength: 100,
+                        decoration: _buildInputDecoration('e.g., Fresh Organic Tomatoes'),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Product name is required';
+                          }
+                          if (value.length < 3) {
+                            return 'Minimum 3 characters';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Description',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _descriptionController,
+                        decoration: _buildInputDecoration('Describe your product...'),
+                        maxLines: 4,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Description is required';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // Stock & Unit
-              Row(
+              // Product Details Card
+              _buildSectionCard(
+                title: 'PRODUCT DETAILS',
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Stock Level',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
+                  // Category Dropdown
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Category',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
                         ),
-                        const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _quantityController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            hintText: '0',
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                  color: Colors.grey.withOpacity(0.2)),
+                      ),
+                      const SizedBox(height: 8),
+                      _categoriesLoading
+                          ? const CircularProgressIndicator()
+                          : DropdownButtonFormField<ProductCategory>(
+                              value: _selectedCategory,
+                              hint: const Text('Select Category'),
+                              items: _categories.map((category) {
+                                return DropdownMenuItem(
+                                  value: category,
+                                  child: Text(category.name),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedCategory = value;
+                                  _selectedType = null;
+                                  _selectedSubtype = null;
+                                });
+                                _checkCeilingPrice();
+                              },
+                              decoration: _buildInputDecoration(''),
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                  color: Colors.grey.withOpacity(0.2)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(
-                                  color: Color(0xFF00B464), width: 2),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Stock is required';
-                            }
-                            if (int.tryParse(value) == null) {
-                              return 'Invalid';
-                            }
-                            if (int.parse(value) <= 0) {
-                              return 'Must be > 0';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
+                  const SizedBox(height: 16),
+                  
+                  // Type Dropdown (filtered by category)
+                  if (_selectedCategory != null && _selectedCategory!.hasChildren)
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Unit',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
+                        const Text(
+                          'Type',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        DropdownButtonFormField<String>(
-                          value: _selectedUnit,
-                          items: const [
-                            DropdownMenuItem(value: 'kg', child: Text('kg')),
-                            DropdownMenuItem(value: 'pcs', child: Text('pcs')),
-                            DropdownMenuItem(
-                                value: 'bundle', child: Text('bundle')),
-                            DropdownMenuItem(value: 'box', child: Text('box')),
-                            DropdownMenuItem(value: 'liter', child: Text('liter')),
-                          ],
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<ProductCategory>(
+                          value: _selectedType,
+                          hint: const Text('Select Type'),
+                          items: _selectedCategory!.children!.map((type) {
+                            return DropdownMenuItem(
+                              value: type,
+                              child: Text(type.name),
+                            );
+                          }).toList(),
                           onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _selectedUnit = value;
-                              });
-                            }
+                            setState(() {
+                              _selectedType = value;
+                              _selectedSubtype = null;
+                            });
+                            _checkCeilingPrice();
                           },
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                  color: Colors.grey.withOpacity(0.2)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                  color: Colors.grey.withOpacity(0.2)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(
-                                  color: Color(0xFF00B464), width: 2),
-                            ),
+                          decoration: _buildInputDecoration(''),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  
+                  // Subtype Dropdown (filtered by type)
+                  if (_selectedType != null && _selectedType!.hasChildren)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Subtype',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
                           ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<ProductCategory>(
+                          value: _selectedSubtype,
+                          hint: const Text('Select Subtype'),
+                          items: _selectedType!.children!.map((subtype) {
+                            return DropdownMenuItem(
+                              value: subtype,
+                              child: Text(subtype.name),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedSubtype = value;
+                            });
+                            _checkCeilingPrice();
+                          },
+                          decoration: _buildInputDecoration(''),
                         ),
                       ],
                     ),
-                  ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // Images
-              Text(
-                'Product Images (Max 5, JPG/PNG)',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              if (_selectedImages.isNotEmpty)
-                Column(
-                  children: [
-                    SizedBox(
-                      height: 100,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _selectedImages.length,
-                        itemBuilder: (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Stack(
+              // Pricing & Inventory Card
+              _buildSectionCard(
+                title: 'PRICING & INVENTORY',
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Price per Unit (₱)',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _priceController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: _buildInputDecoration('0.00', hasError: _priceExceedsCeiling),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Price is required';
+                          }
+                          if (double.tryParse(value) == null) {
+                            return 'Invalid price';
+                          }
+                          if (double.parse(value) <= 0) {
+                            return 'Must be greater than 0';
+                          }
+                          return null;
+                        },
+                      ),
+                      if (_priceExceedsCeiling && _ceilingPrice != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.05),
+                              border: Border.all(color: Colors.red.withOpacity(0.2)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
                               children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    _selectedImages[index],
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                if (index == 0)
-                                  Positioned(
-                                    bottom: 4,
-                                    left: 4,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.green,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      child: const Text(
-                                        'Primary',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 9,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                Positioned(
-                                  top: 4,
-                                  right: 4,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        _selectedImages.removeAt(index);
-                                      });
-                                    },
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.red,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.all(4),
-                                      child: const Icon(
-                                        Icons.close,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
+                                const Icon(Icons.warning_rounded, color: Colors.red, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Price exceeds ceiling limit of ₱${_ceilingPrice?.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
-                          );
-                        },
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (_ceilingPrice != null) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00B464).withOpacity(0.08),
+                        border: Border.all(color: const Color(0xFF00B464).withOpacity(0.2)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: const Color(0xFF00B464).withOpacity(0.7), size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Ceiling Price',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '₱${_ceilingPrice?.toStringAsFixed(2) ?? '-'}',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF00B464),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 12),
                   ],
-                ),
-              ElevatedButton.icon(
-                onPressed: _selectedImages.length < 5 ? _pickImages : null,
-                icon: const Icon(Icons.photo_library),
-                label: Text(
-                  _selectedImages.isEmpty
-                      ? 'Select Images'
-                      : 'Add More (${_selectedImages.length}/5)',
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  foregroundColor: const Color(0xFF00B464),
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: const BorderSide(color: Color(0xFF00B464), width: 2),
-                  ),
-                  elevation: 0,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Submit
-              ElevatedButton(
-                onPressed: _isLoading ? null : _submitForm,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00B464),
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Text(
-                        'Create Product',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Stock Level',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _quantityController,
+                              keyboardType: TextInputType.number,
+                              decoration: _buildInputDecoration('0'),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Required';
+                                }
+                                if (int.tryParse(value) == null) {
+                                  return 'Invalid';
+                                }
+                                if (int.parse(value) <= 0) {
+                                  return 'Must be > 0';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Unit',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: _selectedUnit,
+                              items: const [
+                                DropdownMenuItem(value: 'kg', child: Text('kg')),
+                                DropdownMenuItem(value: 'pcs', child: Text('pcs')),
+                                DropdownMenuItem(value: 'bundle', child: Text('bundle')),
+                                DropdownMenuItem(value: 'box', child: Text('box')),
+                                DropdownMenuItem(value: 'liter', child: Text('liter')),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() {
+                                    _selectedUnit = value;
+                                  });
+                                }
+                              },
+                              decoration: _buildInputDecoration(''),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              // Images Card
+              _buildSectionCard(
+                title: 'PRODUCT IMAGES',
+                children: [
+                  if (_selectedImages.isNotEmpty)
+                    Column(
+                      children: [
+                        SizedBox(
+                          height: 110,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _selectedImages.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.file(
+                                        _selectedImages[index],
+                                        width: 110,
+                                        height: 110,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                    if (index == 0)
+                                      Positioned(
+                                        bottom: 6,
+                                        left: 6,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF00B464),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          child: const Text(
+                                            'Primary',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    Positioned(
+                                      top: 6,
+                                      right: 6,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedImages.removeAt(index);
+                                          });
+                                        },
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.red,
+                                            borderRadius: BorderRadius.circular(16),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.red.withOpacity(0.3),
+                                                blurRadius: 6,
+                                              ),
+                                            ],
+                                          ),
+                                          padding: const EdgeInsets.all(4),
+                                          child: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+                    ),
+                  GestureDetector(
+                    onTap: _selectedImages.length < 5 ? _pickImages : null,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: _selectedImages.length < 5
+                              ? const Color(0xFF00B464).withOpacity(0.3)
+                              : Colors.grey.withOpacity(0.2),
+                          width: 2,
+                          style: BorderStyle.solid,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        color: _selectedImages.length < 5
+                            ? const Color(0xFF00B464).withOpacity(0.02)
+                            : Colors.grey.withOpacity(0.02),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.image_not_supported_outlined,
+                              size: 32,
+                              color: _selectedImages.length < 5
+                                  ? const Color(0xFF00B464)
+                                  : Colors.grey.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _selectedImages.isEmpty
+                                  ? 'Tap to add images'
+                                  : _selectedImages.length < 5
+                                      ? 'Add more (${_selectedImages.length}/5)'
+                                      : 'Maximum images reached',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: _selectedImages.length < 5
+                                    ? const Color(0xFF00B464)
+                                    : Colors.grey.withOpacity(0.5),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'JPG, PNG • Max 5 images',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.withOpacity(0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+
+              // Submit Button
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _submitForm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00B464),
+                    disabledBackgroundColor: Colors.grey.withOpacity(0.3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: _isLoading ? 0 : 2,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Create Product',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                ),
+              ),
             ],
           ),
         ),

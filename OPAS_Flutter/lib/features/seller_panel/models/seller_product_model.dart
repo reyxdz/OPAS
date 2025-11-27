@@ -13,9 +13,10 @@ class SellerProduct {
   final List<String>? images;
   final Map<String, dynamic>? primaryImage;
   final String? sku;
+  final String? qualityGrade;
+  final String? previousStatus;
   final DateTime createdAt;
   final DateTime? updatedAt;
-  final DateTime? expiryDate;
 
   SellerProduct({
     required this.id,
@@ -30,9 +31,10 @@ class SellerProduct {
     this.images,
     this.primaryImage,
     this.sku,
+    this.qualityGrade,
+    this.previousStatus,
     required this.createdAt,
     this.updatedAt,
-    this.expiryDate,
   });
 
   factory SellerProduct.fromJson(Map<String, dynamic> json) {
@@ -45,6 +47,8 @@ class SellerProduct {
       ceilingPrice: _parseDouble(json['ceiling_price']),
       stockLevel: _parseInt(json['stock_level']),
       status: json['status'] ?? 'PENDING',
+      qualityGrade: json['quality_grade'],
+      previousStatus: json['previous_status'],
       category: json['category'],
       images: _parseImages(json['images']),
       primaryImage: json['primary_image'],
@@ -54,9 +58,6 @@ class SellerProduct {
           : DateTime.now(),
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'])
-          : null,
-      expiryDate: json['expiry_date'] != null
-          ? DateTime.parse(json['expiry_date'])
           : null,
     );
   }
@@ -110,7 +111,8 @@ class SellerProduct {
     'sku': sku,
     'created_at': createdAt.toIso8601String(),
     'updated_at': updatedAt?.toIso8601String(),
-    'expiry_date': expiryDate?.toIso8601String(),
+    'quality_grade': qualityGrade,
+    'previous_status': previousStatus,
   };
 
   bool get isActive => status == 'ACTIVE';

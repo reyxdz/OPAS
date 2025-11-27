@@ -49,6 +49,7 @@ python manage.py check
 python manage.py showmigrations users | grep -E "0006|0007"
 
 # Apply migrations if needed
+# New migration added for seller product lifecycle: `apps/users/migrations/0023_add_previous_status_field.py`
 python manage.py migrate
 
 # Expected output:
@@ -372,7 +373,8 @@ Before deploying to production:
 # 1. Run all checks
 python manage.py check
 
-# 2. Run tests
+# 2. Run tests (ensure migrations are applied first)
+python manage.py migrate --noinput
 python manage.py test
 
 # 3. Verify migrations

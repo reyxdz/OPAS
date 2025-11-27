@@ -11,6 +11,8 @@ class SellerHomeScreen extends StatefulWidget {
 
 class _SellerHomeScreenState extends State<SellerHomeScreen> {
   late int _selectedIndex;
+  // Version key for product listing screen — incrementing forces a remount and fetch
+  int _productListVersion = 0;
 
   @override
   void initState() {
@@ -32,9 +34,17 @@ class _SellerHomeScreenState extends State<SellerHomeScreen> {
               bottom: 105,
               right: 30,
               child: FloatingActionButton(
-                onPressed: () {
+                onPressed: () async {
                   if (_selectedIndex == 2) {
-                    Navigator.of(context).pushNamed('/seller/products/add');
+                    // Navigate to add product and wait for result
+                    final result = await Navigator.of(context).pushNamed('/seller/products/add');
+                    // If a product was created successfully, trigger an in-app refresh
+                    if (result == true && mounted) {
+                      // Increment version to force ProductListingScreen remount and refresh
+                      setState(() {
+                        _productListVersion++;
+                      });
+                    }
                   } else if (_selectedIndex == 3) {
                     Navigator.of(context).pushNamed('/seller/opas/submit');
                   }
@@ -56,7 +66,8 @@ class _SellerHomeScreenState extends State<SellerHomeScreen> {
       case 1:
         return const _AccountProfileTab();
       case 2:
-        return const _ProductPostingTab();
+        // Pass in a ValueKey that changes when a new product is created.
+        return ProductListingScreen(key: ValueKey(_productListVersion));
       case 3:
         return const _SellToOPASTab();
       case 4:
@@ -553,15 +564,9 @@ class _AccountProfileTab extends StatelessWidget {
 }
 
 // ======================== TAB 2: PRODUCT POSTING ========================
-// ======================== TAB 2: PRODUCT POSTING (REAL IMPLEMENTATION) ========================
-class _ProductPostingTab extends StatelessWidget {
-  const _ProductPostingTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return const ProductListingScreen();
-  }
-}
+// Product posting is implemented by `ProductListingScreen` (used directly in
+// the switch above). The `_ProductPostingTab` helper widget was unused and has
+// been removed to avoid dead code.
 
 // ======================== TAB 3: SELL TO OPAS ========================
 class _SellToOPASTab extends StatelessWidget {

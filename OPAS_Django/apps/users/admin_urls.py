@@ -30,6 +30,7 @@ from apps.users.admin_viewsets import (
     DashboardViewSet,
     AdminMarketplaceViewSet,
     AdminPriceMonitoringViewSet,
+    ProductApprovalViewSet,
 )
 
 # Initialize SimpleRouter for automatic route generation
@@ -50,6 +51,9 @@ router.register(r'marketplace-control', AdminMarketplaceViewSet, basename='admin
 
 # Part 3: Admin Price Monitoring
 router.register(r'price-monitoring', AdminPriceMonitoringViewSet, basename='admin-price-monitoring')
+
+# Product Approval Management
+router.register(r'products', ProductApprovalViewSet, basename='admin-products')
 
 # URL patterns
 urlpatterns = [

@@ -744,7 +744,56 @@ class ProductManagementViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=False, methods=['get'])
+    def get_categories(self, request):
+        """
+        Get all active product categories in hierarchical structure.
+        Returns categories with their children for cascading dropdowns.
+        
+        Response format:
+        [
+            {
+                "id": 1,
+                "slug": "VEGETABLES",
+                "name": "Vegetables",
+                "description": "Fresh vegetables",
+                "active": true,
+                "children": [
+                    {
+                        "id": 2,
+                        "slug": "LEAFY_GREENS",
+                        "name": "Leafy Greens",
+                        "parent_id": 1,
+                        "description": "",
+                        "active": true
+                    }
+                ]
+            }
+        ]
+        """
+        try:
+            from .seller_models import ProductCategory
+            from .seller_serializers import ProductCategoryTreeSerializer
+            
+            # Get only top-level categories (no parent)
+            categories = ProductCategory.objects.filter(
+                parent__isnull=True,
+                active=True
+            ).order_by('name')
+            
+            serializer = ProductCategoryTreeSerializer(categories, many=True)
+            logger.info(f'Product categories retrieved by: {request.user.email}')
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f'Error retrieving product categories: {str(e)}')
+            return Response(
+                {'error': 'Failed to retrieve product categories'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=False, methods=['post'])
+
     def check_stock_availability(self, request):
         """
         Check if sufficient stock is available for order.

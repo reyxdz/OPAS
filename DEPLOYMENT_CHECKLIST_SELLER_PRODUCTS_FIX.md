@@ -6,7 +6,9 @@
 - [ ] Pull latest code changes
 - [ ] Verify `seller_views.py` has `select_related('seller')` in list() method
 - [ ] Verify `seller_serializers.py` has image fields removed from SellerProductListSerializer
-- [ ] Run migrations (none required, but verify with `python manage.py showmigrations`)
+- [ ] Run migrations (new migration added: `apps/users/migrations/0023_add_previous_status_field.py`).
+	- Verify with `python manage.py showmigrations users` and apply with `python manage.py migrate users`.
+	- If tests or the test DB fail when creating the test database, remove stale test DB or fix conflicting local schema before running tests (see notes below).
 - [ ] Test locally: `python verify_product_listing_fix.py`
 
 ### Frontend (Flutter)
@@ -72,6 +74,15 @@ If issues occur:
 git revert <commit_hash>
 systemctl restart opas-django
 ```
+
+## Notes about migrations & local test DB issues
+
+- If `manage.py test` fails while creating the test database (example error: "column \"email\" of relation \"users\" already exists"), this indicates your local schema and migrations are out of sync. Common fixes:
+	1. Drop the leftover `test_*` database used by the test runner and re-run tests.
+ 2. Ensure your local dev DB is in a clean state (optionally run `python manage.py migrate --fake <app> <migration>` only with understanding).
+ 3. If you intentionally reset, run `python manage.py flush` (destructive) or re-create the dev DB.
+
+- Recommended CI step: run `python manage.py migrate --noinput` during CI setup before running tests to keep the test environment consistent.
 
 ### Frontend Rollback
 - Distribute previous APK version

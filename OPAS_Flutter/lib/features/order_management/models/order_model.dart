@@ -6,6 +6,7 @@ class OrderItem {
   final int quantity;
   final String unit;
   final double subtotal;
+  final String imageUrl;
 
   OrderItem({
     required this.id,
@@ -15,6 +16,7 @@ class OrderItem {
     required this.quantity,
     required this.unit,
     required this.subtotal,
+    required this.imageUrl,
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class OrderItem {
       quantity: json['quantity'] ?? 1,
       unit: json['unit'] ?? 'kg',
       subtotal: (json['subtotal'] ?? 0).toDouble(),
+      imageUrl: json['image_url'] ?? '',
     );
   }
 
@@ -37,6 +40,7 @@ class OrderItem {
     'quantity': quantity,
     'unit': unit,
     'subtotal': subtotal,
+    'image_url': imageUrl,
   };
 }
 

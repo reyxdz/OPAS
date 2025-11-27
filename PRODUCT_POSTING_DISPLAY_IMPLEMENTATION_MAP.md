@@ -14,7 +14,7 @@ This document provides a comprehensive implementation map for the seller product
 
 ---
 
-## 🏗️ PART 1: DATABASE LAYER
+## 🏗️ PART 1: DATABASE LAYER✅
 
 ### 1.1 Core Data Models
 
@@ -97,7 +97,7 @@ Computed Fields:
 
 ---
 
-## 🔌 PART 2: API ENDPOINTS LAYER
+## 🔌 PART 2: API ENDPOINTS LAYER✅
 
 ### 2.1 Seller Product Management Endpoints
 
@@ -473,7 +473,7 @@ Actions:
 
 ---
 
-## 🎨 PART 3: FRONTEND LAYER
+## 🎨 PART 3: FRONTEND LAYER✅
 
 ### 3.1 Seller Panel Screens
 
@@ -961,13 +961,13 @@ SELLER UPDATES PRODUCT:
 9. Show success + return to list
 
 PRODUCT EXPIRATION:
-1. Scheduled task checks products daily
-   └─ identify products where expires_at < now()
+1. Seller can manually mark a product as Expired from the product actions menu
+   └─ new 'Mark as Expired' option added between Edit and Delete on the product modal
 2. Set status = EXPIRED
 3. Remove from marketplace queries
 4. Seller can see in "Expired" tab
 5. Seller can:
-   ├─ Repost (create new product)
+   ├─ Reactivate (restore existing product to its previous status — preserves sales, ratings, and history). If no previous status exists, fall back to PENDING (admin review required).
    ├─ Extend expiration
    └─ Archive permanently
 

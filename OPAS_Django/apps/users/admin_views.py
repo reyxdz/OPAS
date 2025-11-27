@@ -800,6 +800,133 @@ class AnnouncementViewSet(viewsets.ViewSet):
                 {'error': 'Failed to retrieve announcements'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# ==================== PRODUCT APPROVAL VIEWSET ====================
+
+class ProductApprovalViewSet(viewsets.ViewSet):
+    """
+    Manage product approvals and rejections.
+    
+    Endpoints:
+    - GET /api/users/admin/products/pending/ - List pending products
+    - POST /api/users/admin/products/{id}/approve/ - Approve product
+    - POST /api/users/admin/products/{id}/reject/ - Reject product
+    """
+    permission_classes = [IsAuthenticated, IsOPASAdmin]
+
+    @action(detail=False, methods=['get'])
+    def pending(self, request):
+        """Get all products pending approval"""
+        try:
+            from .seller_models import SellerProduct, ProductStatus
+            from .seller_serializers import SellerProductListSerializer
+            
+            products = SellerProduct.objects.filter(
+                status=ProductStatus.PENDING
+            ).select_related('seller').order_by('-created_at')
+            
+            serializer = SellerProductListSerializer(products, many=True)
+            logger.info(f'Retrieved {products.count()} pending products for: {request.user.email}')
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f'Error retrieving pending products: {str(e)}')
+            return Response(
+                {'error': 'Failed to retrieve pending products'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Approve a pending product"""
+        try:
+            from .seller_models import SellerProduct, ProductStatus
+            from .seller_serializers import SellerProductListSerializer
+            
+            product = SellerProduct.objects.get(id=pk)
+            
+            if product.status == ProductStatus.ACTIVE:
+                return Response(
+                    {'message': 'Product is already approved'},
+                    status=status.HTTP_200_OK
+                )
+            
+            # Approve product
+            product.status = ProductStatus.ACTIVE
+            product.save()
+            
+            serializer = SellerProductListSerializer(product)
+            logger.info(f'Product {product.name} (ID: {pk}) approved by: {request.user.email}')
+            
+            return Response(
+                {
+                    'message': f'Product "{product.name}" approved successfully',
+                    'product': serializer.data,
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        except SellerProduct.DoesNotExist:
+            logger.warning(f'Product with ID {pk} not found')
+            return Response(
+                {'error': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f'Error approving product: {str(e)}')
+            return Response(
+                {'error': 'Failed to approve product'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Reject a pending product"""
+        try:
+            from .seller_models import SellerProduct, ProductStatus
+            from .seller_serializers import SellerProductListSerializer
+            
+            product = SellerProduct.objects.get(id=pk)
+            
+            if product.status == ProductStatus.REJECTED:
+                return Response(
+                    {'message': 'Product is already rejected'},
+                    status=status.HTTP_200_OK
+                )
+            
+            reason = request.data.get('reason', '')
+            
+            # Reject product
+            product.status = ProductStatus.REJECTED
+            product.save()
+            
+            serializer = SellerProductListSerializer(product)
+            logger.info(f'Product {product.name} (ID: {pk}) rejected by: {request.user.email}. Reason: {reason}')
+            
+            return Response(
+                {
+                    'message': f'Product "{product.name}" rejected successfully',
+                    'product': serializer.data,
+                    'reason': reason,
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        except SellerProduct.DoesNotExist:
+            logger.warning(f'Product with ID {pk} not found')
+            return Response(
+                {'error': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f'Error rejecting product: {str(e)}')
+            return Response(
+                {'error': 'Failed to reject product'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
     """Admin dashboard with statistics."""
     permission_classes = [IsAuthenticated, IsOPASAdmin]
     
