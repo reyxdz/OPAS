@@ -20,25 +20,19 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final TextEditingController _quantityController = TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
 
-  String _selectedProductType = 'VEGETABLE';
   String _selectedUnit = 'kg';
   final List<File> _selectedImages = [];
-  double? _ceilingPrice;
   bool _isLoading = false;
-  bool _priceExceedsCeiling = false;
   bool _productCreatedSuccessfully = false;
 
   // Category dropdown state
   List<ProductCategory> _categories = [];
   ProductCategory? _selectedCategory;
-  ProductCategory? _selectedType;
-  ProductCategory? _selectedSubtype;
   bool _categoriesLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _priceController.addListener(_checkCeilingPrice);
     _loadCategories();
     _loadFormDraft();
   }
@@ -73,40 +67,23 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Future<void> _loadFormDraft() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       setState(() {
         _nameController.text = prefs.getString('draft_product_name') ?? '';
         _descriptionController.text =
             prefs.getString('draft_product_description') ?? '';
         _priceController.text = prefs.getString('draft_product_price') ?? '';
-        _quantityController.text = prefs.getString('draft_product_quantity') ?? '';
-        _selectedProductType =
-            prefs.getString('draft_product_type') ?? 'VEGETABLE';
+        _quantityController.text =
+            prefs.getString('draft_product_quantity') ?? '';
         _selectedUnit = prefs.getString('draft_product_unit') ?? 'kg';
-        
-        // Load category selections
+
+        // Load category selection
         final draftCategoryId = prefs.getInt('draft_product_category_id');
-        final draftTypeId = prefs.getInt('draft_product_type_id');
-        final draftSubtypeId = prefs.getInt('draft_product_subtype_id');
-        
+
         if (draftCategoryId != null && _categories.isNotEmpty) {
           _selectedCategory = _categories.firstWhere(
             (c) => c.id == draftCategoryId,
             orElse: () => _categories.first,
-          );
-        }
-        
-        if (draftTypeId != null && _selectedCategory?.children != null) {
-          _selectedType = _selectedCategory!.children!.firstWhere(
-            (c) => c.id == draftTypeId,
-            orElse: () => _selectedCategory!.children!.first,
-          );
-        }
-        
-        if (draftSubtypeId != null && _selectedType?.children != null) {
-          _selectedSubtype = _selectedType!.children!.firstWhere(
-            (c) => c.id == draftSubtypeId,
-            orElse: () => _selectedType!.children!.first,
           );
         }
       });
@@ -123,18 +100,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
           'draft_product_description', _descriptionController.text);
       await prefs.setString('draft_product_price', _priceController.text);
       await prefs.setString('draft_product_quantity', _quantityController.text);
-      await prefs.setString('draft_product_type', _selectedProductType);
       await prefs.setString('draft_product_unit', _selectedUnit);
-      
-      // Save category selections
+
+      // Save category selection
       if (_selectedCategory != null) {
         await prefs.setInt('draft_product_category_id', _selectedCategory!.id);
-      }
-      if (_selectedType != null) {
-        await prefs.setInt('draft_product_type_id', _selectedType!.id);
-      }
-      if (_selectedSubtype != null) {
-        await prefs.setInt('draft_product_subtype_id', _selectedSubtype!.id);
       }
     } catch (e) {
       // Fail silently
@@ -148,11 +118,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.remove('draft_product_description');
       await prefs.remove('draft_product_price');
       await prefs.remove('draft_product_quantity');
-      await prefs.remove('draft_product_type');
       await prefs.remove('draft_product_unit');
       await prefs.remove('draft_product_category_id');
-      await prefs.remove('draft_product_type_id');
-      await prefs.remove('draft_product_subtype_id');
     } catch (e) {
       // Fail silently
     }
@@ -164,14 +131,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _priceController.clear();
     _quantityController.clear();
     setState(() {
-      _selectedProductType = 'VEGETABLE';
       _selectedUnit = 'kg';
       _selectedCategory = null;
-      _selectedType = null;
-      _selectedSubtype = null;
       _selectedImages.clear();
-      _ceilingPrice = null;
-      _priceExceedsCeiling = false;
     });
     _formKey.currentState?.reset();
     _saveClearedFormState();
@@ -184,11 +146,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.setString('draft_product_description', '');
       await prefs.setString('draft_product_price', '');
       await prefs.setString('draft_product_quantity', '');
-      await prefs.setString('draft_product_type', 'VEGETABLE');
       await prefs.setString('draft_product_unit', 'kg');
       await prefs.remove('draft_product_category_id');
-      await prefs.remove('draft_product_type_id');
-      await prefs.remove('draft_product_subtype_id');
     } catch (e) {
       // Fail silently
     }
@@ -205,28 +164,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _saveFormDraft();
     }
     super.dispose();
-  }
-
-  Future<void> _checkCeilingPrice() async {
-    if (_priceController.text.isEmpty || _selectedProductType.isEmpty) {
-      return;
-    }
-
-    try {
-      final result = await SellerService.checkCeilingPrice({
-        'product_type': _selectedProductType,
-      });
-
-      final ceiling = (result['ceiling_price'] as num?)?.toDouble() ?? 0.0;
-      final currentPrice = double.tryParse(_priceController.text) ?? 0.0;
-
-      setState(() {
-        _ceilingPrice = ceiling;
-        _priceExceedsCeiling = currentPrice > ceiling;
-      });
-    } catch (e) {
-      // Fail silently
-    }
   }
 
   Future<void> _pickImages() async {
@@ -318,28 +255,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
       return;
     }
 
-    if (_priceExceedsCeiling) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Price exceeds ceiling price. Please adjust.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Determine the most specific category selected
-      final categoryId = _selectedSubtype?.id ?? _selectedType?.id ?? _selectedCategory?.id;
-      
+      // Use selected category
+      final categoryId = _selectedCategory?.id;
+
       final productData = {
         'name': name,
         'description': _descriptionController.text,
-        'product_type': _selectedProductType,
         if (categoryId != null) 'category': categoryId,
         'price': double.parse(_priceController.text),
         'stock_level': int.parse(_quantityController.text),
@@ -373,10 +299,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
       await _clearFormDraft();
       _resetForm();
-      
+
       // Save cleared state to ensure it doesn't reload on next init
       await _saveClearedFormState();
-      
+
       // Mark product as successfully created
       _productCreatedSuccessfully = true;
 
@@ -415,7 +341,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Success Title
                     const Text(
                       'Product Created!',
@@ -428,7 +354,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
-                    
+
                     // Product Name
                     Text(
                       product.name,
@@ -442,7 +368,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 12),
-                    
+
                     // Success Message
                     const Text(
                       'Your product has been successfully added to your inventory.',
@@ -455,7 +381,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 28),
-                    
+
                     // Done Button
                     SizedBox(
                       width: double.infinity,
@@ -518,7 +444,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
   }
 
-  InputDecoration _buildInputDecoration(String hintText, {bool hasError = false}) {
+  InputDecoration _buildInputDecoration(String hintText,
+      {bool hasError = false}) {
     return InputDecoration(
       hintText: hintText,
       filled: true,
@@ -527,13 +454,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(
-          color: hasError ? Colors.red.withOpacity(0.3) : Colors.grey.withOpacity(0.1),
+          color: hasError
+              ? Colors.red.withOpacity(0.3)
+              : Colors.grey.withOpacity(0.1),
         ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(
-          color: hasError ? Colors.red.withOpacity(0.3) : Colors.grey.withOpacity(0.1),
+          color: hasError
+              ? Colors.red.withOpacity(0.3)
+              : Colors.grey.withOpacity(0.1),
         ),
       ),
       focusedBorder: OutlineInputBorder(
@@ -550,7 +481,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  Widget _buildSectionCard({required String title, required List<Widget> children}) {
+  Widget _buildSectionCard(
+      {required String title, required List<Widget> children}) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -627,7 +559,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       TextFormField(
                         controller: _nameController,
                         maxLength: 100,
-                        decoration: _buildInputDecoration('e.g., Fresh Organic Tomatoes'),
+                        decoration: _buildInputDecoration(
+                            'e.g., Fresh Organic Tomatoes'),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Product name is required';
@@ -655,7 +588,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _descriptionController,
-                        decoration: _buildInputDecoration('Describe your product...'),
+                        decoration:
+                            _buildInputDecoration('Describe your product...'),
                         maxLines: 4,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -701,86 +635,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
                               onChanged: (value) {
                                 setState(() {
                                   _selectedCategory = value;
-                                  _selectedType = null;
-                                  _selectedSubtype = null;
                                 });
-                                _checkCeilingPrice();
                               },
                               decoration: _buildInputDecoration(''),
                             ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Type Dropdown (filtered by category)
-                  if (_selectedCategory != null && _selectedCategory!.hasChildren)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Type',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<ProductCategory>(
-                          value: _selectedType,
-                          hint: const Text('Select Type'),
-                          items: _selectedCategory!.children!.map((type) {
-                            return DropdownMenuItem(
-                              value: type,
-                              child: Text(type.name),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedType = value;
-                              _selectedSubtype = null;
-                            });
-                            _checkCeilingPrice();
-                          },
-                          decoration: _buildInputDecoration(''),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  
-                  // Subtype Dropdown (filtered by type)
-                  if (_selectedType != null && _selectedType!.hasChildren)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Subtype',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<ProductCategory>(
-                          value: _selectedSubtype,
-                          hint: const Text('Select Subtype'),
-                          items: _selectedType!.children!.map((subtype) {
-                            return DropdownMenuItem(
-                              value: subtype,
-                              child: Text(subtype.name),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedSubtype = value;
-                            });
-                            _checkCeilingPrice();
-                          },
-                          decoration: _buildInputDecoration(''),
-                        ),
-                      ],
-                    ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -803,8 +664,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _priceController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: _buildInputDecoration('0.00', hasError: _priceExceedsCeiling),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: _buildInputDecoration('0.00'),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Price is required';
@@ -818,77 +680,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           return null;
                         },
                       ),
-                      if (_priceExceedsCeiling && _ceilingPrice != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.05),
-                              border: Border.all(color: Colors.red.withOpacity(0.2)),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.warning_rounded, color: Colors.red, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Price exceeds ceiling limit of ₱${_ceilingPrice?.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                      color: Colors.red,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
                     ],
                   ),
-                  if (_ceilingPrice != null) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF00B464).withOpacity(0.08),
-                        border: Border.all(color: const Color(0xFF00B464).withOpacity(0.2)),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.info_outline, color: const Color(0xFF00B464).withOpacity(0.7), size: 18),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Ceiling Price',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '₱${_ceilingPrice?.toStringAsFixed(2) ?? '-'}',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF00B464),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 14),
                   Row(
                     children: [
@@ -942,11 +735,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
                             DropdownButtonFormField<String>(
                               value: _selectedUnit,
                               items: const [
-                                DropdownMenuItem(value: 'kg', child: Text('kg')),
-                                DropdownMenuItem(value: 'pcs', child: Text('pcs')),
-                                DropdownMenuItem(value: 'bundle', child: Text('bundle')),
-                                DropdownMenuItem(value: 'box', child: Text('box')),
-                                DropdownMenuItem(value: 'liter', child: Text('liter')),
+                                DropdownMenuItem(
+                                    value: 'kg', child: Text('kg')),
+                                DropdownMenuItem(
+                                    value: 'pcs', child: Text('pcs')),
+                                DropdownMenuItem(
+                                    value: 'bundle', child: Text('bundle')),
+                                DropdownMenuItem(
+                                    value: 'box', child: Text('box')),
+                                DropdownMenuItem(
+                                    value: 'liter', child: Text('liter')),
                               ],
                               onChanged: (value) {
                                 if (value != null) {
@@ -999,7 +797,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                         child: Container(
                                           decoration: BoxDecoration(
                                             color: const Color(0xFF00B464),
-                                            borderRadius: BorderRadius.circular(6),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
                                           ),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 8,
@@ -1027,10 +826,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                                         child: Container(
                                           decoration: BoxDecoration(
                                             color: Colors.red,
-                                            borderRadius: BorderRadius.circular(16),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.red.withOpacity(0.3),
+                                                color:
+                                                    Colors.red.withOpacity(0.3),
                                                 blurRadius: 6,
                                               ),
                                             ],
@@ -1132,7 +933,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           width: 24,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       : const Text(

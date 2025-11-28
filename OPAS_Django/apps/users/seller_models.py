@@ -95,15 +95,6 @@ class SellerProductQuerySet(models.QuerySet):
     def by_seller(self, seller):
         """Filter products by seller"""
         return self.filter(seller=seller)
-    
-    def compliant(self):
-        """Get products within price ceiling"""
-        from django.db.models import Q
-        return self.filter(Q(ceiling_price__isnull=True) | Q(price__lte=models.F('ceiling_price')))
-    
-    def non_compliant(self):
-        """Get products exceeding price ceiling"""
-        return self.filter(price__gt=models.F('ceiling_price'), ceiling_price__isnull=False)
 
 
 class SellerProductManager(models.Manager):
@@ -123,14 +114,6 @@ class SellerProductManager(models.Manager):
     def not_deleted(self):
         """Get non-deleted products"""
         return self.get_queryset().not_deleted()
-    
-    def compliant(self):
-        """Get compliant products"""
-        return self.get_queryset().compliant()
-    
-    def non_compliant(self):
-        """Get non-compliant products"""
-        return self.get_queryset().non_compliant()
 
 
 class OrderStatus(models.TextChoices):
@@ -151,7 +134,6 @@ class SellerProduct(models.Model):
     - Product information (name, price, quality)
     - Seller relationship and ownership
     - Inventory levels and stock tracking
-    - Pricing with ceiling enforcement
     - Product status and approval workflow
     - Timestamps for audit trail
     """
@@ -174,11 +156,8 @@ class SellerProduct(models.Model):
         null=True,
         help_text='Product description'
     )
-    product_type = models.CharField(
-        max_length=100,
-        help_text='Category or type of product (e.g., vegetables, fruits)'
-    )
-
+    # Categorized via category ForeignKey below
+    
     # New: link each SellerProduct to a canonical ProductCategory node
     category = models.ForeignKey(
         'ProductCategory',
@@ -194,13 +173,6 @@ class SellerProduct(models.Model):
         max_digits=10,
         decimal_places=2,
         help_text='Selling price per unit'
-    )
-    ceiling_price = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        blank=True,
-        null=True,
-        help_text='Maximum allowed price set by OPAS'
     )
     unit = models.CharField(
         max_length=50,
@@ -302,7 +274,6 @@ class SellerProduct(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['seller', 'status']),
-            models.Index(fields=['product_type']),
             models.Index(fields=['expiry_date']),
             models.Index(fields=['is_deleted']),
             models.Index(fields=['seller', 'is_deleted']),

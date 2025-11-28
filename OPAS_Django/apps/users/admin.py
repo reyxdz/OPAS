@@ -62,18 +62,18 @@ class SellerApplicationAdmin(admin.ModelAdmin):
 
 @admin.register(SellerProduct)
 class SellerProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'seller', 'status', 'price', 'ceiling_price', 'stock_level', 'created_at')
-    search_fields = ('name', 'seller__email', 'product_type')
-    list_filter = ('status', 'product_type', 'quality_grade', 'created_at')
+    list_display = ('name', 'seller', 'status', 'price', 'stock_level', 'created_at')
+    search_fields = ('name', 'seller__email')
+    list_filter = ('status', 'category', 'quality_grade', 'created_at')
     ordering = ('-created_at',)
     readonly_fields = ('created_at', 'updated_at', 'listed_date')
     
     fieldsets = (
         ('Product Information', {
-            'fields': ('seller', 'name', 'description', 'product_type')
+            'fields': ('seller', 'name', 'description', 'category')
         }),
         ('Pricing', {
-            'fields': ('price', 'ceiling_price', 'unit')
+            'fields': ('price', 'unit')
         }),
         ('Inventory', {
             'fields': ('stock_level', 'minimum_stock')

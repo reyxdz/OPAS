@@ -704,46 +704,6 @@ class ProductManagementViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['post'])
-    def check_ceiling_price(self, request):
-        """
-        Check if product price exceeds ceiling price.
-        
-        Expected fields:
-        - product_id: Product ID to check
-        """
-        try:
-            product_id = request.data.get('product_id')
-            product = SellerProduct.objects.get(id=product_id, seller=request.user)
-            
-            exceeds_ceiling = (
-                product.ceiling_price and 
-                product.price > product.ceiling_price
-            )
-            
-            return Response(
-                {
-                    'product_id': product_id,
-                    'price': str(product.price),
-                    'ceiling_price': str(product.ceiling_price) if product.ceiling_price else None,
-                    'exceeds_ceiling': exceeds_ceiling,
-                    'message': 'Price exceeds ceiling' if exceeds_ceiling else 'Price is within limits'
-                },
-                status=status.HTTP_200_OK
-            )
-        
-        except SellerProduct.DoesNotExist:
-            return Response(
-                {'error': 'Product not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except Exception as e:
-            logger.error(f'Error checking ceiling price: {str(e)}')
-            return Response(
-                {'error': 'Failed to check ceiling price'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
     @action(detail=False, methods=['get'])
     def get_categories(self, request):
         """

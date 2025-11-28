@@ -196,8 +196,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   /// Image Gallery with PageView, thumbnails, and counter
   Widget _buildImageGallery(Product product) {
-    // Mock multiple images for gallery effect
-    final images = [product.imageUrl, product.imageUrl, product.imageUrl];
+    // Use multiple images if available, otherwise use single image repeated
+    final images = product.imageUrls.isNotEmpty 
+        ? product.imageUrls 
+        : [product.imageUrl, product.imageUrl, product.imageUrl];
     
     return Column(
       children: [

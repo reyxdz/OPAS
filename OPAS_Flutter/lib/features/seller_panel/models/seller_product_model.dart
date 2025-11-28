@@ -41,23 +41,23 @@ class SellerProduct {
     return SellerProduct(
       id: _parseInt(json['id']),
       sellerId: _parseInt(json['seller_id']),
-      name: json['name'] ?? '',
-      description: json['description'] ?? '',
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
       price: _parseDouble(json['price']),
       ceilingPrice: _parseDouble(json['ceiling_price']),
       stockLevel: _parseInt(json['stock_level']),
-      status: json['status'] ?? 'PENDING',
-      qualityGrade: json['quality_grade'],
-      previousStatus: json['previous_status'],
-      category: json['category'],
+      status: json['status']?.toString() ?? 'PENDING',
+      qualityGrade: json['quality_grade']?.toString(),
+      previousStatus: json['previous_status']?.toString(),
+      category: json['category']?.toString(),
       images: _parseImages(json['images']),
       primaryImage: json['primary_image'],
-      sku: json['sku'],
+      sku: json['sku']?.toString(),
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? DateTime.parse(json['created_at'].toString())
           : DateTime.now(),
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
+          ? DateTime.parse(json['updated_at'].toString())
           : null,
     );
   }

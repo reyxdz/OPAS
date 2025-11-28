@@ -8,6 +8,7 @@ import '../../cart/screens/cart_screen.dart';
 import '../../order_management/screens/order_history_screen.dart';
 import '../../products/models/product_model.dart';
 import '../../products/screens/product_detail_screen.dart';
+import '../../products/services/buyer_api_service.dart';
 
 /// Buyer Home Screen - Complete Implementation per Part 3 Spec
 /// 
@@ -90,22 +91,24 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     setState(() => _isLoadingFeatured = true);
     
     try {
-      // TODO: Implement actual API call
-      // final products = await BuyerApiService.getAllProducts(
-      //   limit: 10,
-      //   ordering: '-rating',
-      // );
+      // Fetch products from the marketplace API
+      final products = await BuyerApiService.getAllProducts();
       
-      // Simulating API delay
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Sort by creation date (newest first) and take top 6
+      products.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final featuredProducts = products.take(6).toList();
       
-      // Mock featured products - replace with real API response
       setState(() {
-        _featuredProducts = _generateMockProducts(6);
+        _featuredProducts = featuredProducts;
         _lastCacheTime = DateTime.now();
       });
     } catch (e) {
-      _showErrorSnackBar('Failed to load featured products: $e');
+      debugPrint('⚠️ Failed to load featured products: $e');
+      // Show error but don't fallback to mock data - show empty state instead
+      setState(() {
+        _featuredProducts = [];
+        _lastCacheTime = DateTime.now();
+      });
     } finally {
       setState(() => _isLoadingFeatured = false);
     }
@@ -132,35 +135,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
         duration: const Duration(seconds: 3),
       ),
     );
-  }
-
-  /// Generate mock products for demo
-  List<Product> _generateMockProducts(int count) {
-    final List<String> images = [
-      'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=300&q=80', // Tomatoes
-      'https://images.unsplash.com/photo-1622206151226-18ca2c9ab4a1?auto=format&fit=crop&w=300&q=80', // Lettuce
-      'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=300&q=80', // Onions
-      'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=300&q=80', // Apples
-      'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=300&q=80', // Mangoes
-      'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=300&q=80', // Chicken
-    ];
-
-    return List.generate(count, (index) => Product(
-      id: index + 1,
-      name: ['Fresh Tomatoes', 'Organic Lettuce', 'Red Onions', 'Green Apples', 'Yellow Mangoes', 'Chicken Breast'][index],
-      category: 'VEGETABLE',
-      description: 'High quality fresh product',
-      pricePerKilo: 45.0 + (index * 5),
-      opasRegulatedPrice: 75.0,
-      stock: 100 - (index * 5),
-      unit: 'kg',
-      imageUrl: images[index % images.length],
-      sellerId: index + 1,
-      sellerName: 'Fresh Farm Co. #${index + 1}',
-      sellerRating: 4.5 + (index * 0.1),
-      isAvailable: true,
-      createdAt: DateTime.now().subtract(Duration(days: index)),
-    ));
   }
 
   @override
@@ -483,6 +457,30 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
               ),
             ),
           )
+        else if (_featuredProducts.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+            child: Container(
+              height: 250,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey[400]),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No products available',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
         else
           Padding(
             padding: const EdgeInsets.all(AppDimensions.paddingMedium),
@@ -495,12 +493,8 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 16,
               ),
-              itemCount: _featuredProducts.isEmpty ? 4 : _featuredProducts.take(4).length,
+              itemCount: _featuredProducts.take(4).length,
               itemBuilder: (context, index) {
-                if (_featuredProducts.isEmpty) {
-                  return _buildSkeletonCard();
-                }
-                
                 final product = _featuredProducts[index];
                 return _buildFeaturedProductCard(context, product);
               },
@@ -510,40 +504,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     );
   }
 
-  /// Skeleton loading card for featured products
-  Widget _buildSkeletonCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 100,
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(height: 12, color: Colors.grey[300], width: 80),
-                const SizedBox(height: 4),
-                Container(height: 10, color: Colors.grey[200], width: 60),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   /// Featured product card
   Widget _buildFeaturedProductCard(BuildContext context, Product product) {

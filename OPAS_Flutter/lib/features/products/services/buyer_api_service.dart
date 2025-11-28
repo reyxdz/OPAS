@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/models/price_trend_model.dart';
 import '../../../core/services/api_service.dart';
@@ -53,11 +54,27 @@ class BuyerApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> products =
-            data['results'] ?? data['products'] ?? [];
-        return products
-            .map((p) => Product.fromJson(p as Map<String, dynamic>))
-            .toList();
+        
+        // Handle both paginated and direct list responses
+        late final List<dynamic> products;
+        if (data is List) {
+          // Direct list response
+          products = data;
+        } else if (data is Map) {
+          // Paginated response
+          products = data['results'] ?? data['products'] ?? [];
+        } else {
+          products = [];
+        }
+        
+        try {
+          return products
+              .map((p) => Product.fromJson(p as Map<String, dynamic>))
+              .toList();
+        } catch (e) {
+          debugPrint('Error parsing products: $e');
+          rethrow;
+        }
       } else {
         throw Exception('Failed to fetch products: ${response.statusCode}');
       }

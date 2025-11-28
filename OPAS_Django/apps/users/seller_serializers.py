@@ -176,7 +176,7 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     """
     seller_id = serializers.IntegerField(source='seller.id', read_only=True)
     seller_name = serializers.CharField(source='seller.full_name', read_only=True)
-    category = serializers.CharField(source='product_type', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     images = serializers.SerializerMethodField(read_only=True)
     primary_image = serializers.SerializerMethodField(read_only=True)
@@ -191,7 +191,6 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'description',
             'category',
             'price',
-            'ceiling_price',
             'unit',
             'stock_level',
             'minimum_stock',
@@ -202,6 +201,7 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'listed_date',
             'expiry_date',
             'seller_name',
+            'category_name',
             'image_url',
             'images',
             'primary_image',
@@ -308,9 +308,8 @@ class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
             'id',
             'name',
             'description',
-            'product_type',
+            'category',
             'price',
-            'ceiling_price',
             'unit',
             'stock_level',
             'minimum_stock',
@@ -334,7 +333,6 @@ class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
             'images': {'required': False, 'allow_null': True},
             'status': {'required': False},
             'minimum_stock': {'required': False},
-            'ceiling_price': {'required': False, 'allow_null': True},
             'description': {'required': False, 'allow_blank': True},
             'quality_grade': {'required': False},
             'expiry_date': {'required': False, 'allow_null': True},
@@ -370,11 +368,6 @@ class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """Validate product data"""
         # Check ceiling price if provided
-        if data.get('ceiling_price') and data.get('price'):
-            if data['price'] > data['ceiling_price']:
-                raise serializers.ValidationError({
-                    'price': 'Price cannot exceed ceiling price'
-                })
         return data
 
     def create(self, validated_data):
@@ -965,7 +958,6 @@ class SellerProductDetailSerializer(serializers.ModelSerializer):
     product_images = ProductImageSerializer(many=True, read_only=True)
     is_active = serializers.SerializerMethodField(read_only=True)
     is_low_stock = serializers.SerializerMethodField(read_only=True)
-    price_exceeds_ceiling = serializers.SerializerMethodField(read_only=True)
     primary_image = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
@@ -975,9 +967,8 @@ class SellerProductDetailSerializer(serializers.ModelSerializer):
             'seller_name',
             'name',
             'description',
-            'product_type',
+            'category',
             'price',
-            'ceiling_price',
             'unit',
             'stock_level',
             'minimum_stock',
@@ -1015,10 +1006,6 @@ class SellerProductDetailSerializer(serializers.ModelSerializer):
         """Check if stock is low"""
         return obj.is_low_stock
 
-    def get_price_exceeds_ceiling(self, obj):
-        """Check if price exceeds ceiling"""
-        return obj.price_exceeds_ceiling
-    
     def get_primary_image(self, obj):
         """Get primary image"""
         primary = obj.product_images.filter(is_primary=True).first()
@@ -1706,7 +1693,7 @@ class ProductListBuyerSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'product_type',
+            'category',
             'price',
             'unit',
             'stock_level',
@@ -1732,21 +1719,19 @@ class ProductListBuyerSerializer(serializers.ModelSerializer):
             return primary.image.url if primary.image else None
         return None
 
-    def get_is_price_compliant(self, obj):
-        """Check if product price is within ceiling"""
-        if obj.ceiling_price:
-            return obj.price <= obj.ceiling_price
-        return True
-
-    def get_price_difference(self, obj):
-        """Calculate difference from ceiling price"""
-        if obj.ceiling_price:
-            return float(obj.ceiling_price - obj.price)
-        return None
-
     def get_is_in_stock(self, obj):
         """Check if product is in stock"""
         return obj.stock_level > 0
+
+    def get_is_price_compliant(self, obj):
+        """Check if product price is within OPAS regulated price"""
+        # Add logic for price compliance check if needed
+        return True
+
+    def get_price_difference(self, obj):
+        """Calculate price difference from regulated price"""
+        # Add logic for price difference if needed
+        return 0
 
 
 class ProductDetailBuyerSerializer(serializers.ModelSerializer):
@@ -1773,9 +1758,8 @@ class ProductDetailBuyerSerializer(serializers.ModelSerializer):
             'id',
             'name',
             'description',
-            'product_type',
+            'category',
             'price',
-            'ceiling_price',
             'unit',
             'stock_level',
             'quality_grade',
@@ -1818,7 +1802,4 @@ class ProductDetailBuyerSerializer(serializers.ModelSerializer):
         """Get price comparison info"""
         return {
             'selling_price': float(obj.price),
-            'ceiling_price': float(obj.ceiling_price) if obj.ceiling_price else None,
-            'price_difference': float(obj.ceiling_price - obj.price) if obj.ceiling_price else None,
-            'is_within_ceiling': obj.price <= obj.ceiling_price if obj.ceiling_price else True,
         }

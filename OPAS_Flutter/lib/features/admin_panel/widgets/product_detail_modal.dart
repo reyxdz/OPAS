@@ -32,11 +32,11 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
   List<String> _getImageUrls() {
     final images = widget.product['images'] as List?;
     if (images != null && images.isNotEmpty) {
-      return List<String>.from(images.cast<String>());
+      return images.map((img) => img.toString()).where((url) => url.isNotEmpty).toList();
     }
-    final imageUrl = widget.product['image_url'] as String?;
-    if (imageUrl != null && imageUrl.isNotEmpty) {
-      return [imageUrl];
+    final imageUrl = widget.product['image_url'];
+    if (imageUrl != null && imageUrl.toString().isNotEmpty) {
+      return [imageUrl.toString()];
     }
     return [];
   }
@@ -85,11 +85,9 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
   @override
   Widget build(BuildContext context) {
     final imageUrls = _getImageUrls();
-    final productType = widget.product['category'] as String? ?? 'GENERAL';
-    final status = widget.product['status_display'] as String? ?? 'Unknown';
+    final productType = (widget.product['category']?.toString() ?? 'GENERAL');
+    final status = (widget.product['status_display']?.toString() ?? 'Unknown');
     final price = _getPrice(widget.product['price']);
-    final opasCeiling = _getPrice(widget.product['ceiling_price'] ?? 0);
-    final opasRegulatedPrice = opasCeiling > 0 ? opasCeiling * 1.2 : price * 1.15;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -144,7 +142,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                                     children: [
                                       Expanded(
                                         child: Text(
-                                          widget.product['name'] as String? ?? 'Unknown Product',
+                                          (widget.product['name']?.toString() ?? 'Unknown Product'),
                                           style: const TextStyle(
                                             fontSize: 22,
                                             fontWeight: FontWeight.bold,
@@ -201,7 +199,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                                         ),
                                       ),
                                       Text(
-                                        _formatDate(widget.product['created_at'] as String?),
+                                        _formatDate(widget.product['created_at']?.toString()),
                                         style: const TextStyle(
                                           fontSize: 11,
                                           color: Color(0xFF909090),
@@ -217,7 +215,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
                                   // PRICING (Most Relevant)
                                   const Text(
-                                    'Pricing',
+                                    'Price',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
@@ -226,10 +224,6 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                                   ),
                                   const SizedBox(height: 10),
                                   _buildPriceRow('Price', price, widget.product['unit'] ?? 'unit'),
-                                  const SizedBox(height: 8),
-                                  _buildPriceRow('Ceiling', opasCeiling, widget.product['unit'] ?? 'unit'),
-                                  const SizedBox(height: 8),
-                                  _buildPriceRow('OPAS Price', opasRegulatedPrice, widget.product['unit'] ?? 'unit'),
 
                                   const SizedBox(height: 16),
                                   _buildDivider(),
@@ -274,7 +268,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            widget.product['unit'] as String? ?? 'N/A',
+                                            (widget.product['unit']?.toString() ?? 'N/A'),
                                             style: const TextStyle(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
@@ -336,7 +330,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              widget.product['seller_name'] as String? ?? 'Unknown',
+                                              (widget.product['seller_name']?.toString() ?? 'Unknown'),
                                               style: const TextStyle(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w600,

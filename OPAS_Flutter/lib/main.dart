@@ -17,6 +17,7 @@ import 'core/constants/app_theme.dart';
 import 'core/routing/admin_router.dart';
 import 'core/routing/seller_router.dart';
 import 'core/services/admin_service.dart';
+import 'core/services/api_service.dart' as api;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +54,10 @@ void main() async {
   } catch (e) {
     debugPrint('⚠️ Notification service initialization error: $e');
   }
+  
+  // Reset API service cached URL to ensure fresh connection attempt
+  api.ApiService.resetCachedUrl();
+  debugPrint('🔄 API service URL cache cleared for fresh connection');
   
   runApp(const MyApp());
 }

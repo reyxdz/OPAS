@@ -8,6 +8,7 @@ class Product {
   final int stock;
   final String unit;
   final String imageUrl;
+  final List<String> imageUrls; // Multiple images from detail endpoint
   final int sellerId;
   final String sellerName;
   final double sellerRating;
@@ -24,6 +25,7 @@ class Product {
     required this.stock,
     required this.unit,
     required this.imageUrl,
+    this.imageUrls = const [],
     required this.sellerId,
     required this.sellerName,
     required this.sellerRating,
@@ -32,21 +34,48 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    // Parse images array from detail endpoint
+    List<String> imageUrls = [];
+    if (json['images'] is List) {
+      imageUrls = (json['images'] as List)
+          .map((img) {
+            if (img is Map && img['image_url'] != null) {
+              return img['image_url'].toString();
+            } else if (img is String) {
+              return img;
+            }
+            return null;
+          })
+          .where((url) => url != null)
+          .cast<String>()
+          .toList();
+    }
+
+    // Get primary image URL
+    String primaryImage = '';
+    if (imageUrls.isNotEmpty) {
+      primaryImage = imageUrls.first;
+    } else {
+      primaryImage = json['primary_image']?.toString() ?? 
+                     json['image_url']?.toString() ?? '';
+    }
+
     return Product(
       id: json['id'] ?? 0,
       name: json['name'] ?? 'Unknown',
-      category: json['category'] ?? 'General',
+      category: (json['category']?.toString() ?? 'General'),
       description: json['description'] ?? '',
-      pricePerKilo: (json['price_per_kilo'] ?? 0).toDouble(),
-      opasRegulatedPrice: (json['opas_regulated_price'] ?? 0).toDouble(),
-      stock: json['stock'] ?? 0,
+      pricePerKilo: double.tryParse(json['price']?.toString() ?? '0') ?? 0,
+      opasRegulatedPrice: double.tryParse(json['opas_regulated_price']?.toString() ?? '0') ?? 0,
+      stock: json['stock_level'] ?? json['stock'] ?? 0,
       unit: json['unit'] ?? 'kg',
-      imageUrl: json['image_url'] ?? '',
-      sellerId: json['seller_id'] ?? 0,
-      sellerName: json['seller_name'] ?? 'Unknown Seller',
-      sellerRating: (json['seller_rating'] ?? 0).toDouble(),
-      isAvailable: json['is_available'] ?? true,
-      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      imageUrl: primaryImage,
+      imageUrls: imageUrls,
+      sellerId: int.tryParse(json['seller_id']?.toString() ?? '0') ?? 0,
+      sellerName: json['seller_name']?.toString() ?? 'Unknown Seller',
+      sellerRating: double.tryParse(json['seller_rating']?.toString() ?? '0') ?? 0,
+      isAvailable: json['is_available'] ?? json['is_in_stock'] ?? true,
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
     );
   }
 
@@ -60,6 +89,7 @@ class Product {
     'stock': stock,
     'unit': unit,
     'image_url': imageUrl,
+    'image_urls': imageUrls,
     'seller_id': sellerId,
     'seller_name': sellerName,
     'seller_rating': sellerRating,
