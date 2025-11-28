@@ -3,7 +3,7 @@ import 'package:opas_flutter/core/constants/app_dimensions.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../profile/screens/notification_history_screen.dart';
-import '../../marketplace/screens/product_list_screen.dart';
+import '../../products/screens/product_list_screen.dart';
 import '../../cart/screens/cart_screen.dart';
 import '../../order_management/screens/order_history_screen.dart';
 import '../../products/models/product_model.dart';
