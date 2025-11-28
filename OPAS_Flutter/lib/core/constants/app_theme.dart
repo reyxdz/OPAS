@@ -86,6 +86,9 @@ class AppTheme {
         centerTitle: false,
       ),
 
+      // Scaffold Background Color
+      scaffoldBackgroundColor: const Color(0xFFFAFAFA),
+
       // Card Theme
       cardTheme: CardTheme(
         color: Colors.white,

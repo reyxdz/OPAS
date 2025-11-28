@@ -69,7 +69,14 @@ class BuyerApiService {
         
         try {
           return products
-              .map((p) => Product.fromJson(p as Map<String, dynamic>))
+              .map((p) {
+                try {
+                  return Product.fromJson(p as Map<String, dynamic>);
+                } catch (e) {
+                  debugPrint('Error parsing individual product: $p, Error: $e');
+                  rethrow;
+                }
+              })
               .toList();
         } catch (e) {
           debugPrint('Error parsing products: $e');
@@ -560,6 +567,29 @@ class BuyerApiService {
       }
     } catch (e) {
       throw Exception('Failed to submit feedback: $e');
+    }
+  }
+
+  /// Get list of municipalities available in the marketplace
+  /// Returns municipalities from Biliran province where sellers operate
+  /// Matches the municipalities used in seller registration signup page
+  static Future<List<String>> getMunicipalities() async {
+    try {
+      // Return municipalities from Biliran as used in registration
+      final municipalities = [
+        'All Municipalities',
+        'Almeria',
+        'Biliran',
+        'Cabucgayan',
+        'Caibiran',
+        'Culaba',
+        'Kawayan',
+        'Maripipi',
+        'Naval',
+      ];
+      return municipalities;
+    } catch (e) {
+      throw Exception('Failed to fetch municipalities: $e');
     }
   }
 }

@@ -246,6 +246,7 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

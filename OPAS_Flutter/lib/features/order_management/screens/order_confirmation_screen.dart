@@ -15,6 +15,7 @@ class OrderConfirmationScreen extends StatelessWidget {
     return PopScope(
       canPop: false, // Prevent back button
       child: Scaffold(
+        backgroundColor: const Color(0xFFFAFAFA),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(

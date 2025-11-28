@@ -88,20 +88,32 @@ class _AdminLayoutState extends State<AdminLayout> with WidgetsBindingObserver {
     );
 
     if (confirmed == true) {
-      // Backup notifications before clearing preferences
+      // Backup notifications and cart before clearing preferences
       final prefs = await SharedPreferences.getInstance();
       final currentUserNotificationKey = await NotificationHistoryService.getStorageKeyForLogout();
       final currentUserNotifications = prefs.getStringList(currentUserNotificationKey);
       
+      // Backup cart before clearing
+      final userId = prefs.getString('user_id');
+      final cartKey = 'cart_items_$userId';
+      final cartJson = prefs.getString(cartKey);
+      
       debugPrint('🔐 Admin Logout: Backing up notifications from key=$currentUserNotificationKey');
+      debugPrint('🛒 Admin Logout: Backing up cart from key=$cartKey');
       
       // Clear SharedPreferences
       await prefs.clear();
       
-      // Restore ONLY the notification history
+      // Restore ONLY the notification history and cart
       if (currentUserNotifications != null) {
         await prefs.setStringList(currentUserNotificationKey, currentUserNotifications);
         debugPrint('✅ Admin Logout: Preserved ${currentUserNotifications.length} notifications');
+      }
+      
+      // Restore cart
+      if (cartJson != null && userId != null) {
+        await prefs.setString(cartKey, cartJson);
+        debugPrint('✅ Admin Logout: Preserved cart from key=$cartKey');
       }
       
       // Clear admin registration caches

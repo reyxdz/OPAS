@@ -96,16 +96,28 @@ class _SellerLayoutState extends State<SellerLayout> with WidgetsBindingObserver
       final currentUserNotificationKey = await NotificationHistoryService.getStorageKeyForLogout();
       final currentUserNotifications = prefs.getStringList(currentUserNotificationKey);
       
+      // Backup cart before clearing
+      final userId = prefs.getString('user_id');
+      final cartKey = 'cart_items_$userId';
+      final cartJson = prefs.getString(cartKey);
+      
       debugPrint('🔐 Logout: Backing up notifications from key=$currentUserNotificationKey');
+      debugPrint('🛒 Logout: Backing up cart from key=$cartKey');
       
       // Clear all preferences
       await prefs.clear();
       
-      // Restore ONLY the notification history
+      // Restore ONLY the notification history and cart
       // This ensures different users don't access each other's notifications
       if (currentUserNotifications != null) {
         await prefs.setStringList(currentUserNotificationKey, currentUserNotifications);
         debugPrint('✅ Logout: Preserved ${currentUserNotifications.length} notifications under key=$currentUserNotificationKey');
+      }
+      
+      // Restore cart
+      if (cartJson != null && userId != null) {
+        await prefs.setString(cartKey, cartJson);
+        debugPrint('✅ Logout: Preserved cart from key=$cartKey');
       }
       
       if (mounted) {

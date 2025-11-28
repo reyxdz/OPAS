@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_dimensions.dart';
+import '../../../core/widgets/common_search_bar.dart';
+import '../../authentication/models/location_data.dart';
 import '../models/product_model.dart';
 import '../services/buyer_api_service.dart';
 import 'product_detail_screen.dart';
@@ -27,10 +29,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
   List<Product> _filteredProducts = [];
   bool _isLoading = false;
   String? _selectedCategory;
+  String? _selectedMunicipality;
+  late List<String> _municipalities;
 
   @override
   void initState() {
     super.initState();
+    // Initialize municipalities from LocationData
+    _municipalities = ['All Municipalities', ...LocationData.municipalities];
+    _selectedMunicipality = _municipalities.first;
+    
     if (widget.initialCategory != null) {
       _selectedCategory = widget.initialCategory;
     }
@@ -91,35 +99,23 @@ class _ProductListScreenState extends State<ProductListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(
+        elevation: 0,
+        toolbarHeight: 0,
+      ),
       body: Column(
         children: [
           // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search products...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _filterProducts();
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                filled: true,
-                fillColor: Colors.grey[50],
-              ),
-              onChanged: (_) => _filterProducts(),
-            ),
+          CommonSearchBar(
+            controller: _searchController,
+            enabled: true,
+            onChanged: (_) => _filterProducts(),
           ),
+          
+          // Dual Filter Row - Municipality and Category
+          _buildFilterRow(context),
           
           // Products Grid
           Expanded(
@@ -175,6 +171,111 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           return _buildProductCard(context, product);
                         },
                       ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dual filter row - Municipality and Category filters side by side
+  Widget _buildFilterRow(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppDimensions.paddingMedium,
+        vertical: 8,
+      ),
+      child: Row(
+        children: [
+          // Municipality Filter - Left Half
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: DropdownButton<String>(
+                  value: _selectedMunicipality,
+                  isExpanded: true,
+                  underline: Container(),
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF00B464), size: 18),
+                  dropdownColor: Colors.white,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                  items: _municipalities.map((municipality) {
+                    return DropdownMenuItem(
+                      value: municipality,
+                      child: Text(municipality),
+                    );
+                  }).toList(),
+                  onChanged: (newMunicipality) {
+                    if (newMunicipality != null) {
+                      setState(() => _selectedMunicipality = newMunicipality);
+                    }
+                  },
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Category Filter - Right Half
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: DropdownButton<String?>(
+                  value: _selectedCategory,
+                  isExpanded: true,
+                  underline: Container(),
+                  hint: const Text('Category'),
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF00B464), size: 18),
+                  dropdownColor: Colors.white,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('All Categories'),
+                    ),
+                    const DropdownMenuItem(
+                      value: 'VEGETABLE',
+                      child: Text('Vegetables'),
+                    ),
+                    const DropdownMenuItem(
+                      value: 'FRUIT',
+                      child: Text('Fruits'),
+                    ),
+                    const DropdownMenuItem(
+                      value: 'GRAIN',
+                      child: Text('Grains'),
+                    ),
+                    const DropdownMenuItem(
+                      value: 'POULTRY',
+                      child: Text('Poultry'),
+                    ),
+                    const DropdownMenuItem(
+                      value: 'DAIRY',
+                      child: Text('Dairy'),
+                    ),
+                  ],
+                  onChanged: (newCategory) {
+                    setState(() {
+                      _selectedCategory = newCategory;
+                      _loadProducts();
+                    });
+                  },
+                ),
+              ),
+            ),
           ),
         ],
       ),

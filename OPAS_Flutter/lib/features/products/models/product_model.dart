@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class Product {
   final int id;
   final String name;
@@ -34,49 +36,60 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
-    // Parse images array from detail endpoint
-    List<String> imageUrls = [];
-    if (json['images'] is List) {
-      imageUrls = (json['images'] as List)
-          .map((img) {
-            if (img is Map && img['image_url'] != null) {
-              return img['image_url'].toString();
-            } else if (img is String) {
-              return img;
-            }
-            return null;
-          })
-          .where((url) => url != null)
-          .cast<String>()
-          .toList();
-    }
+    try {
+      // Parse images array from detail endpoint
+      List<String> imageUrls = [];
+      if (json['images'] is List) {
+        imageUrls = (json['images'] as List)
+            .map((img) {
+              if (img is Map && img['image_url'] != null) {
+                return img['image_url'].toString();
+              } else if (img is String) {
+                return img;
+              }
+              return null;
+            })
+            .where((url) => url != null)
+            .cast<String>()
+            .toList();
+      }
 
-    // Get primary image URL
-    String primaryImage = '';
-    if (imageUrls.isNotEmpty) {
-      primaryImage = imageUrls.first;
-    } else {
-      primaryImage = json['primary_image']?.toString() ?? 
-                     json['image_url']?.toString() ?? '';
-    }
+      // Get primary image URL
+      String primaryImage = '';
+      if (imageUrls.isNotEmpty) {
+        primaryImage = imageUrls.first;
+      } else {
+        primaryImage = json['primary_image']?.toString() ?? 
+                       json['image_url']?.toString() ?? '';
+      }
 
-    return Product(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? 'Unknown',
-      category: (json['category']?.toString() ?? 'General'),
-      description: json['description'] ?? '',
-      pricePerKilo: double.tryParse(json['price']?.toString() ?? '0') ?? 0,
-      opasRegulatedPrice: double.tryParse(json['opas_regulated_price']?.toString() ?? '0') ?? 0,
-      stock: json['stock_level'] ?? json['stock'] ?? 0,
-      unit: json['unit'] ?? 'kg',
-      imageUrl: primaryImage,
-      imageUrls: imageUrls,
-      sellerId: int.tryParse(json['seller_id']?.toString() ?? '0') ?? 0,
-      sellerName: json['seller_name']?.toString() ?? 'Unknown Seller',
-      sellerRating: double.tryParse(json['seller_rating']?.toString() ?? '0') ?? 0,
-      isAvailable: json['is_available'] ?? json['is_in_stock'] ?? true,
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
-    );
+      return Product(
+        id: json['id'] ?? 0,
+        name: json['name']?.toString() ?? 'Unknown',
+        // Category can be int (category ID) or null - convert safely to string
+        category: json['category'] != null ? json['category'].toString() : 'GENERAL',
+        description: json['description']?.toString() ?? '',
+        pricePerKilo: double.tryParse(json['price']?.toString() ?? '0') ?? 0,
+        opasRegulatedPrice: double.tryParse(json['opas_regulated_price']?.toString() ?? '0') ?? 0,
+        stock: json['stock_level'] ?? json['stock'] ?? 0,
+        unit: json['unit']?.toString() ?? 'kg',
+        imageUrl: primaryImage,
+        imageUrls: imageUrls,
+        sellerId: int.tryParse(json['seller_id']?.toString() ?? '0') ?? 0,
+        // seller_name can be null - provide fallback
+        sellerName: (json['seller_name'] != null && json['seller_name'].toString().isNotEmpty) 
+            ? json['seller_name'].toString() 
+            : 'Unknown Seller',
+        sellerRating: double.tryParse(json['seller_rating']?.toString() ?? '0') ?? 0,
+        isAvailable: json['is_available'] ?? json['is_in_stock'] ?? true,
+        createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('Error in Product.fromJson: $e');
+      debugPrint('Stack trace: $stackTrace');
+      debugPrint('JSON data: $json');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() => {

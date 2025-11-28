@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../products/models/product_model.dart';
 import '../../products/models/review_model.dart';
 import '../../products/services/buyer_api_service.dart';
 import '../../profile/screens/seller_shop_screen.dart';
+import '../../cart/models/cart_item_model.dart';
 
 /// Product Detail Screen - Complete Implementation per Part 3 Spec
 ///
@@ -65,10 +68,52 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     super.dispose();
   }
 
-  /// Add product to cart
+  /// Add product to cart (using local storage until backend API is ready)
   Future<void> _addToCart(Product product) async {
+    debugPrint('🛒 _addToCart CALLED for product: ${product.name} (id=${product.id}, available=${product.isAvailable})');
     try {
-      await BuyerApiService.addToCart(product.id, _quantity);
+      // Create CartItem from Product
+      final cartItem = CartItem(
+        id: DateTime.now().millisecondsSinceEpoch, // Unique ID based on timestamp
+        productId: product.id,
+        productName: product.name,
+        pricePerKilo: product.pricePerKilo,
+        quantity: _quantity,
+        unit: product.unit,
+        imageUrl: product.imageUrl,
+        sellerId: product.sellerId,
+        sellerName: product.sellerName,
+      );
+
+      // Get current cart from storage
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? 'guest';
+      final cartKey = 'cart_items_$userId';
+      debugPrint('🛒 _addToCart: userId=$userId, cartKey=$cartKey');
+      
+      final cartJson = prefs.getString(cartKey) ?? '[]';
+      final List<dynamic> decoded = jsonDecode(cartJson);
+      final cart = decoded.map((item) => CartItem.fromJson(item as Map<String, dynamic>)).toList();
+      debugPrint('🛒 _addToCart: Current cart has ${cart.length} items');
+
+      // Check if product already in cart
+      final existingIndex = cart.indexWhere((item) => item.productId == product.id);
+      
+      if (existingIndex >= 0) {
+        // Update quantity
+        cart[existingIndex].quantity += _quantity;
+        debugPrint('🛒 _addToCart: Updated quantity for product ${product.id}');
+      } else {
+        // Add new item
+        cart.add(cartItem);
+        debugPrint('🛒 _addToCart: Added new product ${product.id} to cart');
+      }
+
+      // Save back to storage
+      final updatedJson = jsonEncode(cart.map((item) => item.toJson()).toList());
+      await prefs.setString(cartKey, updatedJson);
+      debugPrint('🛒 _addToCart: Saved ${cart.length} items to $cartKey');
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -77,7 +122,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           duration: const Duration(seconds: 2),
         ),
       );
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('❌ Error in _addToCart: $e\n$st');
       _showError('Failed to add to cart: $e');
     }
   }
@@ -111,6 +157,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
         title: const Text('Product Details'),
         centerTitle: true,

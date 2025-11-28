@@ -110,6 +110,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
       // appBar: AppBar(
       //   title: const Text('Order History'),
       //   centerTitle: true,

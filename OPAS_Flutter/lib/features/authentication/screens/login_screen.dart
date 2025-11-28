@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../widgets/auth_text_field.dart';
 import './registration_screen.dart';
 import '../../../core/services/api_service.dart';
@@ -147,6 +148,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final response = await ApiService.loginUser(phone, _passwordController.text);
 
+      // Debug: Log full response
+      debugPrint('🔐 Login response: $response');
+
       LoggerService.info(
         'Login successful',
         tag: 'AUTH',
@@ -176,7 +180,19 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString('user_id', response['user_id'].toString());
         debugPrint('👤 Login: Stored user_id (PK) from response[user_id]=${response['user_id']}');
       } else {
-        debugPrint('⚠️ Login: No user_id found in response');
+        // Fallback: Extract user_id from JWT token
+        final accessToken = response['access'] as String?;
+        if (accessToken != null) {
+          final userIdFromJwt = _extractUserIdFromJwt(accessToken);
+          if (userIdFromJwt != null) {
+            await prefs.setString('user_id', userIdFromJwt);
+            debugPrint('👤 Login: Stored user_id from JWT: $userIdFromJwt');
+          } else {
+            debugPrint('⚠️ Login: Could not extract user_id from JWT');
+          }
+        } else {
+          debugPrint('⚠️ Login: No user_id found in response and no access token');
+        }
       }
       
       // Store seller information if available
@@ -239,5 +255,26 @@ class _LoginScreenState extends State<LoginScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  /// Extract user_id from JWT token payload
+  /// JWT format: header.payload.signature
+  String? _extractUserIdFromJwt(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      
+      // Decode payload (add padding if needed)
+      String payload = parts[1];
+      payload = payload.padRight(payload.length + (4 - payload.length % 4) % 4, '=');
+      
+      final decoded = jsonDecode(utf8.decode(base64Url.decode(payload))) as Map<String, dynamic>;
+      final userId = decoded['user_id'];
+      debugPrint('🔐 Extracted user_id from JWT: $userId');
+      return userId?.toString();
+    } catch (e) {
+      debugPrint('❌ Error extracting user_id from JWT: $e');
+      return null;
+    }
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:opas_flutter/core/constants/app_dimensions.dart';
+import 'package:opas_flutter/core/widgets/common_search_bar.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../profile/screens/notification_history_screen.dart';
@@ -44,21 +45,9 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   // Home tab state management
   List<Product> _featuredProducts = [];
   bool _isLoadingFeatured = false;
-  String? _selectedLocation;
   DateTime? _lastCacheTime;
   static const int _cacheMinutes = 5;
   
-  // Available locations for filter
-  final List<String> _locations = [
-    'All Locations',
-    'Benguet',
-    'Nueva Ecija', 
-    'Laguna',
-    'Camarines Sur',
-    'Bukidnon'
-  ];
-  
-  // Categories configuration with icons and labels
   final Map<String, Map<String, dynamic>> _categories = {
     'VEGETABLE': {'label': 'Vegetables', 'icon': Icons.eco, 'color': const Color(0xFF2E7D32)},
     'FRUIT': {'label': 'Fruits', 'icon': Icons.apple, 'color': const Color(0xFFD32F2F)},
@@ -70,7 +59,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedLocation = _locations.first;
     _loadFeaturedProducts();
   }
 
@@ -140,6 +128,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         leading: Container(
           margin: const EdgeInsets.all(8),
@@ -195,7 +184,13 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
       case 0:
         return _buildHomeTab();
       case 1:
-        return const CartScreen();
+        return CartScreen(
+          onContinueShopping: () {
+            setState(() {
+              _selectedIndex = 3;
+            });
+          },
+        );
       case 2:
         return const OrderHistoryScreen();
       case 3:
@@ -216,10 +211,10 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
           children: [
             // === HEADER SECTION ===
             // Search Bar - redirects to ProductList
-            _buildSearchBar(context),
-            
-            // Location Selector
-            _buildLocationSelector(context),
+            CommonSearchBar(
+              enabled: false,
+              onTap: () => _navigateToProducts(),
+            ),
             
             const SizedBox(height: 20),
 
@@ -252,68 +247,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     );
   }
 
-  /// Search bar widget - spec requirement
-  Widget _buildSearchBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-      child: GestureDetector(
-        onTap: () => _navigateToProducts(),
-        child: TextField(
-          enabled: false,
-          decoration: InputDecoration(
-            hintText: 'Search products...',
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: const Icon(Icons.mic_none),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            filled: true,
-            fillColor: Colors.grey[50],
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Location selector - spec requirement
-  Widget _buildLocationSelector(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppDimensions.paddingMedium,
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.location_on_outlined, size: 20, color: Color(0xFF00B464)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButton<String>(
-              value: _selectedLocation,
-              isExpanded: true,
-              underline: Container(),
-              items: _locations.map((location) {
-                return DropdownMenuItem(
-                  value: location,
-                  child: Text(
-                    location,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                );
-              }).toList(),
-              onChanged: (newLocation) {
-                setState(() => _selectedLocation = newLocation);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Featured categories carousel - spec requirement
   /// Horizontal scroll with 5+ categories and "View All" option
   Widget _buildFeaturedCategoriesSection(BuildContext context) {
