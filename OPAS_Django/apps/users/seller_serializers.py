@@ -442,6 +442,7 @@ class SellerOrderSerializer(serializers.ModelSerializer):
     - Timeline information
     """
     buyer_name = serializers.CharField(source='buyer.full_name', read_only=True)
+    buyer_phone = serializers.CharField(source='buyer.phone_number', read_only=True)
     product_name = serializers.CharField(source='product.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     can_be_accepted = serializers.SerializerMethodField(read_only=True)
@@ -457,6 +458,7 @@ class SellerOrderSerializer(serializers.ModelSerializer):
             'seller',
             'buyer',
             'buyer_name',
+            'buyer_phone',
             'product',
             'product_name',
             'quantity',
@@ -483,6 +485,7 @@ class SellerOrderSerializer(serializers.ModelSerializer):
             'seller',
             'buyer',
             'buyer_name',
+            'buyer_phone',
             'product_name',
             'price_per_unit',
             'total_amount',

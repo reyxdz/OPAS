@@ -41,6 +41,13 @@ from .seller_views import (
     MarketplaceViewSet,
     SellerPublicViewSet,
 )
+from .buyer_views import BuyerOrderViewSet
+
+
+# ==================== CUSTOM VIEWS FOR DIRECT PATHS ====================
+
+# Direct order creation endpoint
+order_create_view = BuyerOrderViewSet.as_view({'post': 'create'})
 
 
 # ==================== ROUTER CONFIGURATION ====================
@@ -130,6 +137,13 @@ seller_router.register(
 
 # ==================== BUYER MARKETPLACE ROUTERS ====================
 
+# Buyer Orders Router
+buyer_router.register(
+    r'orders',
+    BuyerOrderViewSet,
+    basename='buyer-orders'
+)
+
 # Marketplace Products Router
 buyer_router.register(
     r'products',
@@ -160,10 +174,14 @@ urlpatterns = [
     # FCM token for push notifications
     path('fcm-token/', FCMTokenView.as_view(), name='fcm-token'),
     
+    # Direct order creation endpoint - MUST come BEFORE buyer_router to take precedence
+    path('orders/create/', order_create_view, name='order-create'),
+    
     # Include seller router URLs (without 'users/' prefix since it's already in core urls.py)
     path('', include(seller_router.urls)),
     
-    # Include buyer/marketplace router URLs
+    # Include buyer/marketplace router URLs - registers /orders/ and other buyer endpoints
+    # NOTE: Direct /orders/create/ above takes precedence over router's /orders/
     path('', include(buyer_router.urls)),
 ]
 

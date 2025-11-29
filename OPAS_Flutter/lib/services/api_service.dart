@@ -5,7 +5,7 @@ class ApiService {
   static final ApiService _instance = ApiService._internal();
   static ApiService get instance => _instance;
 
-  static const String baseUrl = 'http://localhost:8000/api/v1';
+  static const String baseUrl = 'http://localhost:8000/api';
   
   ApiService._internal();
 

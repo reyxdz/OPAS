@@ -6,6 +6,7 @@ import '../../products/models/review_model.dart';
 import '../../products/services/buyer_api_service.dart';
 import '../../profile/screens/seller_shop_screen.dart';
 import '../../cart/models/cart_item_model.dart';
+import '../../cart/screens/checkout_screen.dart';
 
 /// Product Detail Screen - Complete Implementation per Part 3 Spec
 ///
@@ -126,6 +127,39 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     } catch (e, st) {
       debugPrint('❌ Error in _addToCart: $e\n$st');
       _showError('Failed to add to cart: $e');
+    }
+  }
+
+  /// Buy Now - Go directly to checkout without adding to cart
+  void _buyNow(Product product) {
+    debugPrint('🛒 _buyNow CALLED for product: ${product.name}');
+    try {
+      // Create CartItem for checkout (without saving to cart)
+      final cartItem = CartItem(
+        id: DateTime.now().millisecondsSinceEpoch,
+        productId: product.id,
+        productName: product.name,
+        pricePerKilo: product.pricePerKilo,
+        quantity: _quantity,
+        unit: product.unit,
+        imageUrl: product.imageUrl,
+        sellerId: product.sellerId,
+        sellerName: product.sellerName,
+      );
+
+      final totalAmount = cartItem.subtotal;
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CheckoutScreen(
+            cartItems: [cartItem],
+            totalAmount: totalAmount,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Error in _buyNow: $e');
+      _showError('Failed to proceed to checkout: $e');
     }
   }
 
@@ -1054,7 +1088,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: product.isAvailable ? () => _addToCart(product) : null,
+                  onPressed: product.isAvailable ? () => _buyNow(product) : null,
                   icon: const Icon(Icons.shopping_bag_outlined, size: 20),
                   label: const Text('Buy Now'),
                   style: ElevatedButton.styleFrom(

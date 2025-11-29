@@ -30,6 +30,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   ProductCategory? _selectedCategory;
   bool _categoriesLoading = true;
 
+  // Delivery and Pickup options
+  bool _isAvailableForDelivery = false;
+  bool _isAvailableForPickup = false;
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +90,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
             orElse: () => _categories.first,
           );
         }
+
+        // Load delivery and pickup options
+        _isAvailableForDelivery = prefs.getBool('draft_product_delivery') ?? false;
+        _isAvailableForPickup = prefs.getBool('draft_product_pickup') ?? false;
       });
     } catch (e) {
       // Fail silently
@@ -106,6 +114,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
       if (_selectedCategory != null) {
         await prefs.setInt('draft_product_category_id', _selectedCategory!.id);
       }
+
+      // Save delivery and pickup options
+      await prefs.setBool('draft_product_delivery', _isAvailableForDelivery);
+      await prefs.setBool('draft_product_pickup', _isAvailableForPickup);
     } catch (e) {
       // Fail silently
     }
@@ -120,6 +132,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.remove('draft_product_quantity');
       await prefs.remove('draft_product_unit');
       await prefs.remove('draft_product_category_id');
+      await prefs.remove('draft_product_delivery');
+      await prefs.remove('draft_product_pickup');
     } catch (e) {
       // Fail silently
     }
@@ -134,6 +148,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       _selectedUnit = 'kg';
       _selectedCategory = null;
       _selectedImages.clear();
+      _isAvailableForDelivery = false;
+      _isAvailableForPickup = false;
     });
     _formKey.currentState?.reset();
     _saveClearedFormState();
@@ -148,6 +164,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.setString('draft_product_quantity', '');
       await prefs.setString('draft_product_unit', 'kg');
       await prefs.remove('draft_product_category_id');
+      await prefs.setBool('draft_product_delivery', false);
+      await prefs.setBool('draft_product_pickup', false);
     } catch (e) {
       // Fail silently
     }
@@ -255,6 +273,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
       return;
     }
 
+    // Validate that at least one delivery option is selected
+    if (!_isAvailableForDelivery && !_isAvailableForPickup) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one delivery option (Delivery or Pickup)'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -270,6 +299,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         'price': double.parse(_priceController.text),
         'stock_level': int.parse(_quantityController.text),
         'unit': _selectedUnit,
+        'is_available_for_delivery': _isAvailableForDelivery,
+        'is_available_for_pickup': _isAvailableForPickup,
       };
 
       final product = await SellerService.createProduct(productData);
@@ -642,6 +673,86 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  // Delivery Options
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Fulfillment Options',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.grey.withOpacity(0.02),
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          children: [
+                            CheckboxListTile(
+                              value: _isAvailableForDelivery,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isAvailableForDelivery = value ?? false;
+                                });
+                              },
+                              activeColor: const Color(0xFF00B464),
+                              title: const Text(
+                                'Available for Delivery',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              subtitle: const Text(
+                                'Buyers can have this product delivered',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                              controlAffinity: ListTileControlAffinity.leading,
+                            ),
+                            const Divider(height: 12),
+                            CheckboxListTile(
+                              value: _isAvailableForPickup,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isAvailableForPickup = value ?? false;
+                                });
+                              },
+                              activeColor: const Color(0xFF00B464),
+                              title: const Text(
+                                'Available for Pickup',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              subtitle: const Text(
+                                'Buyers can pick up this product from your store',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                              controlAffinity: ListTileControlAffinity.leading,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 16),

@@ -229,9 +229,10 @@ class BuyerApiService {
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access') ?? '';
+      var token = prefs.getString('access') ?? '';
 
-      final response = await http.post(
+      // Try to place order
+      var response = await http.post(
         Uri.parse('$baseUrl/orders/create/'),
         headers: {
           'Authorization': 'Bearer $token',
@@ -243,6 +244,42 @@ class BuyerApiService {
           'delivery_address': deliveryAddress,
         }),
       ).timeout(const Duration(seconds: 15));
+
+      // If 401 (unauthorized), try to refresh token
+      if (response.statusCode == 401) {
+        final refreshToken = prefs.getString('refresh') ?? '';
+        if (refreshToken.isNotEmpty) {
+          // Try to refresh the token
+          final refreshResponse = await http.post(
+            Uri.parse('$baseUrl/auth/token/refresh/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'refresh': refreshToken}),
+          ).timeout(const Duration(seconds: 15));
+
+          if (refreshResponse.statusCode == 200) {
+            final refreshData = jsonDecode(refreshResponse.body);
+            final newToken = refreshData['access'] ?? '';
+            
+            // Save new token
+            await prefs.setString('access', newToken);
+            token = newToken;
+
+            // Retry the order placement with new token
+            response = await http.post(
+              Uri.parse('$baseUrl/orders/create/'),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({
+                'cart_items': cartItemIds,
+                'payment_method': paymentMethod,
+                'delivery_address': deliveryAddress,
+              }),
+            ).timeout(const Duration(seconds: 15));
+          }
+        }
+      }
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);

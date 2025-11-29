@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:opas_flutter/features/seller_panel/widgets/seller_bottom_nav_bar.dart';
+import '../services/seller_api_service.dart';
+import '../../order_management/models/order_model.dart';
 import 'product_listing_screen.dart';
 
 class SellerHomeScreen extends StatefulWidget {
@@ -427,8 +429,27 @@ class _SellerHomeTabState extends State<_SellerHomeTab> {
 }
 
 // ======================== TAB 1: SALES & INVENTORY ========================
-class _AccountProfileTab extends StatelessWidget {
+class _AccountProfileTab extends StatefulWidget {
   const _AccountProfileTab();
+
+  @override
+  State<_AccountProfileTab> createState() => _AccountProfileTabState();
+}
+
+class _AccountProfileTabState extends State<_AccountProfileTab> {
+  late Future<List<Order>> _incomingOrdersFuture;
+  late Future<List<Order>> _inventoryStatsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  void _loadData() {
+    _incomingOrdersFuture = SellerApiService.getIncomingOrders();
+    _inventoryStatsFuture = SellerApiService.getIncomingOrders(); // For stats
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +467,16 @@ class _AccountProfileTab extends StatelessWidget {
           const SizedBox(height: 24),
           
           // === STATS OVERVIEW ===
-          _buildStatsOverview(context),
+          FutureBuilder<List<Order>>(
+            future: _inventoryStatsFuture,
+            builder: (context, snapshot) {
+              final totalOrders = snapshot.data?.length ?? 0;
+              final pendingOrders = snapshot.data?.where((o) => o.isPending).length ?? 0;
+              final completedOrders = snapshot.data?.where((o) => o.isCompleted).length ?? 0;
+
+              return _buildStatsOverview(context, totalOrders, pendingOrders, completedOrders);
+            },
+          ),
           const SizedBox(height: 28),
           
           // === INCOMING ORDERS SECTION ===
@@ -461,19 +491,19 @@ class _AccountProfileTab extends StatelessWidget {
   }
 
   /// Stats Overview with modern cards
-  Widget _buildStatsOverview(BuildContext context) {
+  Widget _buildStatsOverview(BuildContext context, int total, int pending, int completed) {
     return Row(
       children: [
         Expanded(
-          child: _buildModernStatCard(context, 'Pending Orders', '4', Icons.pending_actions, Colors.blue),
+          child: _buildModernStatCard(context, 'Total Orders', '$total', Icons.receipt_long, Colors.blue),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildModernStatCard(context, 'Completed', '28', Icons.check_circle, const Color(0xFF00B464)),
+          child: _buildModernStatCard(context, 'Pending', '$pending', Icons.pending_actions, Colors.orange),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildModernStatCard(context, 'Cancelled', '2', Icons.cancel, Colors.red),
+          child: _buildModernStatCard(context, 'Completed', '$completed', Icons.check_circle, const Color(0xFF00B464)),
         ),
       ],
     );
@@ -551,22 +581,72 @@ class _AccountProfileTab extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        _buildModernOrderCard(
-          context,
-          'Order #001',
-          'Fresh Tomatoes - 10 kg',
-          '₱450',
-          'PENDING',
-          Colors.blue,
-        ),
-        const SizedBox(height: 10),
-        _buildModernOrderCard(
-          context,
-          'Order #002',
-          'Green Peppers - 5 kg',
-          '₱175',
-          'PENDING',
-          Colors.blue,
+        FutureBuilder<List<Order>>(
+          future: _incomingOrdersFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(color: Color(0xFF00B464)),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Error loading orders',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.red,
+                  ),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey[300]),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No incoming orders',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            final orders = snapshot.data!.take(2).toList();
+            return Column(
+              children: orders.map((order) {
+                final statusColor = order.isPending ? Colors.blue : 
+                                   order.isConfirmed ? Colors.orange :
+                                   order.isCompleted ? Colors.green : Colors.red;
+                                   
+                return Column(
+                  children: [
+                    _buildModernOrderCard(
+                      context,
+                      'Order #${order.orderNumber}',
+                      '${order.items.length} items',
+                      '₱${order.totalAmount.toStringAsFixed(2)}',
+                      order.status.toUpperCase(),
+                      statusColor,
+                    ),
+                    if (orders.indexOf(order) < orders.length - 1)
+                      const SizedBox(height: 10),
+                  ],
+                );
+              }).toList(),
+            );
+          },
         ),
       ],
     );

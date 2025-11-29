@@ -6,7 +6,7 @@ class RealApiService {
   static final RealApiService _instance = RealApiService._internal();
   static RealApiService get instance => _instance;
   
-  static const String baseUrl = 'http://localhost:8000/api/v1';
+  static const String baseUrl = 'http://localhost:8000/api';
   
   RealApiService._internal();
   
