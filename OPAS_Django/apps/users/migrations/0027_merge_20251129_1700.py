@@ -6,8 +6,6 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0021_remove_user_users_email_4b85f2_idx_and_more'),
-        ('users', '0022_user_fcm_token'),
         ('users', '0026_remove_sellerproduct_seller_prod_product_87eea1_idx_and_more'),
     ]
 
