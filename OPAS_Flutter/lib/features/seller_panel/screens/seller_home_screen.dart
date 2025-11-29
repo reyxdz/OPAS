@@ -426,7 +426,7 @@ class _SellerHomeTabState extends State<_SellerHomeTab> {
   }
 }
 
-// ======================== TAB 1: ACCOUNT & PROFILE ========================
+// ======================== TAB 1: SALES & INVENTORY ========================
 class _AccountProfileTab extends StatelessWidget {
   const _AccountProfileTab();
 
@@ -439,83 +439,161 @@ class _AccountProfileTab extends StatelessWidget {
         children: [
           Text(
             'Sales & Inventory',
-            style: Theme.of(context).textTheme.headlineSmall,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          const SizedBox(height: 16),
-          _buildSalesStats(context),
-          const SizedBox(height: 20),
-          Text(
-            'Incoming Orders',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          _buildOrderCard(context, 'Order #001', 'Fresh Tomatoes - 10 kg', '₱450', 'PENDING'),
-          const SizedBox(height: 10),
-          _buildOrderCard(context, 'Order #002', 'Green Peppers - 5 kg', '₱175', 'PENDING'),
-          const SizedBox(height: 20),
-          Text(
-            'Inventory Overview',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          _buildInventoryCard(context, 'Total Stock', '245 kg', Colors.blue),
-          const SizedBox(height: 10),
-          _buildInventoryCard(context, 'Low Stock Items', '3', Colors.orange),
-          const SizedBox(height: 10),
-          _buildInventoryCard(context, 'Out of Stock', '2', Colors.red),
+          const SizedBox(height: 24),
+          
+          // === STATS OVERVIEW ===
+          _buildStatsOverview(context),
+          const SizedBox(height: 28),
+          
+          // === INCOMING ORDERS SECTION ===
+          _buildOrdersSection(context),
+          const SizedBox(height: 28),
+          
+          // === INVENTORY OVERVIEW ===
+          _buildInventoryOverviewSection(context),
         ],
       ),
     );
   }
 
-  Widget _buildSalesStats(BuildContext context) {
+  /// Stats Overview with modern cards
+  Widget _buildStatsOverview(BuildContext context) {
     return Row(
       children: [
         Expanded(
-          child: _buildStatBox(context, 'Pending', '4', Colors.blue),
+          child: _buildModernStatCard(context, 'Pending Orders', '4', Icons.pending_actions, Colors.blue),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildStatBox(context, 'Completed', '28', Colors.green),
+          child: _buildModernStatCard(context, 'Completed', '28', Icons.check_circle, const Color(0xFF00B464)),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildStatBox(context, 'Cancelled', '2', Colors.red),
+          child: _buildModernStatCard(context, 'Cancelled', '2', Icons.cancel, Colors.red),
         ),
       ],
     );
   }
 
-  Widget _buildStatBox(BuildContext context, String label, String value, Color color) {
+  /// Modern Stat Card
+  Widget _buildModernStatCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: color.withOpacity(0.08),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 4),
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
           Text(
             value,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: color,
               fontWeight: FontWeight.bold,
+              color: color,
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey[600],
+              fontSize: 11,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildOrderCard(BuildContext context, String orderId, String details, String amount, String status) {
+  /// Orders Section
+  Widget _buildOrdersSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Incoming Orders',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton(
+              onPressed: () {},
+              child: const Text(
+                'View All',
+                style: TextStyle(color: Color(0xFF00B464)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildModernOrderCard(
+          context,
+          'Order #001',
+          'Fresh Tomatoes - 10 kg',
+          '₱450',
+          'PENDING',
+          Colors.blue,
+        ),
+        const SizedBox(height: 10),
+        _buildModernOrderCard(
+          context,
+          'Order #002',
+          'Green Peppers - 5 kg',
+          '₱175',
+          'PENDING',
+          Colors.blue,
+        ),
+      ],
+    );
+  }
+
+  /// Modern Order Card
+  Widget _buildModernOrderCard(
+    BuildContext context,
+    String orderId,
+    String details,
+    String amount,
+    String status,
+    Color statusColor,
+  ) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.blue.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -524,39 +602,149 @@ class _AccountProfileTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(orderId, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(details, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey)),
-                const SizedBox(height: 4),
-                Text(amount, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: const Color(0xFF00B464))),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      orderId,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: statusColor.withOpacity(0.5)),
+                      ),
+                      child: Text(
+                        status,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: statusColor,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  details,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  amount,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF00B464),
+                  ),
+                ),
               ],
             ),
           ),
-          const Icon(Icons.arrow_forward, color: Colors.grey),
+          const SizedBox(width: 12),
+          Icon(Icons.arrow_forward, color: Colors.grey[400], size: 20),
         ],
       ),
     );
   }
 
-  Widget _buildInventoryCard(BuildContext context, String label, String value, Color color) {
+  /// Inventory Overview Section
+  Widget _buildInventoryOverviewSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Inventory Overview',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton(
+              onPressed: () {},
+              child: const Text(
+                'Details',
+                style: TextStyle(color: Color(0xFF00B464)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildModernInventoryCard(context, 'Total Stock', '245 kg', Icons.inventory_2, const Color(0xFF00B464)),
+        const SizedBox(height: 10),
+        _buildModernInventoryCard(context, 'Low Stock Items', '3', Icons.warning_amber, Colors.orange),
+        const SizedBox(height: 10),
+        _buildModernInventoryCard(context, 'Out of Stock', '2', Icons.block, Colors.red),
+      ],
+    );
+  }
+
+  /// Modern Inventory Card
+  Widget _buildModernInventoryCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        border: Border.all(color: color.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: color.withOpacity(0.08),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
+          Icon(Icons.arrow_forward, color: Colors.grey[400], size: 20),
         ],
       ),
     );

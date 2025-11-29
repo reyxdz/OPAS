@@ -89,8 +89,17 @@ class _InventoryListingScreenState extends State<InventoryListingScreen> {
     });
   }
 
+  /// Calculate inventory statistics
+  Map<String, int> _calculateStats() {
+    return {
+      'total': _allInventory.length,
+      'lowStock': _allInventory.where((item) => (item['is_low_stock'] as bool? ?? false)).length,
+      'active': _allInventory.where((item) => item['status'] == 'ACTIVE').length,
+    };
+  }
+
   Color _getStockStatusColor(bool isLowStock) {
-    return isLowStock ? Colors.red : Colors.green;
+    return isLowStock ? Colors.red : const Color(0xFF00B464);
   }
 
   String _getStockStatusText(bool isLowStock) {
@@ -114,337 +123,593 @@ class _InventoryListingScreenState extends State<InventoryListingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
-        title: const Text('Inventory Management'),
+        title: const Text('Sales & Inventory'),
         centerTitle: true,
-        elevation: 2,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
       ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search products...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _inventoryFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFF00B464)));
+          }
+
+          if (snapshot.hasError) {
+            return _buildErrorState(snapshot.error.toString());
+          }
+
+          return RefreshIndicator(
+            onRefresh: _refreshInventory,
+            color: const Color(0xFF00B464),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // === STATISTICS HEADER ===
+                  _buildStatsSection(context),
+
+                  const SizedBox(height: 24),
+
+                  // === SEARCH BAR ===
+                  _buildSearchBar(),
+
+                  const SizedBox(height: 16),
+
+                  // === FILTER & SORT CHIPS ===
+                  _buildFilterSortSection(context),
+
+                  const SizedBox(height: 20),
+
+                  // === INVENTORY LIST ===
+                  _filteredInventory.isEmpty
+                      ? _buildEmptyState(context)
+                      : _buildInventoryList(context),
+                ],
               ),
             ),
-          ),
+          );
+        },
+      ),
+    );
+  }
 
-          // Filter and Sort Controls
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+  /// Statistics Header Section
+  Widget _buildStatsSection(BuildContext context) {
+    final stats = _calculateStats();
+    
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Inventory Overview',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.0,
+            children: [
+              _buildStatCard(
+                context,
+                'Total Products',
+                '${stats['total']}',
+                Icons.inventory_2,
+                const Color(0xFF00B464),
+              ),
+              _buildStatCard(
+                context,
+                'Low Stock',
+                '${stats['lowStock']}',
+                Icons.warning_amber,
+                Colors.orange,
+              ),
+              _buildStatCard(
+                context,
+                'Active',
+                '${stats['active']}',
+                Icons.check_circle,
+                Colors.blue,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Individual Stat Card
+  Widget _buildStatCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: color.withOpacity(0.08),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey[600],
+              fontSize: 11,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Search Bar
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Search products...',
+          prefixIcon: const Icon(Icons.search, color: Color(0xFF00B464)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFF00B464), width: 2),
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        ),
+      ),
+    );
+  }
+
+  /// Filter & Sort Chips
+  Widget _buildFilterSortSection(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Filter',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                // Filter dropdown
-                Expanded(
-                  child: DropdownButton<String>(
-                    value: _filterType,
-                    isExpanded: true,
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _filterType = value);
-                        _applyFiltersAndSort();
-                      }
-                    },
-                    items: const [
-                      DropdownMenuItem(value: 'ALL', child: Text('All Products')),
-                      DropdownMenuItem(value: 'LOW_STOCK', child: Text('Low Stock')),
-                      DropdownMenuItem(value: 'ACTIVE', child: Text('Active')),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Sort dropdown
-                Expanded(
-                  child: DropdownButton<String>(
-                    value: _sortBy,
-                    isExpanded: true,
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => _sortBy = value);
-                        _applyFiltersAndSort();
-                      }
-                    },
-                    items: const [
-                      DropdownMenuItem(value: 'NAME', child: Text('Name (A-Z)')),
-                      DropdownMenuItem(value: 'STOCK_ASC', child: Text('Stock (Low-High)')),
-                      DropdownMenuItem(value: 'STOCK_DESC', child: Text('Stock (High-Low)')),
-                    ],
-                  ),
-                ),
+                _buildFilterChip('ALL', 'All Products'),
+                const SizedBox(width: 8),
+                _buildFilterChip('LOW_STOCK', 'Low Stock'),
+                const SizedBox(width: 8),
+                _buildFilterChip('ACTIVE', 'Active Only'),
               ],
             ),
           ),
           const SizedBox(height: 16),
-
-          // Inventory List
-          Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: _inventoryFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error_outline,
-                            size: 64, color: Colors.red.shade400),
-                        const SizedBox(height: 16),
-                        const Text('Failed to load inventory'),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _refreshInventory,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (_filteredInventory.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.inbox_outlined,
-                            size: 64, color: Colors.grey.shade400),
-                        const SizedBox(height: 16),
-                        const Text('No inventory items found'),
-                      ],
-                    ),
-                  );
-                }
-
-                return RefreshIndicator(
-                  onRefresh: _refreshInventory,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: _filteredInventory.length,
-                    itemBuilder: (context, index) {
-                      final item = _filteredInventory[index];
-                      final isLowStock = item['is_low_stock'] as bool? ?? false;
-                      final currentStock = item['stock_level'] as int? ?? 0;
-                      final minimumStock = item['minimum_stock'] as int? ?? 0;
-                      final productName = item['name'] as String? ?? 'Unknown';
-                      final unit = item['unit'] as String? ?? 'units';
-
-                      return Card(
-                        elevation: 2,
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Header: Product Name and Status Badge
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          productName,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Unit: $unit',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Status badge
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _getStockStatusColor(isLowStock)
-                                          .withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: _getStockStatusColor(isLowStock),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      _getStockStatusText(isLowStock),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: _getStockStatusColor(isLowStock),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-
-                              // Stock Information
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Current Stock',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '$currentStock',
-                                        style: const TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF2E7D32),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Minimum Required',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '$minimumStock',
-                                        style: const TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF1565C0),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (isLowStock)
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Deficit',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${minimumStock - currentStock}',
-                                          style: const TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.red,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-
-                              // Stock Level Bar
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: LinearProgressIndicator(
-                                  value: minimumStock > 0
-                                      ? (currentStock / minimumStock).clamp(0.0, 1.0)
-                                      : 0,
-                                  minHeight: 8,
-                                  backgroundColor: Colors.grey.shade300,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    isLowStock
-                                        ? Colors.red
-                                        : Colors.green,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-
-                              // Action Buttons
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: () =>
-                                          _navigateToUpdateStock(item),
-                                      icon: const Icon(Icons.edit),
-                                      label: const Text('Update Stock'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            const Color(0xFF1976D2),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  if (isLowStock)
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () => _showReorderDialog(
-                                            item, minimumStock - currentStock),
-                                        icon: const Icon(Icons.shopping_cart),
-                                        label: const Text('Reorder'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.orange,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+          Text(
+            'Sort by',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildSortChip('NAME', 'Name (A-Z)'),
+                const SizedBox(width: 8),
+                _buildSortChip('STOCK_ASC', 'Stock: Low→High'),
+                const SizedBox(width: 8),
+                _buildSortChip('STOCK_DESC', 'Stock: High→Low'),
+              ],
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _refreshInventory,
-        tooltip: 'Refresh inventory',
-        child: const Icon(Icons.refresh),
+    );
+  }
+
+  /// Filter Chip
+  Widget _buildFilterChip(String value, String label) {
+    final isSelected = _filterType == value;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        setState(() => _filterType = value);
+        _applyFiltersAndSort();
+      },
+      backgroundColor: Colors.white,
+      selectedColor: const Color(0xFF00B464).withOpacity(0.2),
+      side: BorderSide(
+        color: isSelected ? const Color(0xFF00B464) : Colors.grey[300]!,
+        width: isSelected ? 2 : 1,
+      ),
+      labelStyle: TextStyle(
+        color: isSelected ? const Color(0xFF00B464) : Colors.grey[700],
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
+    );
+  }
+
+  /// Sort Chip
+  Widget _buildSortChip(String value, String label) {
+    final isSelected = _sortBy == value;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        setState(() => _sortBy = value);
+        _applyFiltersAndSort();
+      },
+      backgroundColor: Colors.white,
+      selectedColor: Colors.blue.withOpacity(0.2),
+      side: BorderSide(
+        color: isSelected ? Colors.blue : Colors.grey[300]!,
+        width: isSelected ? 2 : 1,
+      ),
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.blue : Colors.grey[700],
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
+    );
+  }
+
+  /// Empty State
+  Widget _buildEmptyState(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text(
+            'No inventory items found',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try adjusting your filters or search query',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey[500],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Error State
+  Widget _buildErrorState(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 80, color: Colors.red.withOpacity(0.5)),
+          const SizedBox(height: 16),
+          Text(
+            'Failed to load inventory',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _refreshInventory,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00B464),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Inventory List
+  Widget _buildInventoryList(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: _filteredInventory.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final item = _filteredInventory[index];
+          return _buildInventoryCard(context, item);
+        },
+      ),
+    );
+  }
+
+  /// Inventory Card
+  Widget _buildInventoryCard(BuildContext context, Map<String, dynamic> item) {
+    final isLowStock = item['is_low_stock'] as bool? ?? false;
+    final currentStock = item['stock_level'] as int? ?? 0;
+    final minimumStock = item['minimum_stock'] as int? ?? 0;
+    final productName = item['name'] as String? ?? 'Unknown';
+    final unit = item['unit'] as String? ?? 'units';
+    final stockPercentage = minimumStock > 0 
+        ? (currentStock / minimumStock).clamp(0.0, 1.0) 
+        : 0.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: Name + Status Badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        productName,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        unit,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _getStockStatusColor(isLowStock).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _getStockStatusColor(isLowStock).withOpacity(0.5),
+                    ),
+                  ),
+                  child: Text(
+                    _getStockStatusText(isLowStock),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: _getStockStatusColor(isLowStock),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Stock Information Grid
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: _buildStockInfoItem(
+                    'Current Stock',
+                    '$currentStock',
+                    const Color(0xFF00B464),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStockInfoItem(
+                    'Minimum',
+                    '$minimumStock',
+                    Colors.blue,
+                  ),
+                ),
+                if (isLowStock) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStockInfoItem(
+                      'Deficit',
+                      '${minimumStock - currentStock}',
+                      Colors.red,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Stock Progress Bar
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Stock Level',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '${(stockPercentage * 100).toStringAsFixed(0)}%',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: isLowStock ? Colors.red : const Color(0xFF00B464),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: stockPercentage,
+                    minHeight: 10,
+                    backgroundColor: Colors.grey[200],
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      isLowStock ? Colors.red : const Color(0xFF00B464),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _navigateToUpdateStock(item),
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Update Stock'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00B464),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                if (isLowStock) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showReorderDialog(item, minimumStock - currentStock),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Reorder'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.orange,
+                        side: const BorderSide(color: Colors.orange),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Stock Info Item
+  Widget _buildStockInfoItem(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        border: Border.all(color: color.withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey[600],
+              fontSize: 11,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -453,23 +718,52 @@ class _InventoryListingScreenState extends State<InventoryListingScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reorder Required'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Text('Reorder Alert'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Product: ${item['name']}'),
-            const SizedBox(height: 8),
+            Text(
+              'Product: ${item['name']}',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
               'Current stock is below minimum level.',
-              style: TextStyle(color: Colors.grey.shade700),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Reorder quantity: $deficit ${item['unit']}',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.orange,
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Text(
+                'Reorder: $deficit ${item['unit']}',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
               ),
             ),
           ],
@@ -479,12 +773,17 @@ class _InventoryListingScreenState extends State<InventoryListingScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
               _navigateToUpdateStock(item);
             },
-            child: const Text('Update Stock'),
+            icon: const Icon(Icons.edit, size: 18),
+            label: const Text('Update Stock'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00B464),
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
