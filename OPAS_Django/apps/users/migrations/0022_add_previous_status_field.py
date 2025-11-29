@@ -4,7 +4,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0022_user_fcm_token'),
+        ('users', '0021_user_fcm_token'),
     ]
 
     operations = [

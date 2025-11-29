@@ -8,7 +8,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0025_add_product_category_and_category_price_ceiling'),
+        ('users', '0024_add_product_category_and_category_price_ceiling'),
     ]
 
     operations = [

@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0026_rename_categorypriceceiling_category_active_category_pr_categor_f64a8d_idx_and_more'),
+        ('users', '0025_rename_categorypriceceiling_category_active_category_pr_categor_f64a8d_idx_and_more'),
     ]
 
     operations = [

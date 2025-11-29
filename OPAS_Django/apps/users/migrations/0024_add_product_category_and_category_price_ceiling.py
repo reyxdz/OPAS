@@ -4,7 +4,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0024_alter_sellerproduct_previous_status'),
+        ('users', '0023_alter_sellerproduct_previous_status'),
     ]
 
     operations = [
