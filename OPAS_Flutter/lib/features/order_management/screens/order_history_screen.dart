@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../order_management/models/order_model.dart';
 import '../../products/services/buyer_api_service.dart';
 import 'order_detail_screen.dart';
@@ -13,98 +14,36 @@ class OrderHistoryScreen extends StatefulWidget {
 class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   String _selectedFilter = 'all';
   late Future<List<Order>> _ordersFuture;
+  int _currentPage = 1;
 
   final List<String> _filters = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
 
   @override
   void initState() {
     super.initState();
+    _debugAuthStatus();
     _loadOrders();
   }
 
+  Future<void> _debugAuthStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access');
+    final refreshToken = prefs.getString('refresh');
+    debugPrint('🔐 Auth Debug: Access Token: ${token != null ? 'Present (${token.length} chars)' : 'Missing'}');
+    debugPrint('🔐 Auth Debug: Refresh Token: ${refreshToken != null ? 'Present (${refreshToken.length} chars)' : 'Missing'}');
+    debugPrint('🔐 Auth Debug: API Base URL: ${BuyerApiService.baseUrl}');
+  }
+
   void _loadOrders() {
+    debugPrint('📦 Loading orders...');
     setState(() {
-      // _ordersFuture = BuyerApiService.getBuyerOrders();
-      // Use mock data for presentation
-      _ordersFuture = Future.delayed(
-        const Duration(milliseconds: 500),
-        () => _generateMockOrders(),
-      );
+      _ordersFuture = BuyerApiService.getBuyerOrders(page: _currentPage);
     });
   }
 
-  List<Order> _generateMockOrders() {
-    return [
-      Order(
-        id: 1,
-        orderNumber: 'ORD-2023-001',
-        items: [
-          OrderItem(
-            id: 1, productId: 101, productName: 'Fresh Tomatoes',
-            pricePerKilo: 45.0, quantity: 2, unit: 'kg', subtotal: 90.0,
-            imageUrl: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=300&q=80',
-          ),
-          OrderItem(
-            id: 2, productId: 102, productName: 'Organic Lettuce',
-            pricePerKilo: 60.0, quantity: 1, unit: 'kg', subtotal: 60.0,
-            imageUrl: 'https://images.unsplash.com/photo-1622206151226-18ca2c9ab4a1?auto=format&fit=crop&w=300&q=80',
-          ),
-          OrderItem(
-            id: 6, productId: 106, productName: 'Chicken Breast',
-            pricePerKilo: 180.0, quantity: 2, unit: 'kg', subtotal: 360.0,
-            imageUrl: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=300&q=80',
-          ),
-        ],
-        totalAmount: 510.0,
-        status: 'completed',
-        paymentMethod: 'cash_on_delivery',
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        deliveryAddress: '123 Main St, Baguio City',
-        buyerName: 'Juan Dela Cruz',
-        buyerPhone: '09123456789',
-      ),
-      Order(
-        id: 2,
-        orderNumber: 'ORD-2023-002',
-        items: [
-          OrderItem(
-            id: 5, productId: 105, productName: 'Yellow Mangoes',
-            pricePerKilo: 120.0, quantity: 3, unit: 'kg', subtotal: 360.0,
-            imageUrl: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=300&q=80',
-          ),
-        ],
-        totalAmount: 360.0,
-        status: 'pending',
-        paymentMethod: 'gcash',
-        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-        deliveryAddress: '123 Main St, Baguio City',
-        buyerName: 'Juan Dela Cruz',
-        buyerPhone: '09123456789',
-      ),
-      Order(
-        id: 3,
-        orderNumber: 'ORD-2023-003',
-        items: [
-          OrderItem(
-            id: 3, productId: 103, productName: 'Red Onions',
-            pricePerKilo: 80.0, quantity: 1, unit: 'kg', subtotal: 80.0,
-            imageUrl: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=300&q=80',
-          ),
-          OrderItem(
-            id: 4, productId: 104, productName: 'Green Apples',
-            pricePerKilo: 50.0, quantity: 2, unit: 'kg', subtotal: 100.0,
-            imageUrl: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=300&q=80',
-          ),
-        ],
-        totalAmount: 180.0,
-        status: 'cancelled',
-        paymentMethod: 'cash_on_delivery',
-        createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        deliveryAddress: '123 Main St, Baguio City',
-        buyerName: 'Juan Dela Cruz',
-        buyerPhone: '09123456789',
-      ),
-    ];
+  void _refreshOrders() {
+    _currentPage = 1;
+    _loadOrders();
   }
 
   @override
@@ -118,11 +57,22 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // === HEADER ===
-              Text(
-                'My Orders',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'My Orders',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _refreshOrders,
+                    icon: const Icon(Icons.refresh),
+                    color: const Color(0xFF00B464),
+                    tooltip: 'Refresh orders',
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 
@@ -191,17 +141,38 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                   }
 
                   if (snapshot.hasError) {
+                    final errorMessage = snapshot.error.toString();
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
                       child: Center(
                         child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
                             const SizedBox(height: 12),
                             Text(
-                              'Error loading orders',
+                              'Error Loading Orders',
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              errorMessage.replaceFirst('Exception: ', ''),
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 20),
+                            ElevatedButton.icon(
+                              onPressed: _refreshOrders,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Retry'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00B464),
+                                foregroundColor: Colors.white,
                               ),
                             ),
                           ],

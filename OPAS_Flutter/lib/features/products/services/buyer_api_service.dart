@@ -296,9 +296,9 @@ class BuyerApiService {
   static Future<List<Order>> getBuyerOrders({int page = 1}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('access') ?? '';
+      var token = prefs.getString('access') ?? '';
 
-      final response = await http.get(
+      var response = await http.get(
         Uri.parse('$baseUrl/orders/?page=$page'),
         headers: {
           'Authorization': 'Bearer $token',
@@ -306,14 +306,61 @@ class BuyerApiService {
         },
       ).timeout(const Duration(seconds: 15));
 
+      // Handle 401 - try to refresh token and retry
+      if (response.statusCode == 401 && token.isNotEmpty) {
+        final refreshToken = prefs.getString('refresh') ?? '';
+        if (refreshToken.isNotEmpty) {
+          try {
+            final refreshResponse = await http.post(
+              Uri.parse('$baseUrl/auth/token/refresh/'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'refresh': refreshToken}),
+            ).timeout(const Duration(seconds: 15));
+
+            if (refreshResponse.statusCode == 200) {
+              final refreshData = jsonDecode(refreshResponse.body);
+              final newToken = refreshData['access'] ?? '';
+              await prefs.setString('access', newToken);
+              token = newToken;
+
+              // Retry the request with new token
+              response = await http.get(
+                Uri.parse('$baseUrl/orders/?page=$page'),
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Content-Type': 'application/json',
+                },
+              ).timeout(const Duration(seconds: 15));
+            }
+          } catch (e) {
+            // Token refresh failed, continue with original response
+            debugPrint('Token refresh failed: $e');
+          }
+        }
+      }
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> orders = data['results'] ?? data['orders'] ?? [];
+        
+        List<dynamic> orders = [];
+        
+        // Handle different response formats
+        if (data is List) {
+          // Response is a direct list
+          orders = data;
+        } else if (data is Map<String, dynamic>) {
+          // Response is a map - check for results, orders, or data key
+          orders = data['results'] ?? data['orders'] ?? data['data'] ?? [];
+        }
+        
+        debugPrint('📦 Fetched ${orders.length} orders');
         return orders
             .map((o) => Order.fromJson(o as Map<String, dynamic>))
             .toList();
+      } else if (response.statusCode == 401) {
+        throw Exception('Unauthorized - Please log in again');
       } else {
-        throw Exception('Failed to fetch orders: ${response.statusCode}');
+        throw Exception('Failed to fetch orders: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       throw Exception('Failed to fetch orders: $e');

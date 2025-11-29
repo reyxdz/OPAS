@@ -34,16 +34,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Order Details'),
-        centerTitle: true,
+        centerTitle: false,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
       ),
       body: FutureBuilder<Order>(
         future: _orderFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF00B464)),
+            );
           }
 
           if (snapshot.hasError) {
@@ -51,10 +56,20 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline,
-                      size: 64, color: Colors.red[300]),
+                  Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
                   const SizedBox(height: 16),
-                  Text('Error: ${snapshot.error}'),
+                  Text(
+                    'Error loading order',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${snapshot.error}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ],
               ),
             );
@@ -62,138 +77,40 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
           final order = snapshot.data!;
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Order Status Timeline
+                // === ORDER HEADER CARD ===
+                _buildOrderHeaderCard(context, order),
+                const SizedBox(height: 24),
+
+                // === ORDER STATUS TIMELINE ===
                 _buildStatusTimeline(context, order),
                 const SizedBox(height: 24),
 
-                // Order Information
-                _buildSection(
-                  context,
-                  'Order Information',
-                  [
-                    _buildDetailRow(context, 'Order Number', order.orderNumber),
-                    const SizedBox(height: 12),
-                    _buildDetailRow(
-                      context,
-                      'Order Date',
-                      '${order.createdAt.year}-${order.createdAt.month.toString().padLeft(2, '0')}-${order.createdAt.day.toString().padLeft(2, '0')}',
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDetailRow(
-                      context,
-                      'Status',
-                      order.status.toUpperCase(),
-                      highlight: true,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                // === ITEMS SECTION ===
+                _buildItemsSection(context, order),
+                const SizedBox(height: 24),
 
-                // Delivery Information
-                _buildSection(
-                  context,
-                  'Delivery Information',
-                  [
-                    _buildDetailRow(context, 'Recipient', order.buyerName),
-                    const SizedBox(height: 12),
-                    _buildDetailRow(context, 'Phone', order.buyerPhone),
-                    const SizedBox(height: 12),
-                    _buildDetailRow(
-                      context,
-                      'Address',
-                      order.deliveryAddress,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                // === DELIVERY INFORMATION ===
+                _buildDeliverySection(context, order),
+                const SizedBox(height: 24),
 
-                // Payment Information
-                _buildSection(
-                  context,
-                  'Payment Information',
-                  [
-                    _buildDetailRow(
-                      context,
-                      'Payment Method',
-                      order.paymentMethod == 'cash_on_delivery'
-                          ? 'Cash on Delivery'
-                          : order.paymentMethod.replaceAll('_', ' '),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDetailRow(
-                      context,
-                      'Total Amount',
-                      '₱${order.totalAmount.toStringAsFixed(2)}',
-                      highlight: true,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                // === SELLER INFORMATION ===
+                _buildSellerSection(context, order),
+                const SizedBox(height: 24),
 
-                // Order Items
-                _buildSection(
-                  context,
-                  'Items (${order.items.length})',
-                  [
-                    ...order.items.map((item) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.productName,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium,
-                                  ),
-                                  Text(
-                                    '${item.quantity} ${item.unit} × ₱${item.pricePerKilo.toStringAsFixed(2)}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                          color: Colors.grey[600],
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              '₱${item.subtotal.toStringAsFixed(2)}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFF00B464),
-                                  ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ],
-                ),
-                const SizedBox(height: 32),
+                // === PAYMENT INFORMATION ===
+                _buildPaymentSection(context, order),
+                const SizedBox(height: 24),
 
-                // Action Buttons
-                if (order.isCompleted)
+                // === ACTION BUTTONS ===
+                if (order.isCompleted) ...[
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        // Navigate to review screen
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Review feature coming soon'),
@@ -206,9 +123,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         backgroundColor: const Color(0xFF00B464),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
+                ],
               ],
             ),
           );
@@ -217,83 +138,82 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Widget _buildStatusTimeline(BuildContext context, Order order) {
-    final statuses = [
-      {'status': 'pending', 'label': 'Order Placed'},
-      {'status': 'confirmed', 'label': 'Confirmed'},
-      {'status': 'completed', 'label': 'Delivered'},
-    ];
-
+  /// Order Header Card with Order Number and Status
+  Widget _buildOrderHeaderCard(BuildContext context, Order order) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Order Status',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 60,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: statuses.length,
-              separatorBuilder: (context, index) => const Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: Divider(thickness: 2),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Order #${order.orderNumber}',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              itemBuilder: (context, index) {
-                final statusInfo = statuses[index];
-                final status = statusInfo['status'] as String;
-                final label = statusInfo['label'] as String;
-                final isCompleted =
-                    _getStatusIndex(order.status) >= index;
-                final isCurrent = order.status == status;
-
-                return Column(
+              const SizedBox(height: 4),
+              Text(
+                'Placed on ${_formatDate(order.createdAt)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00B464).withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: const Color(0xFF00B464).withOpacity(0.2),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isCompleted
-                            ? const Color(0xFF00B464)
-                            : Colors.grey[300],
-                      ),
-                      child: Icon(
-                        isCurrent
-                            ? Icons.check_circle
-                            : isCompleted
-                                ? Icons.check
-                                : Icons.radio_button_unchecked,
-                        color: isCompleted ? Colors.white : Colors.grey,
-                        size: 20,
+                    Text(
+                      'Total Amount',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
-                      label,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(
-                            fontWeight: isCurrent
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                      textAlign: TextAlign.center,
+                      '₱${order.totalAmount.toStringAsFixed(2)}',
+                      style:
+                          Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF00B464),
+                      ),
                     ),
                   ],
-                );
-              },
+                ),
+                Icon(
+                  Icons.receipt_long,
+                  color: const Color(0xFF00B464),
+                  size: 28,
+                ),
+              ],
             ),
           ),
         ],
@@ -301,6 +221,434 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
+  /// Status Timeline
+  Widget _buildStatusTimeline(BuildContext context, Order order) {
+    final statuses = [
+      {'status': 'pending', 'label': 'Pending', 'icon': Icons.shopping_cart},
+      {'status': 'confirmed', 'label': 'Confirmed', 'icon': Icons.check_circle},
+      {'status': 'completed', 'label': 'Delivered', 'icon': Icons.local_shipping},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Order Status',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(statuses.length * 2 - 1, (index) {
+                  if (index.isEven) {
+                    final statusIndex = index ~/ 2;
+                    final statusInfo = statuses[statusIndex];
+                    final status = statusInfo['status'] as String;
+                    final label = statusInfo['label'] as String;
+                    final icon = statusInfo['icon'] as IconData;
+                    final isCompleted = _getStatusIndex(order.status) >= statusIndex;
+                    final isCurrent = order.status == status;
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isCompleted
+                                ? const Color(0xFF00B464)
+                                : Colors.grey[200],
+                            border: Border.all(
+                              color: isCurrent
+                                  ? const Color(0xFF00B464)
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            icon,
+                            color: isCompleted ? Colors.white : Colors.grey[400],
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: 70,
+                          child: Text(
+                            label,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight:
+                                  isCurrent ? FontWeight.bold : FontWeight.normal,
+                              color: isCurrent ? const Color(0xFF00B464) : Colors.grey[600],
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    );
+                  } else {
+                    final isActive = _getStatusIndex(order.status) > index ~/ 2;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: SizedBox(
+                        width: 20,
+                        height: 2,
+                        child: Container(
+                          color: isActive ? const Color(0xFF00B464) : Colors.grey[200],
+                        ),
+                      ),
+                    );
+                  }
+                }),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Items Section
+  Widget _buildItemsSection(BuildContext context, Order order) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Items',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${order.items.length} item${order.items.length != 1 ? 's' : ''}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...List.generate(
+            order.items.length,
+            (index) {
+              final item = order.items[index];
+              return Column(
+                children: [
+                  _buildItemRow(context, item),
+                  if (index < order.items.length - 1) ...[
+                    const SizedBox(height: 12),
+                    Divider(color: Colors.grey[200], thickness: 1),
+                    const SizedBox(height: 12),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Individual Item Row
+  Widget _buildItemRow(BuildContext context, dynamic item) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.productName,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${item.quantity} ${item.unit} × ₱${item.pricePerKilo.toStringAsFixed(2)}/unit',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '₱${item.subtotal.toStringAsFixed(2)}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF00B464),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Buyer Information Section
+  Widget _buildDeliverySection(BuildContext context, Order order) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.person, color: Colors.blue, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Buyer\'s Information',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(context, 'Name', order.buyerName),
+          const SizedBox(height: 12),
+          _buildInfoRow(context, 'Phone', order.buyerPhone),
+          const SizedBox(height: 12),
+          _buildInfoRow(
+            context,
+            'Delivery Address',
+            order.deliveryAddress,
+            maxLines: 3,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Seller Information Section
+  Widget _buildSellerSection(BuildContext context, Order order) {
+    final hasSellerInfo = order.sellerStoreName != null ||
+        order.sellerFarmName != null ||
+        order.sellerFarmAddress != null ||
+        order.sellerPhone != null;
+
+    if (!hasSellerInfo) {
+      return SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.store, color: Color(0xFF00B464), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Seller\'s Information',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (order.sellerStoreName != null && order.sellerStoreName!.isNotEmpty) ...[
+            _buildInfoRow(context, 'Store Name', order.sellerStoreName!),
+            const SizedBox(height: 12),
+          ],
+          if (order.sellerFarmName != null && order.sellerFarmName!.isNotEmpty) ...[
+            _buildInfoRow(context, 'Farm Name', order.sellerFarmName!),
+            const SizedBox(height: 12),
+          ],
+          if (order.sellerPhone != null && order.sellerPhone!.isNotEmpty) ...[
+            _buildInfoRow(context, 'Phone', order.sellerPhone!),
+            const SizedBox(height: 12),
+          ],
+          if (order.sellerFarmAddress != null && order.sellerFarmAddress!.isNotEmpty)
+            _buildInfoRow(context, 'Farm Address', order.sellerFarmAddress!, maxLines: 3),
+        ],
+      ),
+    );
+  }
+
+  /// Payment Information Section
+  Widget _buildPaymentSection(BuildContext context, Order order) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.local_shipping, color: Colors.purple, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Delivery Information',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            context,
+            'Delivery Method',
+            order.paymentMethod == 'cash_on_delivery'
+                ? 'Cash on Delivery'
+                : order.paymentMethod == 'delivery'
+                    ? 'Home Delivery'
+                    : order.paymentMethod.replaceAll('_', ' ').toUpperCase(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Info Row Widget
+  Widget _buildInfoRow(
+    BuildContext context,
+    String label,
+    String value, {
+    int maxLines = 1,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.right,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Helper Functions
   int _getStatusIndex(String status) {
     const statusMap = {
       'pending': 0,
@@ -310,59 +658,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     return statusMap[status] ?? 0;
   }
 
-  Widget _buildSection(
-    BuildContext context,
-    String title,
-    List<Widget> children,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(
-    BuildContext context,
-    String label,
-    String value, {
-    bool highlight = false,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(color: Colors.grey[600]),
-        ),
-        Flexible(
-          child: Text(
-            value,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
-              color: highlight ? const Color(0xFF00B464) : null,
-            ),
-            textAlign: TextAlign.right,
-          ),
-        ),
-      ],
-    );
+  String _formatDate(DateTime date) {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }

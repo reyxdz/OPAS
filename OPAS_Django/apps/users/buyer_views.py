@@ -17,9 +17,59 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from apps.users.models import User
+from apps.users.models import User, SellerApplication
 from apps.users.seller_models import SellerOrder, SellerProduct, OrderStatus
 from apps.users.seller_serializers import SellerOrderSerializer
+
+
+class BuyerOrderListSerializer:
+    """Serializer for buyer order listing - formats orders as expected by Flutter app"""
+    
+    @staticmethod
+    def serialize_order(order):
+        """Serialize a single order for buyer view"""
+        # Get seller information from SellerApplication
+        seller_app = SellerApplication.objects.filter(user=order.seller).order_by('-created_at').first()
+        
+        seller_store_name = None
+        seller_farm_name = None
+        seller_farm_address = None
+        seller_phone = order.seller.phone_number if order.seller else None
+        
+        if seller_app:
+            seller_store_name = seller_app.store_name
+            seller_farm_name = seller_app.farm_name
+            seller_farm_address = seller_app.farm_location
+        
+        # Group all orders by order_number to reconstruct the original multi-item order
+        return {
+            'id': order.id,
+            'order_number': order.order_number,
+            'items': [
+                {
+                    'id': order.id,
+                    'product_id': order.product.id,
+                    'product_name': order.product.name,
+                    'price_per_kilo': float(order.price_per_unit),
+                    'quantity': order.quantity,
+                    'unit': 'kg',
+                    'subtotal': float(order.total_amount),
+                    'image_url': order.product.image_url if hasattr(order.product, 'image_url') else '',
+                }
+            ],
+            'total_amount': float(order.total_amount),
+            'status': order.status.lower(),
+            'payment_method': 'delivery' if order.delivery_location else 'pickup',
+            'created_at': order.created_at.isoformat(),
+            'completed_at': order.delivered_at.isoformat() if order.delivered_at else None,
+            'delivery_address': order.delivery_location or '',
+            'buyer_name': order.buyer.full_name or order.buyer.username,
+            'buyer_phone': order.buyer.phone_number or '',
+            'seller_store_name': seller_store_name,
+            'seller_farm_name': seller_farm_name,
+            'seller_farm_address': seller_farm_address,
+            'seller_phone': seller_phone,
+        }
 
 
 class BuyerOrderViewSet(viewsets.ModelViewSet):
@@ -38,6 +88,25 @@ class BuyerOrderViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Get orders for the current buyer only"""
         return SellerOrder.objects.filter(buyer=self.request.user).order_by('-created_at')
+    
+    def list(self, request, *args, **kwargs):
+        """Override list to return buyer-formatted orders"""
+        queryset = self.get_queryset()
+        
+        # Paginate
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            orders = [BuyerOrderListSerializer.serialize_order(order) for order in page]
+            return self.get_paginated_response(orders)
+        
+        orders = [BuyerOrderListSerializer.serialize_order(order) for order in queryset]
+        return Response(orders)
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve to return buyer-formatted order"""
+        instance = self.get_object()
+        order_data = BuyerOrderListSerializer.serialize_order(instance)
+        return Response(order_data)
     
     def create(self, request, *args, **kwargs):
         """
@@ -133,6 +202,13 @@ class BuyerOrderViewSet(viewsets.ModelViewSet):
                 if orders:
                     first_order = orders[0]
                     
+                    # Get seller information
+                    seller_app = SellerApplication.objects.filter(user=first_order.seller).order_by('-created_at').first()
+                    seller_store_name = seller_app.store_name if seller_app else None
+                    seller_farm_name = seller_app.farm_name if seller_app else None
+                    seller_farm_address = seller_app.farm_location if seller_app else None
+                    seller_phone = first_order.seller.phone_number if first_order.seller else None
+                    
                     # Format response to match Flutter Order model expectations
                     order_response = {
                         'id': first_order.id,
@@ -157,6 +233,10 @@ class BuyerOrderViewSet(viewsets.ModelViewSet):
                         'delivery_address': delivery_address if fulfillment_method == 'delivery' else '',
                         'buyer_name': request.user.full_name or request.user.username,
                         'buyer_phone': request.user.phone_number or '',
+                        'seller_store_name': seller_store_name,
+                        'seller_farm_name': seller_farm_name,
+                        'seller_farm_address': seller_farm_address,
+                        'seller_phone': seller_phone,
                     }
                     return Response(order_response, status=status.HTTP_201_CREATED)
                 else:

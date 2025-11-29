@@ -56,6 +56,10 @@ class Order {
   final String deliveryAddress;
   final String buyerName;
   final String buyerPhone;
+  final String? sellerStoreName;
+  final String? sellerFarmName;
+  final String? sellerFarmAddress;
+  final String? sellerPhone;
 
   Order({
     required this.id,
@@ -69,6 +73,10 @@ class Order {
     required this.deliveryAddress,
     required this.buyerName,
     required this.buyerPhone,
+    this.sellerStoreName,
+    this.sellerFarmName,
+    this.sellerFarmAddress,
+    this.sellerPhone,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -90,6 +98,10 @@ class Order {
       deliveryAddress: json['delivery_address'] ?? '',
       buyerName: json['buyer_name'] ?? '',
       buyerPhone: json['buyer_phone'] ?? '',
+      sellerStoreName: json['seller_store_name'],
+      sellerFarmName: json['seller_farm_name'],
+      sellerFarmAddress: json['seller_farm_address'],
+      sellerPhone: json['seller_phone'],
     );
   }
 
@@ -105,6 +117,10 @@ class Order {
     'delivery_address': deliveryAddress,
     'buyer_name': buyerName,
     'buyer_phone': buyerPhone,
+    'seller_store_name': sellerStoreName,
+    'seller_farm_name': sellerFarmName,
+    'seller_farm_address': sellerFarmAddress,
+    'seller_phone': sellerPhone,
   };
 
   bool get isPending => status == 'pending';
