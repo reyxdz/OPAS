@@ -66,12 +66,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  IconButton(
-                    onPressed: _refreshOrders,
-                    icon: const Icon(Icons.refresh),
-                    color: const Color(0xFF00B464),
-                    tooltip: 'Refresh orders',
-                  ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -81,23 +75,12 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                 future: _ordersFuture,
                 builder: (context, snapshot) {
                   final allOrders = snapshot.data ?? [];
-                  final totalOrders = allOrders.length;
                   final pendingOrders = allOrders.where((o) => o.isPending).length;
+                  final confirmedOrders = allOrders.where((o) => o.isConfirmed).length;
                   final completedOrders = allOrders.where((o) => o.isCompleted).length;
-                  final totalSpent = allOrders.fold<double>(0, (sum, order) => sum + order.totalAmount);
 
                   return Row(
                     children: [
-                      Expanded(
-                        child: _buildModernStatCard(
-                          context,
-                          'Total Orders',
-                          '$totalOrders',
-                          Icons.receipt_long,
-                          Colors.blue,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
                       Expanded(
                         child: _buildModernStatCard(
                           context,
@@ -105,6 +88,16 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                           '$pendingOrders',
                           Icons.pending_actions,
                           Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildModernStatCard(
+                          context,
+                          'Confirmed',
+                          '$confirmedOrders',
+                          Icons.check_circle_outline,
+                          Colors.blue,
                         ),
                       ),
                       const SizedBox(width: 12),

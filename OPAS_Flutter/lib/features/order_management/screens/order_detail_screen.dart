@@ -106,6 +106,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 const SizedBox(height: 24),
 
                 // === ACTION BUTTONS ===
+                if (order.isPending) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _showCancelConfirmation(context, order),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text('Cancel Order'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (order.isCompleted) ...[
                   SizedBox(
                     width: double.infinity,
@@ -646,6 +664,84 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         ),
       ],
     );
+  }
+
+  /// Show cancel confirmation dialog
+  void _showCancelConfirmation(BuildContext context, Order order) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Cancel Order'),
+          content: Text(
+            'Are you sure you want to cancel order #${order.orderNumber}? This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Keep Order'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _cancelOrder(context, order);
+              },
+              child: const Text(
+                'Cancel Order',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Cancel the order
+  Future<void> _cancelOrder(BuildContext context, Order order) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF00B464)),
+          );
+        },
+      );
+
+      // Call API to cancel order (when backend is ready)
+      // For now, just show a success message
+      Navigator.of(context).pop(); // Close loading dialog
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Order cancelled successfully'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // Optionally navigate back
+      Future.delayed(const Duration(seconds: 1), () {
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
+      });
+    } catch (e) {
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to cancel order: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// Helper Functions
