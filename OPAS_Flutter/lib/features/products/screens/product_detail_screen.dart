@@ -161,18 +161,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       appBar: AppBar(
         title: const Text('Product Details'),
         centerTitle: true,
-        actions: [
-          FutureBuilder<Product>(
-            future: _productFuture,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const SizedBox.shrink();
-              return IconButton(
-                icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border),
-                onPressed: _toggleFavorite,
-              );
-            },
-          ),
-        ],
       ),
       body: FutureBuilder<Product>(
         future: _productFuture,
@@ -213,11 +201,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
                 // === REVIEWS SECTION ===
                 _buildReviewsSection(context),
-
-                const SizedBox(height: 24),
-
-                // === PRICE HISTORY (if available) ===
-                _buildPriceHistorySection(context, product),
 
                 const SizedBox(height: 24),
 
@@ -411,96 +394,40 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   ],
                 ),
               ),
-              if (!_isPriceCompliant(product))
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.orange[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'High Price',
-                    style: TextStyle(
-                      color: Colors.orange[700],
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
             ],
           ),
           
           const SizedBox(height: 16),
 
           // Price Comparison Card
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Price Information',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+          SizedBox(
+            width: double.infinity,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Price Information',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Seller Price',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '₱${product.pricePerKilo.toStringAsFixed(2)}/${product.unit}',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: const Color(0xFF00B464),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 12),
+                  Text(
+                    '₱${product.pricePerKilo.toStringAsFixed(2)}/${product.unit}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF00B464),
+                      fontWeight: FontWeight.bold,
                     ),
-                    Container(
-                      height: 40,
-                      width: 1,
-                      color: Colors.grey[300],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'OPAS Ceiling Price',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '₱${product.opasRegulatedPrice.toStringAsFixed(2)}/${product.unit}',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -613,12 +540,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.storefront, size: 14, color: Colors.grey),
+                          const Icon(Icons.location_on, size: 14, color: Colors.grey),
                           const SizedBox(width: 4),
-                          Text(
-                            'View more products',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[600],
+                          Expanded(
+                            child: Text(
+                              product.farmLocation ?? 'Location not available',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -875,56 +806,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  /// Price History Section
-  Widget _buildPriceHistorySection(BuildContext context, Product product) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Price Trend',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            height: 200,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(8),
-              color: Colors.grey[50],
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.show_chart, size: 48, color: Colors.grey[400]),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Price History Chart',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Show price trends over time (requires chart library)',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Related Products Section
   Widget _buildRelatedProductsSection(BuildContext context, Product product) {
     return Padding(
@@ -1114,15 +995,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () => _shareProduct(product),
-                icon: const Icon(Icons.share),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.grey[200],
-                  foregroundColor: Colors.black54,
                 ),
               ),
             ],

@@ -14,6 +14,7 @@ class Product {
   final int sellerId;
   final String sellerName;
   final double sellerRating;
+  final String? farmLocation;
   final bool isAvailable;
   final DateTime createdAt;
 
@@ -31,6 +32,7 @@ class Product {
     required this.sellerId,
     required this.sellerName,
     required this.sellerRating,
+    this.farmLocation,
     required this.isAvailable,
     required this.createdAt,
   });
@@ -81,6 +83,9 @@ class Product {
             ? json['seller_name'].toString() 
             : 'Unknown Seller',
         sellerRating: double.tryParse(json['seller_rating']?.toString() ?? '0') ?? 0,
+        farmLocation: (json['farm_location'] != null && json['farm_location'].toString().isNotEmpty)
+            ? json['farm_location'].toString()
+            : null,
         isAvailable: json['is_available'] ?? json['is_in_stock'] ?? true,
         createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
       );
@@ -106,6 +111,7 @@ class Product {
     'seller_id': sellerId,
     'seller_name': sellerName,
     'seller_rating': sellerRating,
+    'farm_location': farmLocation,
     'is_available': isAvailable,
     'created_at': createdAt.toIso8601String(),
   };

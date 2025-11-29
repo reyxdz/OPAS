@@ -76,17 +76,13 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
               final apiStoreName = userData['store_name'];
               _storeName = (apiStoreName != null && apiStoreName.toString().isNotEmpty) 
                   ? apiStoreName.toString() 
-                  : (prefs.getString('store_name')?.isNotEmpty == true ? prefs.getString('store_name')! : 'Not set');
+                  : (prefs.getString('store_name')?.isNotEmpty == true ? prefs.getString('store_name')! : '');
               
-              // Farm name - construct from municipality and barangay
-              final farmMunicipality = userData['farm_municipality'];
-              final farmBarangay = userData['farm_barangay'];
-              if (farmMunicipality != null && farmMunicipality.toString().isNotEmpty &&
-                  farmBarangay != null && farmBarangay.toString().isNotEmpty) {
-                _farmName = '$farmBarangay, $farmMunicipality';
-              } else {
-                _farmName = (prefs.getString('farm_name')?.isNotEmpty == true ? prefs.getString('farm_name')! : 'Not set');
-              }
+              // Farm name from API (actual farm name, not constructed)
+              final apiFarmName = userData['farm_name'];
+              _farmName = (apiFarmName != null && apiFarmName.toString().isNotEmpty) 
+                  ? apiFarmName.toString() 
+                  : (prefs.getString('farm_name')?.isNotEmpty == true ? prefs.getString('farm_name')! : '');
               
               debugPrint('✓ Store Name: $_storeName');
               debugPrint('✓ Farm Name: $_farmName');
@@ -114,8 +110,8 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
         _lastName = prefs.getString('last_name') ?? 'Name';
         _phoneNumber = prefs.getString('phone_number') ?? 'Not provided';
         _address = prefs.getString('address') ?? 'Not provided';
-        _storeName = (prefs.getString('store_name')?.isNotEmpty ?? false) ? prefs.getString('store_name')! : 'Not set';
-        _farmName = (prefs.getString('farm_name')?.isNotEmpty ?? false) ? prefs.getString('farm_name')! : 'Not set';
+        _storeName = (prefs.getString('store_name')?.isNotEmpty ?? false) ? prefs.getString('store_name')! : '';
+        _farmName = (prefs.getString('farm_name')?.isNotEmpty ?? false) ? prefs.getString('farm_name')! : '';
         
         debugPrint('✓ Using SharedPreferences - Store: $_storeName, Farm: $_farmName');
         
@@ -215,11 +211,13 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _storeName,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
+                        if (_storeName.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            _storeName,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

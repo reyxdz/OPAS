@@ -17,7 +17,7 @@ Includes 10 serializers across different seller operation categories:
 from rest_framework import serializers
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from .models import User, UserRole, SellerStatus
+from .models import User, UserRole, SellerStatus, SellerApplication
 from .seller_models import (
     SellerProduct, SellerOrder, SellToOPAS, 
     SellerPayout, SellerForecast, ProductStatus, OrderStatus, ProductImage,
@@ -87,6 +87,8 @@ class SellerProfileSerializer(serializers.ModelSerializer):
     is_approved = serializers.SerializerMethodField(read_only=True)
     is_pending = serializers.SerializerMethodField(read_only=True)
     is_suspended = serializers.SerializerMethodField(read_only=True)
+    farm_name = serializers.SerializerMethodField(read_only=True)
+    store_name = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = User
@@ -102,6 +104,7 @@ class SellerProfileSerializer(serializers.ModelSerializer):
             'barangay',
             'store_name',
             'store_description',
+            'farm_name',
             'farm_municipality',
             'farm_barangay',
             'role',
@@ -146,6 +149,23 @@ class SellerProfileSerializer(serializers.ModelSerializer):
     def get_is_suspended(self, obj):
         """Check if seller is suspended"""
         return obj.is_suspended
+
+    def get_farm_name(self, obj):
+        """Get farm name from the user's approved seller application"""
+        # Try to get the approved/most recent seller application
+        application = SellerApplication.objects.filter(user=obj).order_by('-created_at').first()
+        if application and application.farm_name:
+            return application.farm_name
+        return None
+
+    def get_store_name(self, obj):
+        """Get store name from the user's approved seller application"""
+        # Try to get the approved/most recent seller application
+        application = SellerApplication.objects.filter(user=obj).order_by('-created_at').first()
+        if application and application.store_name:
+            return application.store_name
+        # Fallback to user's store_name if application doesn't have it
+        return obj.store_name or None
 
     def update(self, instance, validated_data):
         """Update seller profile (allow only non-critical fields)"""
@@ -1681,12 +1701,15 @@ class ProductListBuyerSerializer(serializers.ModelSerializer):
     - Seller name
     - Price comparison
     """
-    seller_name = serializers.CharField(source='seller.store_name', read_only=True)
-    seller_id = serializers.CharField(source='seller.id', read_only=True)
+    seller_name = serializers.SerializerMethodField(read_only=True)
+    seller_id = serializers.IntegerField(source='seller.id', read_only=True)
+    seller_rating = serializers.SerializerMethodField(read_only=True)
+    farm_location = serializers.SerializerMethodField(read_only=True)
     primary_image = serializers.SerializerMethodField(read_only=True)
     is_price_compliant = serializers.SerializerMethodField(read_only=True)
     price_difference = serializers.SerializerMethodField(read_only=True)
     is_in_stock = serializers.SerializerMethodField(read_only=True)
+    category = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SellerProduct
@@ -1699,6 +1722,8 @@ class ProductListBuyerSerializer(serializers.ModelSerializer):
             'stock_level',
             'seller_id',
             'seller_name',
+            'seller_rating',
+            'farm_location',
             'primary_image',
             'quality_grade',
             'is_price_compliant',
@@ -1707,6 +1732,34 @@ class ProductListBuyerSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = fields
+
+    def get_category(self, obj):
+        """Get category name from ProductCategory"""
+        if obj.category and obj.category.name:
+            return obj.category.name
+        return 'General'
+
+    def get_seller_name(self, obj):
+        """Get seller's store name from SellerApplication"""
+        application = SellerApplication.objects.filter(user=obj.seller).order_by('-created_at').first()
+        if application and application.store_name and application.store_name.strip():
+            return application.store_name
+        # Fallback to user's store_name
+        if obj.seller.store_name and obj.seller.store_name.strip():
+            return obj.seller.store_name
+        return obj.seller.full_name or "Unknown Seller"
+
+    def get_seller_rating(self, obj):
+        """Get seller's average rating"""
+        # Placeholder - implement based on review model
+        return 4.5
+
+    def get_farm_location(self, obj):
+        """Get farm location from SellerApplication"""
+        application = SellerApplication.objects.filter(user=obj.seller).order_by('-created_at').first()
+        if application and application.farm_location and application.farm_location.strip():
+            return application.farm_location
+        return None
 
     def get_primary_image(self, obj):
         """Get primary product image"""
@@ -1746,11 +1799,15 @@ class ProductDetailBuyerSerializer(serializers.ModelSerializer):
     - Price history (optional)
     - Related products (optional)
     """
-    seller_name = serializers.CharField(source='seller.store_name', read_only=True)
+    seller_id = serializers.IntegerField(source='seller.id', read_only=True)
+    seller_name = serializers.SerializerMethodField(read_only=True)
+    seller_rating = serializers.SerializerMethodField(read_only=True)
+    farm_location = serializers.SerializerMethodField(read_only=True)
     seller_info = serializers.SerializerMethodField(read_only=True)
     images = serializers.SerializerMethodField(read_only=True)
     is_available = serializers.SerializerMethodField(read_only=True)
     price_info = serializers.SerializerMethodField(read_only=True)
+    category = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SellerProduct
@@ -1763,7 +1820,10 @@ class ProductDetailBuyerSerializer(serializers.ModelSerializer):
             'unit',
             'stock_level',
             'quality_grade',
+            'seller_id',
             'seller_name',
+            'seller_rating',
+            'farm_location',
             'seller_info',
             'images',
             'is_available',
@@ -1771,6 +1831,34 @@ class ProductDetailBuyerSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = fields
+
+    def get_category(self, obj):
+        """Get category name from ProductCategory"""
+        if obj.category and obj.category.name:
+            return obj.category.name
+        return 'General'
+
+    def get_seller_rating(self, obj):
+        """Get seller's average rating"""
+        # Placeholder - implement based on review model
+        return 4.5
+
+    def get_seller_name(self, obj):
+        """Get seller's store name from SellerApplication"""
+        application = SellerApplication.objects.filter(user=obj.seller).order_by('-created_at').first()
+        if application and application.store_name and application.store_name.strip():
+            return application.store_name
+        # Fallback to user's store_name
+        if obj.seller.store_name and obj.seller.store_name.strip():
+            return obj.seller.store_name
+        return obj.seller.full_name or "Unknown Seller"
+
+    def get_farm_location(self, obj):
+        """Get farm location from SellerApplication"""
+        application = SellerApplication.objects.filter(user=obj.seller).order_by('-created_at').first()
+        if application and application.farm_location and application.farm_location.strip():
+            return application.farm_location
+        return None
 
     def get_seller_info(self, obj):
         """Get seller profile information"""

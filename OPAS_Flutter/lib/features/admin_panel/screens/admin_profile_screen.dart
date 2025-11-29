@@ -14,7 +14,7 @@ class AdminProfileScreen extends StatefulWidget {
 }
 
 class _AdminProfileScreenState extends State<AdminProfileScreen> {
-  late AdminProfile _adminProfile;
+  AdminProfile? _adminProfile;
   bool _isLoading = true;
   bool _isEditing = false;
   late TextEditingController _firstNameController;
@@ -26,7 +26,21 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   void initState() {
     super.initState();
     _initializeControllers();
+    _initializeProfile();
     _loadAdminProfile();
+  }
+
+  void _initializeProfile() {
+    _adminProfile = AdminProfile(
+      id: 0,
+      firstName: '',
+      lastName: '',
+      email: null,
+      phoneNumber: '',
+      adminRole: 'OPAS_ADMIN',
+      createdAt: DateTime.now(),
+      isActive: true,
+    );
   }
 
   void _initializeControllers() {
@@ -99,14 +113,14 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
       setState(() {
         _adminProfile = AdminProfile(
-          id: _adminProfile.id,
+          id: _adminProfile?.id ?? 0,
           firstName: _firstNameController.text,
           lastName: _lastNameController.text,
           email: _emailController.text.isNotEmpty ? _emailController.text : null,
           phoneNumber: _phoneNumberController.text,
-          adminRole: _adminProfile.adminRole,
-          createdAt: _adminProfile.createdAt,
-          isActive: _adminProfile.isActive,
+          adminRole: _adminProfile?.adminRole ?? 'OPAS_ADMIN',
+          createdAt: _adminProfile?.createdAt ?? DateTime.now(),
+          isActive: _adminProfile?.isActive ?? true,
         );
         _isEditing = false;
       });
@@ -373,20 +387,24 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   Widget _buildDisplayMode(BuildContext context) {
+    if (_adminProfile == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
     return Column(
       children: [
         _buildInfoCard(
           context,
           'Phone Number',
-          _adminProfile.phoneNumber,
+          _adminProfile!.phoneNumber,
           Icons.phone,
         ),
-        if (_adminProfile.email != null) ...[
+        if (_adminProfile!.email != null) ...[
           const SizedBox(height: 24),
           _buildInfoCard(
             context,
             'Email',
-            _adminProfile.email!,
+            _adminProfile!.email!,
             Icons.email,
           ),
         ],
