@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from .models import User, UserRole
-from .seller_models import SellerProduct, ProductStatus
+from .seller_models import SellerProduct, ProductStatus, ProductCategory
 from .seller_serializers import SellerProductCreateUpdateSerializer
 
 
@@ -16,13 +16,23 @@ class SellerProductStatusTests(TestCase):
             password='testpass123',
             role=UserRole.SELLER
         )
+        
+        # Create test categories
+        self.poultry_category = ProductCategory.objects.create(
+            slug='POULTRY',
+            name='Poultry'
+        )
+        self.pantry_category = ProductCategory.objects.create(
+            slug='PANTRY',
+            name='Pantry'
+        )
 
     def test_mark_expired_records_previous_status(self):
         """When updating a product to EXPIRED, the serializer should persist previous_status"""
         product = SellerProduct.objects.create(
             seller=self.seller,
             name='Eggs',
-            product_type='Poultry',
+            category=self.poultry_category,
             price=100,
             status=ProductStatus.PENDING,
         )
@@ -40,7 +50,7 @@ class SellerProductStatusTests(TestCase):
         product = SellerProduct.objects.create(
             seller=self.seller,
             name='Honey',
-            product_type='Pantry',
+            category=self.pantry_category,
             price=250,
             status=ProductStatus.EXPIRED,
             previous_status=ProductStatus.PENDING,
