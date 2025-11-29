@@ -509,18 +509,39 @@ class BuyerApiService {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final decodedBody = jsonDecode(response.body);
+        debugPrint('API Response type: ${decodedBody.runtimeType}');
+        debugPrint('API Response: $decodedBody');
         
-        // Parse products list
-        final List<dynamic> results = data['results'] ?? [];
+        // Handle both paginated response (Map) and direct list response
+        List<dynamic> results = [];
+        int count = 0;
+        String? next;
+        String? previous;
+
+        if (decodedBody is Map<String, dynamic>) {
+          // Paginated response with metadata
+          results = decodedBody['results'] ?? [];
+          count = decodedBody['count'] ?? 0;
+          next = decodedBody['next'];
+          previous = decodedBody['previous'];
+          debugPrint('Parsed as paginated response: ${results.length} products');
+        } else if (decodedBody is List<dynamic>) {
+          // Direct list response
+          results = decodedBody;
+          count = results.length;
+          debugPrint('Parsed as list response: ${results.length} products');
+        }
+
+        // Parse products
         final products = results.map((json) {
           return Product.fromJson(json as Map<String, dynamic>);
         }).toList();
 
         return {
-          'count': data['count'] ?? 0,
-          'next': data['next'],
-          'previous': data['previous'],
+          'count': count,
+          'next': next,
+          'previous': previous,
           'results': products,
         };
       } else {

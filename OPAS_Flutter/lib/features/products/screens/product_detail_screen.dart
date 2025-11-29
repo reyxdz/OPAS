@@ -52,6 +52,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _currentImageIndex = 0;
   bool _isDescriptionExpanded = false;
   bool _isFavorite = false;
+  bool _isActionBarExpanded = false;
   final PageController _imageController = PageController();
 
   @override
@@ -158,6 +159,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
+      extendBody: true,
       appBar: AppBar(
         title: const Text('Product Details'),
         centerTitle: true,
@@ -176,39 +178,42 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           }
 
           final product = snapshot.data!;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 120),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // === IMAGE GALLERY ===
-                _buildImageGallery(product),
+          return GestureDetector(
+            onTap: _isActionBarExpanded
+                ? () => setState(() => _isActionBarExpanded = false)
+                : null,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // === IMAGE GALLERY ===
+                  _buildImageGallery(product),
 
-                // === PRODUCT INFO SECTION ===
-                _buildProductInfoSection(context, product),
+                  // === PRODUCT INFO SECTION ===
+                  _buildProductInfoSection(context, product),
 
-                const Divider(height: 24),
+                  // === SELLER PROFILE CARD ===
+                  _buildSellerProfileCard(context, product),
 
-                // === SELLER PROFILE CARD ===
-                _buildSellerProfileCard(context, product),
+                  const SizedBox(height: 16),
 
-                const Divider(height: 24),
+                  // === DESCRIPTION SECTION ===
+                  _buildDescriptionSection(context, product),
 
-                // === DESCRIPTION SECTION ===
-                _buildDescriptionSection(context, product),
+                  const SizedBox(height: 24),
 
-                const SizedBox(height: 24),
+                  // === REVIEWS SECTION ===
+                  _buildReviewsSection(context),
 
-                // === REVIEWS SECTION ===
-                _buildReviewsSection(context),
+                  const SizedBox(height: 24),
 
-                const SizedBox(height: 24),
+                  // === RELATED PRODUCTS ===
+                  _buildRelatedProductsSection(context, product),
 
-                // === RELATED PRODUCTS ===
-                _buildRelatedProductsSection(context, product),
-
-                const SizedBox(height: 32),
-              ],
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           );
         },
@@ -218,7 +223,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const SizedBox.shrink();
           final product = snapshot.data!;
-          return _buildActionBar(context, product);
+          return Container(
+            color: Colors.transparent,
+            child: _isActionBarExpanded
+                ? _buildExpandedActionBar(context, product)
+                : _buildCollapsedActionBar(context),
+          );
         },
       ),
     );
@@ -355,7 +365,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   /// Product Info Section (name, category, price comparison, stock, quality)
   Widget _buildProductInfoSection(BuildContext context, Product product) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -470,7 +480,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   /// Seller Profile Card with Visit Shop button
   Widget _buildSellerProfileCard(BuildContext context, Product product) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -479,8 +489,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           color: Colors.grey[50],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
             Text(
               'Seller Information',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -905,7 +915,40 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   /// Action Bar (Add to Cart, Buy Now, Share)
-  Widget _buildActionBar(BuildContext context, Product product) {
+  /// Build collapsed action bar (circular icon button)
+  Widget _buildCollapsedActionBar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: GestureDetector(
+        onTap: () => setState(() => _isActionBarExpanded = true),
+        child: Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            color: const Color(0xFF00B464),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00B464).withOpacity(0.4),
+                blurRadius: 5,
+                spreadRadius: 0.5,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Icon(
+              Icons.shopping_bag_outlined,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedActionBar(BuildContext context, Product product) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -922,6 +965,30 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Header with close button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Product Options',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _isActionBarExpanded = false),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.close,
+                    color: Colors.grey[600],
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           // Quantity Selector
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

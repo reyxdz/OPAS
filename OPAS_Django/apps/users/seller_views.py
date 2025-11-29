@@ -2461,6 +2461,7 @@ class MarketplaceViewSet(viewsets.ReadOnlyModelViewSet):
     - GET /api/products/{id}/ - Get detailed product information
     
     Filtering:
+    - seller_id: Filter by specific seller (for seller shop view)
     - product_type: Filter by product type (e.g., VEGETABLE, FRUIT)
     - min_price: Minimum price filter
     - max_price: Maximum price filter
@@ -2469,6 +2470,7 @@ class MarketplaceViewSet(viewsets.ReadOnlyModelViewSet):
     
     Query Examples:
     - GET /api/products/?search=tomato
+    - GET /api/products/?seller_id=5 (seller's shop)
     - GET /api/products/?product_type=VEGETABLE&min_price=40&max_price=100
     - GET /api/products/?ordering=-price
     
@@ -2503,6 +2505,7 @@ class MarketplaceViewSet(viewsets.ReadOnlyModelViewSet):
         - Not deleted
         - In stock or specified availability
         - Only from approved sellers
+        - Optional: Specific seller (seller_id parameter)
         """
         queryset = SellerProduct.objects.filter(
             status=ProductStatus.ACTIVE,
@@ -2510,6 +2513,15 @@ class MarketplaceViewSet(viewsets.ReadOnlyModelViewSet):
             stock_level__gt=0,
             seller__seller_status=SellerStatus.APPROVED
         ).select_related('seller').prefetch_related('product_images')
+
+        # Filter by specific seller if seller_id is provided
+        seller_id = self.request.query_params.get('seller_id')
+        if seller_id:
+            try:
+                seller_id = int(seller_id)
+                queryset = queryset.filter(seller_id=seller_id)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid seller_id value: {seller_id}")
 
         # Product type filtering
         product_type = self.request.query_params.get('product_type')
