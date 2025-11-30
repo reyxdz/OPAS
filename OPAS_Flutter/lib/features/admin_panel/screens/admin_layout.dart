@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../screens/admin_home_screen.dart';
 import '../screens/admin_profile_screen.dart';
 import '../../../services/seller_registration_cache_service.dart';
+import '../../../services/cart_storage_service.dart';
 import '../../profile/services/notification_history_service.dart';
 
 /// Admin Layout Widget
@@ -93,13 +95,23 @@ class _AdminLayoutState extends State<AdminLayout> with WidgetsBindingObserver {
       final currentUserNotificationKey = await NotificationHistoryService.getStorageKeyForLogout();
       final currentUserNotifications = prefs.getStringList(currentUserNotificationKey);
       
-      // Backup cart before clearing
+      // Backup cart before clearing - use CartStorageService to get items from correct storage
       final userId = prefs.getString('user_id');
       final cartKey = 'cart_items_$userId';
-      final cartJson = prefs.getString(cartKey);
       
       debugPrint('🔐 Admin Logout: Backing up notifications from key=$currentUserNotificationKey');
       debugPrint('🛒 Admin Logout: Backing up cart from key=$cartKey');
+      
+      // Get cart items from CartStorageService (which handles both SQLite and SharedPreferences)
+      String? cartJson;
+      if (userId != null) {
+        final cartService = CartStorageService();
+        final cartItems = await cartService.getCartItems(userId);
+        if (cartItems.isNotEmpty) {
+          cartJson = jsonEncode(cartItems.map((item) => item.toJson()).toList());
+          debugPrint('🛒 Admin Logout: Retrieved ${cartItems.length} items from CartStorageService for backup');
+        }
+      }
       
       // Clear SharedPreferences
       await prefs.clear();

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../models/user_profile_model.dart';
 import '../services/notification_history_service.dart';
+import '../../../services/cart_storage_service.dart';
 import 'seller_upgrade_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -166,13 +168,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final currentUserNotificationKey = await NotificationHistoryService.getStorageKeyForLogout();
     final currentUserNotifications = prefs.getStringList(currentUserNotificationKey);
     
-    // Backup cart before clearing
+    // Backup cart before clearing - use CartStorageService to get items from correct storage
     final userId = prefs.getString('user_id');
     final cartKey = 'cart_items_$userId';
-    final cartJson = prefs.getString(cartKey);
     
     debugPrint('🔐 Logout: Backing up notifications from key=$currentUserNotificationKey');
     debugPrint('🛒 Logout: Backing up cart from key=$cartKey');
+    
+    // Get cart items from CartStorageService (which handles both SQLite and SharedPreferences)
+    String? cartJson;
+    if (userId != null) {
+      final cartService = CartStorageService();
+      final cartItems = await cartService.getCartItems(userId);
+      if (cartItems.isNotEmpty) {
+        cartJson = jsonEncode(cartItems.map((item) => item.toJson()).toList());
+        debugPrint('🛒 Logout: Retrieved ${cartItems.length} items from CartStorageService for backup');
+      }
+    }
     
     // Clear all preferences
     await prefs.clear();
