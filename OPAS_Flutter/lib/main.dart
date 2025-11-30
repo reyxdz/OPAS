@@ -22,6 +22,16 @@ import 'core/services/api_service.dart' as api;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize SharedPreferences FIRST - critical for all platforms
+  // On web, this loads from browser's localStorage
+  // On mobile, this loads from device's secure storage
+  try {
+    await SharedPreferences.getInstance();
+    debugPrint('✅ SharedPreferences initialized successfully');
+  } catch (e) {
+    debugPrint('⚠️ SharedPreferences initialization error: $e');
+  }
+  
   // Initialize SQLite FFI FIRST - critical for desktop and mobile apps
   // Must happen before any database operations
   try {

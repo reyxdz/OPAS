@@ -109,12 +109,16 @@ class CartStorageService {
     try {
       if (_isWeb) {
         // Use SharedPreferences on web
+        // IMPORTANT: Always get fresh instance to ensure we read from localStorage
         final prefs = await SharedPreferences.getInstance();
         final cartJson = prefs.getString(_getCartKey(userId)) ?? '[]';
+        debugPrint('🛒 Web: Reading cart for userId=$userId from localStorage, got ${cartJson.length} chars');
         final List<dynamic> decoded = jsonDecode(cartJson);
-        return decoded
+        final items = decoded
             .map((item) => CartItem.fromJson(item as Map<String, dynamic>))
             .toList();
+        debugPrint('🛒 Web: Decoded ${items.length} cart items for userId=$userId');
+        return items;
       } else {
         // Use SQLite on mobile
         final db = await database;
@@ -124,6 +128,7 @@ class CartStorageService {
           whereArgs: [userId],
           orderBy: 'updated_at DESC',
         );
+        debugPrint('🛒 SQLite: Loaded ${maps.length} cart items for userId=$userId');
         return maps.map((map) => CartItem.fromMap(map)).toList();
       }
     } catch (e) {
@@ -137,6 +142,7 @@ class CartStorageService {
     try {
       if (_isWeb) {
         // Use SharedPreferences on web
+        // IMPORTANT: Always get fresh instance to ensure we read from localStorage
         final prefs = await SharedPreferences.getInstance();
         final cartJson = prefs.getString(_getCartKey(userId)) ?? '[]';
         final List<dynamic> decoded = jsonDecode(cartJson);
@@ -148,13 +154,19 @@ class CartStorageService {
             cart.indexWhere((i) => i.productId == item.productId);
         if (existingIndex >= 0) {
           cart[existingIndex].quantity += item.quantity;
+          debugPrint('🛒 Web: Updated quantity for product ${item.productId} to ${cart[existingIndex].quantity}');
         } else {
           cart.add(item);
+          debugPrint('🛒 Web: Added new product ${item.productId} to cart');
         }
         
         final updatedJson =
             jsonEncode(cart.map((item) => item.toJson()).toList());
-        await prefs.setString(_getCartKey(userId), updatedJson);
+        final success = await prefs.setString(_getCartKey(userId), updatedJson);
+        debugPrint('🛒 Web: Saved ${cart.length} items to localStorage, success=$success');
+        if (!success) {
+          debugPrint('❌ Web: Failed to save cart to localStorage!');
+        }
       } else {
         // Use SQLite on mobile
         final db = await database;
@@ -177,6 +189,7 @@ class CartStorageService {
             where: 'user_id = ? AND product_id = ?',
             whereArgs: [userId, item.productId],
           );
+          debugPrint('🛒 SQLite: Updated quantity for product ${item.productId} to $newQuantity');
         } else {
           await db.insert(
             'cart_items',
@@ -186,6 +199,7 @@ class CartStorageService {
               'updated_at': DateTime.now().toIso8601String(),
             },
           );
+          debugPrint('🛒 SQLite: Inserted new product ${item.productId}');
         }
       }
       
