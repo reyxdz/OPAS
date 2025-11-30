@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:opas_flutter/features/seller_panel/widgets/seller_bottom_nav_bar.dart';
 import '../services/seller_api_service.dart';
 import '../../order_management/models/order_model.dart';
+import '../models/seller_order_model.dart';
 import 'product_listing_screen.dart';
 
 class SellerHomeScreen extends StatefulWidget {
@@ -437,7 +438,7 @@ class _AccountProfileTab extends StatefulWidget {
 }
 
 class _AccountProfileTabState extends State<_AccountProfileTab> {
-  late Future<List<Order>> _pendingOrdersFuture;
+  late Future<List<SellerOrder>> _pendingOrdersFuture;
   late Future<List<Order>> _inventoryStatsFuture;
 
   @override
@@ -581,7 +582,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
           ],
         ),
         const SizedBox(height: 12),
-        FutureBuilder<List<Order>>(
+        FutureBuilder<List<SellerOrder>>(
           future: _pendingOrdersFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -593,11 +594,19 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
 
             if (snapshot.hasError) {
               return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Error loading orders: ${snapshot.error}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.red,
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey[300]),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No incoming orders',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -612,7 +621,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
                       Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey[300]),
                       const SizedBox(height: 12),
                       Text(
-                        'No pending orders',
+                        'No incoming orders',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey[500],
                         ),
@@ -641,7 +650,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
                     _buildModernOrderCard(
                       context,
                       'Order #${order.orderNumber}',
-                      '${order.items.length} items • ${order.buyerName}',
+                      '${order.quantity} units • ${order.buyerName ?? 'Unknown Buyer'}',
                       '₱${order.totalAmount.toStringAsFixed(2)}',
                       'PENDING',
                       Colors.blue,

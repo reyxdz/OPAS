@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/api_service.dart';
 import '../../order_management/models/order_model.dart';
+import '../models/seller_order_model.dart';
 
 class SellerApiService {
   static String get baseUrl => ApiService.baseUrl;
@@ -233,7 +234,7 @@ class SellerApiService {
   }
 
   /// Get pending orders
-  static Future<List<Order>> getPendingOrders({int page = 1}) async {
+  static Future<List<SellerOrder>> getPendingOrders({int page = 1}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access') ?? '';
@@ -248,9 +249,9 @@ class SellerApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> orders = data['results'] ?? data['orders'] ?? [];
+        final List<dynamic> orders = data['results'] ?? data['orders'] ?? data ?? [];
         return orders
-            .map((o) => Order.fromJson(o as Map<String, dynamic>))
+            .map((o) => SellerOrder.fromJson(o as Map<String, dynamic>))
             .toList();
       } else {
         throw Exception('Failed to fetch pending orders: ${response.statusCode}');
