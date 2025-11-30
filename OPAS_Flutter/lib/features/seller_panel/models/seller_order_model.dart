@@ -145,4 +145,5 @@ class SellerOrder {
   bool get isFulfilled => status == 'FULFILLED' || status == 'fulfilled';
   bool get isDelivered => status == 'DELIVERED' || status == 'delivered';
   bool get isCancelled => status == 'CANCELLED' || status == 'cancelled';
+  bool get isCompleted => isDelivered || isFulfilled; // Order is completed when delivered or fulfilled
 }

@@ -478,14 +478,19 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
           const SizedBox(height: 24),
           
           // === STATS OVERVIEW ===
-          FutureBuilder<List<Order>>(
-            future: _inventoryStatsFuture,
+          FutureBuilder<List<SellerOrder>>(
+            future: _pendingOrdersFuture,
             builder: (context, snapshot) {
-              final totalOrders = snapshot.data?.length ?? 0;
-              final pendingOrders = snapshot.data?.where((o) => o.isPending).length ?? 0;
-              final completedOrders = snapshot.data?.where((o) => o.isCompleted).length ?? 0;
+              // Calculate stats from pending orders
+              final allOrders = snapshot.data ?? [];
+              final pendingCount = allOrders.where((o) => o.isPending).length;
+              final acceptedCount = allOrders.where((o) => o.isAccepted).length;
+              final completedCount = allOrders.where((o) => o.isCompleted).length;
+              
+              // Total = Pending + Accepted (excluding Completed)
+              final totalOrders = pendingCount + acceptedCount;
 
-              return _buildStatsOverview(context, totalOrders, pendingOrders, completedOrders);
+              return _buildStatsOverview(context, pendingCount, totalOrders, completedCount);
             },
           ),
           const SizedBox(height: 28),
@@ -502,15 +507,16 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
   }
 
   /// Stats Overview with modern cards
-  Widget _buildStatsOverview(BuildContext context, int total, int pending, int completed) {
+  /// Parameters: pending=PENDING status count, total=PENDING+ACCEPTED count, completed=COMPLETED status count
+  Widget _buildStatsOverview(BuildContext context, int pending, int total, int completed) {
     return Row(
       children: [
         Expanded(
-          child: _buildModernStatCard(context, 'Total Orders', '$total', Icons.receipt_long, Colors.blue),
+          child: _buildModernStatCard(context, 'Pending', '$pending', Icons.pending_actions, Colors.orange),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildModernStatCard(context, 'Pending', '$pending', Icons.pending_actions, Colors.orange),
+          child: _buildModernStatCard(context, 'Total Orders', '$total', Icons.receipt_long, Colors.blue),
         ),
         const SizedBox(width: 12),
         Expanded(
