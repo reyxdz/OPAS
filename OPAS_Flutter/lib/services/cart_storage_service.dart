@@ -75,9 +75,14 @@ class CartStorageService {
   /// On web, this ensures backed-up cart is still accessible in SharedPreferences
   Future<void> migrateCartIfNeeded(String userId) async {
     try {
+      debugPrint('🛒 migrateCartIfNeeded: Starting migration check for userId=$userId, _isWeb=$_isWeb');
+      
       final prefs = await SharedPreferences.getInstance();
       final cartKey = _getCartKey(userId);
       final backedUpCart = prefs.getString(cartKey);
+      
+      debugPrint('🛒 migrateCartIfNeeded: Looking for backup at key=$cartKey');
+      debugPrint('🛒 migrateCartIfNeeded: Backup found: ${backedUpCart != null}, length: ${backedUpCart?.length ?? 0}');
       
       if (backedUpCart != null && backedUpCart.isNotEmpty) {
         debugPrint('🛒 CartStorageService: Found backed-up cart in SharedPreferences');
@@ -87,29 +92,36 @@ class CartStorageService {
         final cartItems = decoded
             .map((item) => CartItem.fromJson(item as Map<String, dynamic>))
             .toList();
+        debugPrint('🛒 migrateCartIfNeeded: Parsed ${cartItems.length} items from backup');
         
         if (_isWeb) {
           // On web, backup is already in SharedPreferences, just log the restoration
           debugPrint('🛒 CartStorageService: Web - Verified backed-up cart with ${cartItems.length} items is in localStorage for userId=$userId');
         } else {
           // On mobile, migrate from SharedPreferences to SQLite
-          debugPrint('🛒 CartStorageService: Mobile - Migrating to SQLite...');
+          debugPrint('🛒 CartStorageService: MOBILE - Starting migration to SQLite for ${cartItems.length} items...');
           
           // Clear any existing cart for this user in SQLite
+          debugPrint('🛒 migrateCartIfNeeded: Clearing existing SQLite data for userId=$userId');
           await clearCart(userId);
+          debugPrint('🛒 migrateCartIfNeeded: Cleared SQLite, now restoring ${cartItems.length} items');
           
           // Add all backed-up items to SQLite
-          for (final item in cartItems) {
+          for (int i = 0; i < cartItems.length; i++) {
+            final item = cartItems[i];
+            debugPrint('🛒 migrateCartIfNeeded: Restoring item $i: ${item.productId}');
             await addOrUpdateCartItem(userId, item);
+            debugPrint('✅ migrateCartIfNeeded: Successfully restored item $i');
           }
           
           debugPrint('✅ CartStorageService: Successfully migrated ${cartItems.length} items to SQLite');
         }
       } else {
-        debugPrint('🛒 CartStorageService: No backed-up cart found for userId=$userId');
+        debugPrint('🛒 CartStorageService: No backed-up cart found for userId=$userId in SharedPreferences');
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('❌ CartStorageService: Error during migration: $e');
+      debugPrint('❌ CartStorageService: Stack trace: $st');
     }
   }
 
@@ -211,6 +223,7 @@ class CartStorageService {
         }
       } else {
         // Use SQLite on mobile
+        debugPrint('🛒 SQLite: Adding/updating product ${item.productId} for userId=$userId');
         final db = await database;
         
         final existing = await db.query(
@@ -218,11 +231,13 @@ class CartStorageService {
           where: 'user_id = ? AND product_id = ?',
           whereArgs: [userId, item.productId],
         );
+        
+        debugPrint('🛒 SQLite: Found ${existing.length} existing records for this product');
 
         if (existing.isNotEmpty) {
           final currentQuantity = existing[0]['quantity'] as int;
           final newQuantity = currentQuantity + item.quantity;
-          await db.update(
+          final updateResult = await db.update(
             'cart_items',
             {
               'quantity': newQuantity,
@@ -231,9 +246,9 @@ class CartStorageService {
             where: 'user_id = ? AND product_id = ?',
             whereArgs: [userId, item.productId],
           );
-          debugPrint('🛒 SQLite: Updated quantity for product ${item.productId} to $newQuantity');
+          debugPrint('🛒 SQLite: Updated quantity for product ${item.productId} to $newQuantity (rows affected: $updateResult)');
         } else {
-          await db.insert(
+          final insertResult = await db.insert(
             'cart_items',
             {
               ...item.toMap(),
@@ -241,13 +256,14 @@ class CartStorageService {
               'updated_at': DateTime.now().toIso8601String(),
             },
           );
-          debugPrint('🛒 SQLite: Inserted new product ${item.productId}');
+          debugPrint('🛒 SQLite: Inserted new product ${item.productId} (rowid: $insertResult)');
         }
       }
       
       debugPrint('✅ Cart item saved: ${item.productName}');
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('❌ Error saving cart item: $e');
+      debugPrint('❌ Stack trace: $st');
     }
   }
 
@@ -320,19 +336,23 @@ class CartStorageService {
   Future<void> clearCart(String userId) async {
     try {
       if (_isWeb) {
+        debugPrint('🛒 clearCart: WEB - Removing key cart_items_$userId from SharedPreferences');
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_getCartKey(userId));
+        debugPrint('✅ clearCart: WEB - Removed cart for user: $userId');
       } else {
+        debugPrint('🛒 clearCart: MOBILE - Deleting SQLite rows for userId=$userId');
         final db = await database;
-        await db.delete(
+        final rowsDeleted = await db.delete(
           'cart_items',
           where: 'user_id = ?',
           whereArgs: [userId],
         );
+        debugPrint('✅ clearCart: MOBILE - Deleted $rowsDeleted cart items for user: $userId');
       }
-      debugPrint('✅ Cart cleared for user: $userId');
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('❌ Error clearing cart: $e');
+      debugPrint('❌ Stack trace: $st');
     }
   }
 
