@@ -186,20 +186,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
     
+    // IMPORTANT: Before clearing, preserve all cart backups from other users
+    // This ensures multi-user cart history is preserved across account switches
+    final allKeys = prefs.getKeys();
+    final cartBackups = <String, String>{};
+    for (final key in allKeys) {
+      if (key.startsWith('cart_items_')) {
+        final value = prefs.getString(key);
+        if (value != null) {
+          cartBackups[key] = value;
+          debugPrint('🛒 Logout: Preserving backup from key=$key');
+        }
+      }
+    }
+    
     // Clear all preferences
     await prefs.clear();
     
-    // Restore ONLY the notification history and cart
+    // Restore ONLY the notification history and all cart backups
     // This ensures different users don't access each other's notifications
     if (currentUserNotifications != null) {
       await prefs.setStringList(currentUserNotificationKey, currentUserNotifications);
       debugPrint('✅ Logout: Preserved ${currentUserNotifications.length} notifications under key=$currentUserNotificationKey');
     }
     
-    // Restore cart
-    if (cartJson != null && userId != null) {
+    // Restore ALL cart backups (including current user's backup)
+    for (final entry in cartBackups.entries) {
+      await prefs.setString(entry.key, entry.value);
+      debugPrint('✅ Logout: Restored backup for key=${entry.key}');
+    }
+    
+    // Also restore current user's new backup if it was just created
+    if (cartJson != null && userId != null && !cartBackups.containsKey(cartKey)) {
       await prefs.setString(cartKey, cartJson);
-      debugPrint('✅ Logout: Preserved cart from key=$cartKey');
+      debugPrint('✅ Logout: Preserved new cart backup from key=$cartKey');
     }
     
     if (mounted) {

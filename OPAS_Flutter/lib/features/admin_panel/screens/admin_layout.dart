@@ -113,19 +113,39 @@ class _AdminLayoutState extends State<AdminLayout> with WidgetsBindingObserver {
         }
       }
       
+      // IMPORTANT: Before clearing, preserve all cart backups from other users
+      // This ensures multi-user cart history is preserved across account switches
+      final allKeys = prefs.getKeys();
+      final cartBackups = <String, String>{};
+      for (final key in allKeys) {
+        if (key.startsWith('cart_items_')) {
+          final value = prefs.getString(key);
+          if (value != null) {
+            cartBackups[key] = value;
+            debugPrint('🛒 Admin Logout: Preserving backup from key=$key');
+          }
+        }
+      }
+      
       // Clear SharedPreferences
       await prefs.clear();
       
-      // Restore ONLY the notification history and cart
+      // Restore ONLY the notification history and all cart backups
       if (currentUserNotifications != null) {
         await prefs.setStringList(currentUserNotificationKey, currentUserNotifications);
         debugPrint('✅ Admin Logout: Preserved ${currentUserNotifications.length} notifications');
       }
       
-      // Restore cart
-      if (cartJson != null && userId != null) {
+      // Restore ALL cart backups (including current user's backup)
+      for (final entry in cartBackups.entries) {
+        await prefs.setString(entry.key, entry.value);
+        debugPrint('✅ Admin Logout: Restored backup for key=${entry.key}');
+      }
+      
+      // Also restore current user's new backup if it was just created
+      if (cartJson != null && userId != null && !cartBackups.containsKey(cartKey)) {
         await prefs.setString(cartKey, cartJson);
-        debugPrint('✅ Admin Logout: Preserved cart from key=$cartKey');
+        debugPrint('✅ Admin Logout: Preserved new cart backup from key=$cartKey');
       }
       
       // Clear admin registration caches
