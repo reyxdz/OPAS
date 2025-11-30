@@ -70,6 +70,40 @@ class CartStorageService {
 
   String _getCartKey(String userId) => 'cart_items_$userId';
 
+  /// Migrate cart from SharedPreferences to SQLite if needed
+  /// This handles the case where user logs in on a different platform or after logout
+  Future<void> migrateCartIfNeeded(String userId) async {
+    if (_isWeb) return; // Web uses SharedPreferences, no migration needed
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cartKey = _getCartKey(userId);
+      final backedUpCart = prefs.getString(cartKey);
+      
+      if (backedUpCart != null && backedUpCart.isNotEmpty) {
+        debugPrint('🛒 CartStorageService: Found backed-up cart in SharedPreferences, migrating to SQLite...');
+        
+        // Parse the backed-up JSON cart
+        final List<dynamic> decoded = jsonDecode(backedUpCart);
+        final cartItems = decoded
+            .map((item) => CartItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+        
+        // Clear any existing cart for this user in SQLite
+        await clearCart(userId);
+        
+        // Add all backed-up items to SQLite
+        for (final item in cartItems) {
+          await addOrUpdateCartItem(userId, item);
+        }
+        
+        debugPrint('✅ CartStorageService: Successfully migrated ${cartItems.length} items from SharedPreferences to SQLite');
+      }
+    } catch (e) {
+      debugPrint('❌ CartStorageService: Error during migration: $e');
+    }
+  }
+
   /// Get all cart items for a user
   Future<List<CartItem>> getCartItems(String userId) async {
     try {

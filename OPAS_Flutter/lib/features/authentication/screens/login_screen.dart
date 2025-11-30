@@ -195,6 +195,19 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
       
+      // Restore backed-up cart from logout if it exists
+      final userId = prefs.getString('user_id');
+      if (userId != null) {
+        final cartBackupKey = 'cart_items_$userId';
+        final backedUpCart = prefs.getString(cartBackupKey);
+        if (backedUpCart != null) {
+          debugPrint('🛒 Login: Restoring backed-up cart from key=$cartBackupKey');
+          // Cart will be loaded by CartScreen._initializeCart() when it initializes
+        } else {
+          debugPrint('🛒 Login: No backed-up cart found for user_id=$userId');
+        }
+      }
+      
       // Store seller information if available
       if (response['store_name'] != null) {
         await prefs.setString('store_name', response['store_name'] ?? '');

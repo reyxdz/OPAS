@@ -65,6 +65,11 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
     final userId = prefs.getString('user_id');
     debugPrint('🛒 CartScreen._initializeCart: Got user_id=$userId');
     
+    if (userId != null) {
+      // Migrate any backed-up cart from logout to SQLite/SharedPreferences
+      await _cartService.migrateCartIfNeeded(userId);
+    }
+    
     if (!mounted) return;
     
     setState(() {
