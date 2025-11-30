@@ -449,14 +449,15 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
 
   void _loadData() {
     _pendingOrdersFuture = SellerApiService.getPendingOrders().then((orders) {
-      debugPrint('📊 Pending Orders Loaded: ${orders.length} orders');
-      for (var order in orders.take(3)) {
-        debugPrint('  - Order #${order.orderNumber}: Status=${order.status}, IsPending=${order.isPending}, Amount=${order.totalAmount}');
+      debugPrint('✅ Pending Orders API Success: ${orders.length} orders received');
+      if (orders.isNotEmpty) {
+        final first = orders[0];
+        debugPrint('   Sample: Order #${first.orderNumber}, Status=${first.status}, IsPending=${first.isPending}');
       }
       return orders;
     }).catchError((e) {
-      debugPrint('❌ Error loading pending orders: $e');
-      throw e;
+      debugPrint('❌ Pending Orders API Error: $e');
+      return <SellerOrder>[];
     });
     _inventoryStatsFuture = SellerApiService.getIncomingOrders(); // For stats
   }
@@ -594,15 +595,8 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
         FutureBuilder<List<SellerOrder>>(
           future: _pendingOrdersFuture,
           builder: (context, snapshot) {
-            debugPrint('🔍 FutureBuilder state: ConnectionState=${snapshot.connectionState}, HasData=${snapshot.hasData}, HasError=${snapshot.hasError}');
-            if (snapshot.hasData) {
-              debugPrint('   Data: ${snapshot.data!.length} orders');
-            }
-            if (snapshot.hasError) {
-              debugPrint('   Error: ${snapshot.error}');
-            }
-
             if (snapshot.connectionState == ConnectionState.waiting) {
+              debugPrint('⏳ Loading pending orders...');
               return const Padding(
                 padding: EdgeInsets.all(24),
                 child: CircularProgressIndicator(color: Color(0xFF00B464)),
@@ -610,6 +604,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
             }
 
             if (snapshot.hasError) {
+              debugPrint('💥 FutureBuilder Error: ${snapshot.error}');
               return Padding(
                 padding: const EdgeInsets.all(24),
                 child: Center(
@@ -630,7 +625,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
             }
 
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              debugPrint('   Showing empty state');
+              debugPrint('📭 No data or empty list');
               return Padding(
                 padding: const EdgeInsets.all(24),
                 child: Center(
@@ -650,13 +645,39 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
               );
             }
 
+            debugPrint('✨ Got ${snapshot.data!.length} total orders from API');
+            
             // Get the 3 most recent pending orders, sorted by creation date (newest first)
             final orders = snapshot.data!
                 .where((o) => o.isPending)
                 .toList()
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
             
+            debugPrint('🔍 After filtering for isPending: ${orders.length} orders');
+            
             final displayOrders = orders.take(3).toList();
+            
+            debugPrint('📊 Displaying ${displayOrders.length} orders');
+
+            if (displayOrders.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey[300]),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No pending orders',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
 
             return Column(
               children: displayOrders.asMap().entries.map((entry) {

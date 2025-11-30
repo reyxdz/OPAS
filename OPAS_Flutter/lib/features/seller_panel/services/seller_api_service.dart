@@ -249,7 +249,23 @@ class SellerApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> orders = data['results'] ?? data['orders'] ?? data ?? [];
+        
+        // Handle different response formats
+        List<dynamic> orders = [];
+        if (data is List) {
+          // If response is directly a list
+          orders = data;
+        } else if (data is Map) {
+          // If response is a dict with various possible keys
+          if (data['results'] is List) {
+            orders = data['results'];
+          } else if (data['orders'] is List) {
+            orders = data['orders'];
+          }
+        }
+        
+        debugPrint('📊 Pending Orders API: Received ${orders.length} orders');
+        
         return orders
             .map((o) => SellerOrder.fromJson(o as Map<String, dynamic>))
             .toList();
