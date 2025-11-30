@@ -65,16 +65,16 @@ class _OrdersListingScreenState extends State<OrdersListingScreen> {
     // Sort
     switch (_sortBy) {
       case 'DATE_DESC':
-        filtered.sort((a, b) => b.orderedAt.compareTo(a.orderedAt));
+        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         break;
       case 'DATE_ASC':
-        filtered.sort((a, b) => a.orderedAt.compareTo(b.orderedAt));
+        filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
         break;
       case 'AMOUNT_DESC':
-        filtered.sort((a, b) => b.totalPrice.compareTo(a.totalPrice));
+        filtered.sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
         break;
       case 'AMOUNT_ASC':
-        filtered.sort((a, b) => a.totalPrice.compareTo(b.totalPrice));
+        filtered.sort((a, b) => a.totalAmount.compareTo(b.totalAmount));
         break;
     }
 
@@ -424,7 +424,7 @@ class _OrdersListingScreenState extends State<OrdersListingScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              '₱${order.totalPrice.toStringAsFixed(2)} • Qty: ${order.quantity}',
+              '₱${order.totalAmount.toStringAsFixed(2)} • Qty: ${order.quantity}',
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
@@ -442,15 +442,15 @@ class _OrdersListingScreenState extends State<OrdersListingScreen> {
                 const SizedBox(height: 8),
                 _buildInfoRow('Quantity', '${order.quantity} units'),
                 const SizedBox(height: 8),
-                _buildInfoRow('Price per Unit', '₱${(order.totalPrice / order.quantity).toStringAsFixed(2)}'),
+                _buildInfoRow('Price per Unit', '₱${(order.totalAmount / order.quantity).toStringAsFixed(2)}'),
                 const SizedBox(height: 8),
-                _buildInfoRow('Total Amount', '₱${order.totalPrice.toStringAsFixed(2)}'),
+                _buildInfoRow('Total Amount', '₱${order.totalAmount.toStringAsFixed(2)}'),
                 const SizedBox(height: 8),
                 _buildInfoRow('Buyer', order.buyerName ?? 'Unknown'),
                 const SizedBox(height: 8),
                 _buildInfoRow(
                   'Date',
-                  order.orderedAt.toString().substring(0, 10),
+                  order.createdAt.toString().substring(0, 10),
                 ),
                 const SizedBox(height: 16),
                 // Action Buttons
@@ -574,7 +574,7 @@ class _OrdersListingScreenState extends State<OrdersListingScreen> {
       
       final confirmed = await _showConfirmationDialog(
         'Accept Order',
-        'Accept order #${order.id} for ₱${order.totalPrice.toStringAsFixed(2)}?\n\n'
+        'Accept order #${order.id} for ₱${order.totalAmount.toStringAsFixed(2)}?\n\n'
         'Quantity: ${order.quantity} units',
       );
 
