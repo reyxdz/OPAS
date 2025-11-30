@@ -403,13 +403,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   /// Fulfillment Method Section (Delivery/Pickup based on seller options)
   Widget _buildFulfillmentMethodSection(BuildContext context) {
     // Determine available fulfillment options from cart items
-    bool allItemsAllowDelivery = widget.cartItems.isNotEmpty;
-    bool allItemsAllowPickup = widget.cartItems.isNotEmpty;
-
-    for (var item in widget.cartItems) {
-      // Assuming CartItem has these properties or we check from product data
-      // For now, we'll show both options as available if items support it
-    }
+    // Both delivery and pickup are available for all items
 
     List<Map<String, dynamic>> fulfillmentOptions = [];
     

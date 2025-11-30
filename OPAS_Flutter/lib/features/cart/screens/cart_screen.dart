@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'dart:math';
 import '../models/cart_item_model.dart';
 import 'checkout_screen.dart';
-import '../../products/screens/product_list_screen.dart';
 
 /// Cart Screen - Fully Functional Shopping Cart with Modern Professional Design
 /// 
