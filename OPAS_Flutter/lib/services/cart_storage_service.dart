@@ -120,6 +120,11 @@ class CartStorageService {
         // Use SharedPreferences on web
         // IMPORTANT: Always get fresh instance to ensure we read from localStorage
         final prefs = await SharedPreferences.getInstance();
+        
+        // Force reload from browser localStorage to get latest data after rebuild
+        await prefs.reload();
+        debugPrint('🛒 Web: Reloaded SharedPreferences from localStorage');
+        
         final cartJson = prefs.getString(_getCartKey(userId)) ?? '[]';
         debugPrint('🛒 Web: Reading cart for userId=$userId from localStorage, got ${cartJson.length} chars');
         final List<dynamic> decoded = jsonDecode(cartJson);
@@ -158,6 +163,10 @@ class CartStorageService {
         final prefs = await SharedPreferences.getInstance();
         debugPrint('🛒 Web: SharedPreferences instance obtained');
         
+        // Force reload from browser localStorage to get latest data
+        await prefs.reload();
+        debugPrint('🛒 Web: Reloaded SharedPreferences from localStorage before write');
+        
         final cartKey = _getCartKey(userId);
         debugPrint('🛒 Web: Cart key = $cartKey');
         
@@ -191,6 +200,12 @@ class CartStorageService {
         
         if (success) {
           debugPrint('✅ Web: Successfully saved ${cart.length} items to localStorage');
+          // Additional persistence guarantee on web: ensure it's actually written
+          if (kIsWeb) {
+            // Give browser a moment to persist to localStorage
+            await Future.delayed(const Duration(milliseconds: 100));
+            debugPrint('🛒 Web: Delayed write to ensure localStorage persistence');
+          }
         } else {
           debugPrint('❌ Web: setString() returned false - data may not be persisted!');
         }

@@ -26,8 +26,10 @@ void main() async {
   // On web, this loads from browser's localStorage
   // On mobile, this loads from device's secure storage
   try {
-    await SharedPreferences.getInstance();
-    debugPrint('✅ SharedPreferences initialized successfully');
+    final prefs = await SharedPreferences.getInstance();
+    // Force reload from browser localStorage (critical for web after hot reload/rebuild)
+    await prefs.reload();
+    debugPrint('✅ SharedPreferences initialized successfully (with reload for web persistence)');
   } catch (e) {
     debugPrint('⚠️ SharedPreferences initialization error: $e');
   }
