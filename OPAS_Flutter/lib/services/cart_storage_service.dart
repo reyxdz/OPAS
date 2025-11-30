@@ -39,9 +39,29 @@ class CartStorageService {
     final dbPath = await sqflite_db.getDatabasesPath();
     final path = join(dbPath, 'opas_cart.db');
 
+    // CRITICAL: Force database deletion and recreation if it has the old schema
+    // This ensures we get the v3 schema with all required columns
+    try {
+      // Open the database to check its version
+      final testDb = await sqflite_db.openDatabase(path);
+      final version = await testDb.getVersion();
+      debugPrint('🛒 SQLite: Current database version: $version');
+      
+      if (version < 3) {
+        debugPrint('🛒 SQLite: Database is old version ($version), deleting to force recreation with v3 schema');
+        await testDb.close();
+        await sqflite_db.deleteDatabase(path);
+        debugPrint('✅ SQLite: Old database deleted, will be recreated with v3 schema');
+      } else {
+        await testDb.close();
+      }
+    } catch (e) {
+      debugPrint('ℹ️ SQLite: Could not check database version: $e (this is normal for first run)');
+    }
+
     return await sqflite_db.openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -75,21 +95,45 @@ class CartStorageService {
     debugPrint('🛒 SQLite: Upgrading database from version $oldVersion to $newVersion');
     
     if (oldVersion < 2) {
-      // Add missing columns for version 2
+      // Add missing columns for version 2+
       debugPrint('🛒 SQLite: Adding missing columns: unit, seller_id');
       try {
         await db.execute('ALTER TABLE cart_items ADD COLUMN unit TEXT');
+        debugPrint('✅ SQLite: Added unit column');
       } catch (e) {
-        debugPrint('ℹ️ SQLite: unit column already exists: $e');
+        debugPrint('ℹ️ SQLite: unit column already exists or cannot be added: $e');
       }
       
       try {
         await db.execute('ALTER TABLE cart_items ADD COLUMN seller_id TEXT NOT NULL DEFAULT "0"');
+        debugPrint('✅ SQLite: Added seller_id column');
       } catch (e) {
-        debugPrint('ℹ️ SQLite: seller_id column already exists: $e');
+        debugPrint('ℹ️ SQLite: seller_id column already exists or cannot be added: $e');
       }
       
-      debugPrint('✅ SQLite: Database migration to version 2 complete');
+      debugPrint('✅ SQLite: Database migration to version 2+ complete');
+    }
+    
+    if (oldVersion < 3) {
+      debugPrint('🛒 SQLite: Ensuring v3 schema is complete');
+      // Verify columns exist by trying to read them
+      try {
+        final result = await db.rawQuery('PRAGMA table_info(cart_items)');
+        final columnNames = (result).map((col) => col['name'].toString()).toList();
+        debugPrint('🛒 SQLite: Current columns: $columnNames');
+        
+        if (!columnNames.contains('unit')) {
+          await db.execute('ALTER TABLE cart_items ADD COLUMN unit TEXT');
+          debugPrint('✅ SQLite: Added missing unit column');
+        }
+        
+        if (!columnNames.contains('seller_id')) {
+          await db.execute('ALTER TABLE cart_items ADD COLUMN seller_id TEXT NOT NULL DEFAULT "0"');
+          debugPrint('✅ SQLite: Added missing seller_id column');
+        }
+      } catch (e) {
+        debugPrint('❌ SQLite: Error during v3 upgrade: $e');
+      }
     }
   }
 
