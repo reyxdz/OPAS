@@ -456,7 +456,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
       return orders;
     }).catchError((e) {
       debugPrint('❌ Error loading pending orders: $e');
-      rethrow;
+      throw e;
     });
     _inventoryStatsFuture = SellerApiService.getIncomingOrders(); // For stats
   }
