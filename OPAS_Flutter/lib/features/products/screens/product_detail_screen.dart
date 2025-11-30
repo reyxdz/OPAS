@@ -91,11 +91,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? 'guest';
       debugPrint('🛒 _addToCart: userId=$userId');
+      debugPrint('🛒 _addToCart: cartItem created - productId=${cartItem.productId}, quantity=${cartItem.quantity}');
       
       // Use CartStorageService to add item (handles both web SharedPreferences and mobile SQLite)
       final cartService = CartStorageService();
+      debugPrint('🛒 _addToCart: Calling cartService.addOrUpdateCartItem()');
       await cartService.addOrUpdateCartItem(userId, cartItem);
-      debugPrint('🛒 _addToCart: Item added via CartStorageService for user=$userId');
+      debugPrint('✅ _addToCart: Item added via CartStorageService for user=$userId');
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

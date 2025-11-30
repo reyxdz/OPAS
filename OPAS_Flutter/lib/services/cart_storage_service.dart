@@ -72,16 +72,15 @@ class CartStorageService {
 
   /// Migrate cart from SharedPreferences to SQLite if needed
   /// This handles the case where user logs in on a different platform or after logout
+  /// On web, this ensures backed-up cart is still accessible in SharedPreferences
   Future<void> migrateCartIfNeeded(String userId) async {
-    if (_isWeb) return; // Web uses SharedPreferences, no migration needed
-    
     try {
       final prefs = await SharedPreferences.getInstance();
       final cartKey = _getCartKey(userId);
       final backedUpCart = prefs.getString(cartKey);
       
       if (backedUpCart != null && backedUpCart.isNotEmpty) {
-        debugPrint('🛒 CartStorageService: Found backed-up cart in SharedPreferences, migrating to SQLite...');
+        debugPrint('🛒 CartStorageService: Found backed-up cart in SharedPreferences');
         
         // Parse the backed-up JSON cart
         final List<dynamic> decoded = jsonDecode(backedUpCart);
@@ -89,15 +88,25 @@ class CartStorageService {
             .map((item) => CartItem.fromJson(item as Map<String, dynamic>))
             .toList();
         
-        // Clear any existing cart for this user in SQLite
-        await clearCart(userId);
-        
-        // Add all backed-up items to SQLite
-        for (final item in cartItems) {
-          await addOrUpdateCartItem(userId, item);
+        if (_isWeb) {
+          // On web, backup is already in SharedPreferences, just log the restoration
+          debugPrint('🛒 CartStorageService: Web - Verified backed-up cart with ${cartItems.length} items is in localStorage for userId=$userId');
+        } else {
+          // On mobile, migrate from SharedPreferences to SQLite
+          debugPrint('🛒 CartStorageService: Mobile - Migrating to SQLite...');
+          
+          // Clear any existing cart for this user in SQLite
+          await clearCart(userId);
+          
+          // Add all backed-up items to SQLite
+          for (final item in cartItems) {
+            await addOrUpdateCartItem(userId, item);
+          }
+          
+          debugPrint('✅ CartStorageService: Successfully migrated ${cartItems.length} items to SQLite');
         }
-        
-        debugPrint('✅ CartStorageService: Successfully migrated ${cartItems.length} items from SharedPreferences to SQLite');
+      } else {
+        debugPrint('🛒 CartStorageService: No backed-up cart found for userId=$userId');
       }
     } catch (e) {
       debugPrint('❌ CartStorageService: Error during migration: $e');
@@ -140,15 +149,28 @@ class CartStorageService {
   /// Add or update a cart item
   Future<void> addOrUpdateCartItem(String userId, CartItem item) async {
     try {
+      debugPrint('🛒 addOrUpdateCartItem called: userId=$userId, product=${item.productId}, _isWeb=$_isWeb');
+      
       if (_isWeb) {
+        debugPrint('🛒 Web platform detected - using SharedPreferences');
         // Use SharedPreferences on web
         // IMPORTANT: Always get fresh instance to ensure we read from localStorage
         final prefs = await SharedPreferences.getInstance();
-        final cartJson = prefs.getString(_getCartKey(userId)) ?? '[]';
+        debugPrint('🛒 Web: SharedPreferences instance obtained');
+        
+        final cartKey = _getCartKey(userId);
+        debugPrint('🛒 Web: Cart key = $cartKey');
+        
+        final cartJson = prefs.getString(cartKey) ?? '[]';
+        debugPrint('🛒 Web: Current cart JSON length = ${cartJson.length} chars');
+        
         final List<dynamic> decoded = jsonDecode(cartJson);
+        debugPrint('🛒 Web: Decoded ${decoded.length} items from JSON');
+        
         final cart = decoded
             .map((item) => CartItem.fromJson(item as Map<String, dynamic>))
             .toList();
+        debugPrint('🛒 Web: Parsed ${cart.length} CartItems from JSON');
         
         final existingIndex =
             cart.indexWhere((i) => i.productId == item.productId);
@@ -157,15 +179,20 @@ class CartStorageService {
           debugPrint('🛒 Web: Updated quantity for product ${item.productId} to ${cart[existingIndex].quantity}');
         } else {
           cart.add(item);
-          debugPrint('🛒 Web: Added new product ${item.productId} to cart');
+          debugPrint('🛒 Web: Added new product ${item.productId}, cart now has ${cart.length} items');
         }
         
         final updatedJson =
             jsonEncode(cart.map((item) => item.toJson()).toList());
-        final success = await prefs.setString(_getCartKey(userId), updatedJson);
-        debugPrint('🛒 Web: Saved ${cart.length} items to localStorage, success=$success');
-        if (!success) {
-          debugPrint('❌ Web: Failed to save cart to localStorage!');
+        debugPrint('🛒 Web: Encoded cart to JSON, length = ${updatedJson.length} chars');
+        
+        final success = await prefs.setString(cartKey, updatedJson);
+        debugPrint('🛒 Web: prefs.setString() returned success=$success');
+        
+        if (success) {
+          debugPrint('✅ Web: Successfully saved ${cart.length} items to localStorage');
+        } else {
+          debugPrint('❌ Web: setString() returned false - data may not be persisted!');
         }
       } else {
         // Use SQLite on mobile
