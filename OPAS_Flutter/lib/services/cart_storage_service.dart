@@ -317,12 +317,14 @@ class CartStorageService {
           );
           debugPrint('🛒 SQLite: Updated quantity for product ${item.productId} to $newQuantity (rows affected: $updateResult)');
         } else {
+          final now = DateTime.now().toIso8601String();
           final insertResult = await db.insert(
             'cart_items',
             {
               ...item.toMap(),
               'user_id': userId,
-              'updated_at': DateTime.now().toIso8601String(),
+              'created_at': now,
+              'updated_at': now,
             },
           );
           debugPrint('🛒 SQLite: Inserted new product ${item.productId} (rowid: $insertResult)');
