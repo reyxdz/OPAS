@@ -484,13 +484,10 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
               // Calculate stats from pending orders
               final allOrders = snapshot.data ?? [];
               final pendingCount = allOrders.where((o) => o.isPending).length;
-              final acceptedCount = allOrders.where((o) => o.isAccepted).length;
+              final confirmedCount = allOrders.where((o) => o.isAccepted).length;
               final completedCount = allOrders.where((o) => o.isCompleted).length;
-              
-              // Total = Pending + Accepted (excluding Completed)
-              final totalOrders = pendingCount + acceptedCount;
 
-              return _buildStatsOverview(context, pendingCount, totalOrders, completedCount);
+              return _buildStatsOverview(context, pendingCount, confirmedCount, completedCount);
             },
           ),
           const SizedBox(height: 28),
@@ -507,8 +504,8 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
   }
 
   /// Stats Overview with modern cards
-  /// Parameters: pending=PENDING status count, total=PENDING+ACCEPTED count, completed=COMPLETED status count
-  Widget _buildStatsOverview(BuildContext context, int pending, int total, int completed) {
+  /// Parameters: pending=PENDING status count, confirmed=ACCEPTED (Confirmed) status count, completed=FULFILLED/DELIVERED status count
+  Widget _buildStatsOverview(BuildContext context, int pending, int confirmed, int completed) {
     return Row(
       children: [
         Expanded(
@@ -516,7 +513,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildModernStatCard(context, 'Total Orders', '$total', Icons.receipt_long, Colors.blue),
+          child: _buildModernStatCard(context, 'Confirmed', '$confirmed', Icons.receipt_long, Colors.blue),
         ),
         const SizedBox(width: 12),
         Expanded(
