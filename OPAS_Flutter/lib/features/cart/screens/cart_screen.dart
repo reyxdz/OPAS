@@ -34,6 +34,8 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    // Initialize _cartFuture with empty list to prevent LateInitializationError
+    _cartFuture = Future.value([]);
     // Register lifecycle observer to detect when app resumes
     WidgetsBinding.instance.addObserver(this);
     _initializeCart();
@@ -62,6 +64,8 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id');
     debugPrint('🛒 CartScreen._initializeCart: Got user_id=$userId');
+    
+    if (!mounted) return;
     
     setState(() {
       _userId = userId ?? 'guest';
