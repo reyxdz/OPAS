@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../features/cart/models/cart_item_model.dart';
@@ -84,7 +85,8 @@ class CartStorageService {
 
       if (existing.isNotEmpty) {
         // Update quantity
-        final newQuantity = existing[0]['quantity'] as int + item.quantity;
+        final currentQuantity = existing[0]['quantity'] as int;
+        final newQuantity = currentQuantity + item.quantity;
         await db.update(
           'cart_items',
           {
@@ -170,6 +172,3 @@ class CartStorageService {
     _database = null;
   }
 }
-
-// Import for debugPrint
-import 'package:flutter/foundation.dart';

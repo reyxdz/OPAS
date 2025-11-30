@@ -76,14 +76,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     try {
       // Create CartItem from Product
       final cartItem = CartItem(
-        id: DateTime.now().millisecondsSinceEpoch, // Unique ID based on timestamp
-        productId: product.id,
+        id: DateTime.now().millisecondsSinceEpoch.toString(), // Unique ID based on timestamp
+        productId: product.id.toString(),
         productName: product.name,
-        pricePerKilo: product.pricePerKilo,
+        price: product.pricePerKilo,
         quantity: _quantity,
         unit: product.unit,
         imageUrl: product.imageUrl,
-        sellerId: product.sellerId,
+        sellerId: product.sellerId.toString(),
         sellerName: product.sellerName,
       );
 
@@ -136,14 +136,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     try {
       // Create CartItem for checkout (without saving to cart)
       final cartItem = CartItem(
-        id: DateTime.now().millisecondsSinceEpoch,
-        productId: product.id,
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        productId: product.id.toString(),
         productName: product.name,
-        pricePerKilo: product.pricePerKilo,
+        price: product.pricePerKilo,
         quantity: _quantity,
         unit: product.unit,
         imageUrl: product.imageUrl,
-        sellerId: product.sellerId,
+        sellerId: product.sellerId.toString(),
         sellerName: product.sellerName,
       );
 

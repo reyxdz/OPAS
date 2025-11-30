@@ -68,7 +68,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     try {
       // Send productId instead of item.id (item.id is just a local timestamp)
-      final cartItemIds = widget.cartItems.map((item) => item.productId).toList();
+      final cartItemIds = widget.cartItems.map((item) => int.parse(item.productId)).toList();
       final order = await BuyerApiService.placeOrder(
         cartItemIds: cartItemIds,
         paymentMethod: _selectedFulfillmentMethod!,
@@ -297,12 +297,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               color: Colors.grey[200],
-              image: DecorationImage(
-                image: NetworkImage(item.imageUrl),
-                fit: BoxFit.cover,
-              ),
+              image: (item.imageUrl?.isNotEmpty ?? false)
+                  ? DecorationImage(
+                      image: NetworkImage(item.imageUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-            child: item.imageUrl.isEmpty
+            child: (item.imageUrl?.isEmpty ?? true)
                 ? Icon(Icons.image_not_supported, color: Colors.grey[400])
                 : null,
           ),
@@ -325,7 +327,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${item.quantity} × ₱${item.pricePerKilo.toStringAsFixed(2)}',
+                      '${item.quantity} × ₱${item.price.toStringAsFixed(2)}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.grey[600],
                       ),
