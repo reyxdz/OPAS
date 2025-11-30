@@ -114,10 +114,10 @@ class SellerOrder {
     'buyer_phone': buyerPhone,
   };
 
-  bool get isPending => status == 'pending';
-  bool get isAccepted => status == 'accepted';
-  bool get isRejected => status == 'rejected';
-  bool get isFulfilled => status == 'fulfilled';
-  bool get isDelivered => status == 'delivered';
-  bool get isCancelled => status == 'cancelled';
+  bool get isPending => status == 'PENDING' || status == 'pending';
+  bool get isAccepted => status == 'ACCEPTED' || status == 'accepted';
+  bool get isRejected => status == 'REJECTED' || status == 'rejected';
+  bool get isFulfilled => status == 'FULFILLED' || status == 'fulfilled';
+  bool get isDelivered => status == 'DELIVERED' || status == 'delivered';
+  bool get isCancelled => status == 'CANCELLED' || status == 'cancelled';
 }
