@@ -437,7 +437,7 @@ class _AccountProfileTab extends StatefulWidget {
 }
 
 class _AccountProfileTabState extends State<_AccountProfileTab> {
-  late Future<List<Order>> _incomingOrdersFuture;
+  late Future<List<Order>> _pendingOrdersFuture;
   late Future<List<Order>> _inventoryStatsFuture;
 
   @override
@@ -447,7 +447,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
   }
 
   void _loadData() {
-    _incomingOrdersFuture = SellerApiService.getIncomingOrders();
+    _pendingOrdersFuture = SellerApiService.getPendingOrders();
     _inventoryStatsFuture = SellerApiService.getIncomingOrders(); // For stats
   }
 
@@ -566,7 +566,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Incoming Orders',
+              'Incoming Orders (Pending)',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -582,7 +582,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
         ),
         const SizedBox(height: 12),
         FutureBuilder<List<Order>>(
-          future: _incomingOrdersFuture,
+          future: _pendingOrdersFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Padding(
@@ -595,7 +595,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
               return Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  'Error loading orders',
+                  'Error loading orders: ${snapshot.error}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.red,
                   ),
@@ -612,7 +612,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
                       Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey[300]),
                       const SizedBox(height: 12),
                       Text(
-                        'No incoming orders',
+                        'No pending orders',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey[500],
                         ),
@@ -623,24 +623,30 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
               );
             }
 
-            final orders = snapshot.data!.take(2).toList();
+            // Get the 3 most recent pending orders, sorted by creation date (newest first)
+            final orders = snapshot.data!
+                .where((o) => o.isPending)
+                .toList()
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            
+            final displayOrders = orders.take(3).toList();
+
             return Column(
-              children: orders.map((order) {
-                final statusColor = order.isPending ? Colors.blue : 
-                                   order.isConfirmed ? Colors.orange :
-                                   order.isCompleted ? Colors.green : Colors.red;
-                                   
+              children: displayOrders.asMap().entries.map((entry) {
+                final index = entry.key;
+                final order = entry.value;
+
                 return Column(
                   children: [
                     _buildModernOrderCard(
                       context,
                       'Order #${order.orderNumber}',
-                      '${order.items.length} items',
+                      '${order.items.length} items • ${order.buyerName}',
                       '₱${order.totalAmount.toStringAsFixed(2)}',
-                      order.status.toUpperCase(),
-                      statusColor,
+                      'PENDING',
+                      Colors.blue,
                     ),
-                    if (orders.indexOf(order) < orders.length - 1)
+                    if (index < displayOrders.length - 1)
                       const SizedBox(height: 10),
                   ],
                 );
