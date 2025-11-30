@@ -448,7 +448,16 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
   }
 
   void _loadData() {
-    _pendingOrdersFuture = SellerApiService.getPendingOrders();
+    _pendingOrdersFuture = SellerApiService.getPendingOrders().then((orders) {
+      debugPrint('📊 Pending Orders Loaded: ${orders.length} orders');
+      for (var order in orders.take(3)) {
+        debugPrint('  - Order #${order.orderNumber}: Status=${order.status}, IsPending=${order.isPending}, Amount=${order.totalAmount}');
+      }
+      return orders;
+    }).catchError((e) {
+      debugPrint('❌ Error loading pending orders: $e');
+      rethrow;
+    });
     _inventoryStatsFuture = SellerApiService.getIncomingOrders(); // For stats
   }
 
@@ -585,6 +594,14 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
         FutureBuilder<List<SellerOrder>>(
           future: _pendingOrdersFuture,
           builder: (context, snapshot) {
+            debugPrint('🔍 FutureBuilder state: ConnectionState=${snapshot.connectionState}, HasData=${snapshot.hasData}, HasError=${snapshot.hasError}');
+            if (snapshot.hasData) {
+              debugPrint('   Data: ${snapshot.data!.length} orders');
+            }
+            if (snapshot.hasError) {
+              debugPrint('   Error: ${snapshot.error}');
+            }
+
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Padding(
                 padding: EdgeInsets.all(24),
@@ -613,6 +630,7 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
             }
 
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              debugPrint('   Showing empty state');
               return Padding(
                 padding: const EdgeInsets.all(24),
                 child: Center(
