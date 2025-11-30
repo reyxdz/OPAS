@@ -586,7 +586,9 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
               ),
             ),
             TextButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.of(context).pushNamed('/seller/orders');
+              },
               child: const Text(
                 'View All',
                 style: TextStyle(color: Color(0xFF00B464)),
