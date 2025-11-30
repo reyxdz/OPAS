@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../../products/models/product_model.dart';
 import '../../products/models/review_model.dart';
 import '../../products/services/buyer_api_service.dart';
 import '../../profile/screens/seller_shop_screen.dart';
 import '../../cart/models/cart_item_model.dart';
 import '../../cart/screens/checkout_screen.dart';
+import '../../../services/cart_storage_service.dart';
 
 /// Product Detail Screen - Complete Implementation per Part 3 Spec
 ///
@@ -70,7 +70,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     super.dispose();
   }
 
-  /// Add product to cart (using local storage until backend API is ready)
+  /// Add product to cart (using CartStorageService for consistent cross-platform storage)
   Future<void> _addToCart(Product product) async {
     debugPrint('🛒 _addToCart CALLED for product: ${product.name} (id=${product.id}, available=${product.isAvailable})');
     try {
@@ -87,34 +87,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         sellerName: product.sellerName,
       );
 
-      // Get current cart from storage
+      // Get user ID from storage
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? 'guest';
-      final cartKey = 'cart_items_$userId';
-      debugPrint('🛒 _addToCart: userId=$userId, cartKey=$cartKey');
+      debugPrint('🛒 _addToCart: userId=$userId');
       
-      final cartJson = prefs.getString(cartKey) ?? '[]';
-      final List<dynamic> decoded = jsonDecode(cartJson);
-      final cart = decoded.map((item) => CartItem.fromJson(item as Map<String, dynamic>)).toList();
-      debugPrint('🛒 _addToCart: Current cart has ${cart.length} items');
-
-      // Check if product already in cart
-      final existingIndex = cart.indexWhere((item) => item.productId == product.id);
-      
-      if (existingIndex >= 0) {
-        // Update quantity
-        cart[existingIndex].quantity += _quantity;
-        debugPrint('🛒 _addToCart: Updated quantity for product ${product.id}');
-      } else {
-        // Add new item
-        cart.add(cartItem);
-        debugPrint('🛒 _addToCart: Added new product ${product.id} to cart');
-      }
-
-      // Save back to storage
-      final updatedJson = jsonEncode(cart.map((item) => item.toJson()).toList());
-      await prefs.setString(cartKey, updatedJson);
-      debugPrint('🛒 _addToCart: Saved ${cart.length} items to $cartKey');
+      // Use CartStorageService to add item (handles both web SharedPreferences and mobile SQLite)
+      final cartService = CartStorageService();
+      await cartService.addOrUpdateCartItem(userId, cartItem);
+      debugPrint('🛒 _addToCart: Item added via CartStorageService for user=$userId');
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
