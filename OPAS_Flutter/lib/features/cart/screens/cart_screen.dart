@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'dart:math';
 import '../models/cart_item_model.dart';
+import '../../../services/cart_storage_service.dart';
 import 'checkout_screen.dart';
 
 /// Cart Screen - Fully Functional Shopping Cart with Modern Professional Design
@@ -30,14 +29,13 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   late Future<List<CartItem>> _cartFuture;
   bool _isCheckoutExpanded = false;
   String? _userId;
+  final _cartService = CartStorageService();
 
   @override
   void initState() {
     super.initState();
     // Register lifecycle observer to detect when app resumes
     WidgetsBinding.instance.addObserver(this);
-    // Initialize _cartFuture immediately with a default empty future
-    _cartFuture = Future.value([]);
     _initializeCart();
   }
 
@@ -66,34 +64,18 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
     debugPrint('🛒 CartScreen._initializeCart: Got user_id=$userId');
     
     setState(() {
-      _userId = userId;
-      // After getting user_id, load the correct cart
+      _userId = userId ?? 'guest';
+      // After getting user_id, load the correct cart from SQLite
       _cartFuture = _getCartFromStorage();
     });
-    
-    // Debug: Show all SharedPreferences keys that start with 'cart_items'
-    final allKeys = prefs.getKeys();
-    final cartKeys = allKeys.where((key) => key.startsWith('cart_items')).toList();
-    debugPrint('🛒 CartScreen: All cart keys in SharedPreferences: $cartKeys');
-    for (final key in cartKeys) {
-      final value = prefs.getString(key);
-      debugPrint('🛒   $key = ${value != null ? value.substring(0, min(100, value.length)) : 'null'}...');
-    }
   }
 
-  String get _cartKey => 'cart_items_${_userId ?? 'guest'}';
-
-  /// Get cart items from SharedPreferences
+  /// Get cart items from SQLite
   Future<List<CartItem>> _getCartFromStorage() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final cartJson = prefs.getString(_cartKey) ?? '[]';
-      debugPrint('🛒 _getCartFromStorage: key=$_cartKey, json=$cartJson');
-      final List<dynamic> decoded = jsonDecode(cartJson);
-      final items = decoded
-          .map((item) => CartItem.fromJson(item as Map<String, dynamic>))
-          .toList();
-      debugPrint('🛒 _getCartFromStorage: Loaded ${items.length} items from cart');
+      debugPrint('🛒 _getCartFromStorage: Loading cart for userId=$_userId');
+      final items = await _cartService.getCartItems(_userId ?? 'guest');
+      debugPrint('🛒 _getCartFromStorage: Loaded ${items.length} items from SQLite');
       return items;
     } catch (e) {
       debugPrint('❌ Error loading cart: $e');
@@ -104,9 +86,11 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   /// Save cart items to SharedPreferences
   Future<void> _saveCartToStorage(List<CartItem> items) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final cartJson = jsonEncode(items.map((item) => item.toJson()).toList());
-      await prefs.setString(_cartKey, cartJson);
+      // Clear existing cart and add all items
+      await _cartService.clearCart(_userId ?? 'guest');
+      for (final item in items) {
+        await _cartService.addOrUpdateCartItem(_userId ?? 'guest', item);
+      }
       // Refresh UI
       setState(() {
         _cartFuture = _getCartFromStorage();
@@ -191,9 +175,7 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   /// Remove item from cart
   Future<void> _removeItem(CartItem item) async {
     try {
-      final cart = await _getCartFromStorage();
-      cart.removeWhere((i) => i.id == item.id);
-      await _saveCartToStorage(cart);
+      await _cartService.removeCartItem(_userId ?? 'guest', item.productId);
       
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -203,6 +185,11 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
           duration: const Duration(seconds: 1),
         ),
       );
+      
+      // Refresh cart view
+      setState(() {
+        _cartFuture = _getCartFromStorage();
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -217,8 +204,7 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   /// Clear entire cart
   Future<void> _clearCart() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_cartKey);
+      await _cartService.clearCart(_userId ?? 'guest');
       setState(() {
         _cartFuture = _getCartFromStorage();
       });
