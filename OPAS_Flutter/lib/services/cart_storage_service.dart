@@ -41,8 +41,9 @@ class CartStorageService {
 
     return await sqflite_db.openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
 
@@ -54,8 +55,10 @@ class CartStorageService {
         product_id TEXT NOT NULL,
         product_name TEXT NOT NULL,
         seller_name TEXT NOT NULL,
+        seller_id TEXT NOT NULL,
         price REAL NOT NULL,
         quantity INTEGER NOT NULL,
+        unit TEXT,
         image_url TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -66,6 +69,28 @@ class CartStorageService {
     await db.execute('''
       CREATE INDEX idx_cart_user_id ON cart_items(user_id)
     ''');
+  }
+
+  Future<void> _upgradeDB(sqflite_db.Database db, int oldVersion, int newVersion) async {
+    debugPrint('🛒 SQLite: Upgrading database from version $oldVersion to $newVersion');
+    
+    if (oldVersion < 2) {
+      // Add missing columns for version 2
+      debugPrint('🛒 SQLite: Adding missing columns: unit, seller_id');
+      try {
+        await db.execute('ALTER TABLE cart_items ADD COLUMN unit TEXT');
+      } catch (e) {
+        debugPrint('ℹ️ SQLite: unit column already exists: $e');
+      }
+      
+      try {
+        await db.execute('ALTER TABLE cart_items ADD COLUMN seller_id TEXT NOT NULL DEFAULT "0"');
+      } catch (e) {
+        debugPrint('ℹ️ SQLite: seller_id column already exists: $e');
+      }
+      
+      debugPrint('✅ SQLite: Database migration to version 2 complete');
+    }
   }
 
   String _getCartKey(String userId) => 'cart_items_$userId';

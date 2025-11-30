@@ -30,6 +30,8 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   bool _isCheckoutExpanded = false;
   String? _userId;
   final _cartService = CartStorageService();
+  bool _isInitialized = false;  // Track if cart has been initialized
+  AppLifecycleState? _lastLifecycleState;  // Track last lifecycle state
 
   @override
   void initState() {
@@ -50,16 +52,29 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Refresh cart when app resumes (return from other screen)
-    if (state == AppLifecycleState.resumed) {
-      debugPrint('🛒 CartScreen: App resumed, refreshing cart');
-      setState(() {
-        _cartFuture = _getCartFromStorage();
-      });
+    debugPrint('🛒 CartScreen: Lifecycle state changed to $state (was $_lastLifecycleState)');
+    
+    // Only refresh cart when app actually resumes from background (paused -> resumed)
+    // Don't refresh on every navigation or screen change
+    if (state == AppLifecycleState.resumed && _lastLifecycleState == AppLifecycleState.paused) {
+      debugPrint('🛒 CartScreen: App resumed from background, refreshing cart');
+      if (mounted && _isInitialized) {
+        setState(() {
+          _cartFuture = _getCartFromStorage();
+        });
+      }
     }
+    
+    _lastLifecycleState = state;
   }
 
   Future<void> _initializeCart() async {
+    // Prevent multiple initializations
+    if (_isInitialized) {
+      debugPrint('🛒 CartScreen._initializeCart: Already initialized, skipping');
+      return;
+    }
+    
     // Get user ID from SharedPreferences (set during login)
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id');
@@ -76,6 +91,7 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
       _userId = userId ?? 'guest';
       // After getting user_id, load the correct cart from SQLite
       _cartFuture = _getCartFromStorage();
+      _isInitialized = true;
     });
   }
 
