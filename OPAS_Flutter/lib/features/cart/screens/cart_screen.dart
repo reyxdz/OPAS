@@ -554,14 +554,14 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
             decoration: BoxDecoration(
               color: Colors.grey[100],
               borderRadius: BorderRadius.circular(10),
-              image: item.imageUrl.isNotEmpty
+              image: (item.imageUrl?.isNotEmpty ?? false)
                   ? DecorationImage(
-                      image: NetworkImage(item.imageUrl),
+                      image: NetworkImage(item.imageUrl!),
                       fit: BoxFit.cover,
                     )
                   : null,
             ),
-            child: item.imageUrl.isEmpty
+            child: (item.imageUrl?.isEmpty ?? true)
                 ? Icon(Icons.image_not_supported, color: Colors.grey[400], size: 24)
                 : null,
           ),
@@ -628,7 +628,7 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '₱${item.pricePerKilo.toStringAsFixed(2)}/${item.unit}',
+                          '₱${item.price.toStringAsFixed(2)}/${item.unit}',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Colors.grey[600],
                           ),
