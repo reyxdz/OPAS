@@ -27,6 +27,8 @@ class SellerOrder {
   final DateTime? updatedAt;
   final String? buyerName;
   final String? buyerPhone;
+  final String? productUnit;
+  final String? sellerName;
 
   SellerOrder({
     required this.id,
@@ -54,6 +56,8 @@ class SellerOrder {
     this.updatedAt,
     this.buyerName,
     this.buyerPhone,
+    this.productUnit,
+    this.sellerName,
   });
 
   factory SellerOrder.fromJson(Map<String, dynamic> json) {
@@ -108,6 +112,8 @@ class SellerOrder {
       updatedAt: _parseDateTime(json['updated_at']),
       buyerName: json['buyer_name'] as String?,
       buyerPhone: json['buyer_phone'] as String?,
+      productUnit: json['product_unit'] as String?,
+      sellerName: json['seller_name'] as String?,
     );
   }
 
@@ -137,6 +143,8 @@ class SellerOrder {
     'updated_at': updatedAt?.toIso8601String(),
     'buyer_name': buyerName,
     'buyer_phone': buyerPhone,
+    'product_unit': productUnit,
+    'seller_name': sellerName,
   };
 
   bool get isPending => status == 'PENDING' || status == 'pending';

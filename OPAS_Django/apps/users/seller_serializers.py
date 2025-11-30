@@ -444,6 +444,8 @@ class SellerOrderSerializer(serializers.ModelSerializer):
     buyer_name = serializers.CharField(source='buyer.full_name', read_only=True)
     buyer_phone = serializers.CharField(source='buyer.phone_number', read_only=True)
     product_name = serializers.CharField(source='product.name', read_only=True)
+    product_unit = serializers.CharField(source='product.unit', read_only=True)
+    seller_name = serializers.CharField(source='seller.store_name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     can_be_accepted = serializers.SerializerMethodField(read_only=True)
     can_be_rejected = serializers.SerializerMethodField(read_only=True)
@@ -461,6 +463,8 @@ class SellerOrderSerializer(serializers.ModelSerializer):
             'buyer_phone',
             'product',
             'product_name',
+            'product_unit',
+            'seller_name',
             'quantity',
             'price_per_unit',
             'total_amount',
@@ -487,6 +491,8 @@ class SellerOrderSerializer(serializers.ModelSerializer):
             'buyer_name',
             'buyer_phone',
             'product_name',
+            'product_unit',
+            'seller_name',
             'price_per_unit',
             'total_amount',
             'status_display',
@@ -1708,6 +1714,7 @@ class ProductListBuyerSerializer(serializers.ModelSerializer):
     seller_id = serializers.IntegerField(source='seller.id', read_only=True)
     seller_rating = serializers.SerializerMethodField(read_only=True)
     farm_location = serializers.SerializerMethodField(read_only=True)
+    fulfillment_methods = serializers.SerializerMethodField(read_only=True)
     primary_image = serializers.SerializerMethodField(read_only=True)
     is_price_compliant = serializers.SerializerMethodField(read_only=True)
     price_difference = serializers.SerializerMethodField(read_only=True)
@@ -1727,6 +1734,7 @@ class ProductListBuyerSerializer(serializers.ModelSerializer):
             'seller_name',
             'seller_rating',
             'farm_location',
+            'fulfillment_methods',
             'primary_image',
             'quality_grade',
             'is_price_compliant',
@@ -1763,6 +1771,12 @@ class ProductListBuyerSerializer(serializers.ModelSerializer):
         if application and application.farm_location and application.farm_location.strip():
             return application.farm_location
         return None
+
+    def get_fulfillment_methods(self, obj):
+        """Get fulfillment methods available for this product"""
+        # Default: all sellers offer both delivery and pickup
+        # This can be customized per product or seller in the future
+        return 'delivery_and_pickup'
 
     def get_primary_image(self, obj):
         """Get primary product image"""
@@ -1806,6 +1820,7 @@ class ProductDetailBuyerSerializer(serializers.ModelSerializer):
     seller_name = serializers.SerializerMethodField(read_only=True)
     seller_rating = serializers.SerializerMethodField(read_only=True)
     farm_location = serializers.SerializerMethodField(read_only=True)
+    fulfillment_methods = serializers.SerializerMethodField(read_only=True)
     seller_info = serializers.SerializerMethodField(read_only=True)
     images = serializers.SerializerMethodField(read_only=True)
     is_available = serializers.SerializerMethodField(read_only=True)
@@ -1827,6 +1842,7 @@ class ProductDetailBuyerSerializer(serializers.ModelSerializer):
             'seller_name',
             'seller_rating',
             'farm_location',
+            'fulfillment_methods',
             'seller_info',
             'images',
             'is_available',
@@ -1862,6 +1878,12 @@ class ProductDetailBuyerSerializer(serializers.ModelSerializer):
         if application and application.farm_location and application.farm_location.strip():
             return application.farm_location
         return None
+
+    def get_fulfillment_methods(self, obj):
+        """Get fulfillment methods available for this product"""
+        # Default: all sellers offer both delivery and pickup
+        # This can be customized per product or seller in the future
+        return 'delivery_and_pickup'
 
     def get_seller_info(self, obj):
         """Get seller profile information"""

@@ -439,7 +439,6 @@ class _AccountProfileTab extends StatefulWidget {
 
 class _AccountProfileTabState extends State<_AccountProfileTab> {
   late Future<List<SellerOrder>> _pendingOrdersFuture;
-  late Future<List<Order>> _inventoryStatsFuture;
 
   @override
   void initState() {
@@ -459,7 +458,6 @@ class _AccountProfileTabState extends State<_AccountProfileTab> {
       debugPrint('❌ Pending Orders API Error: $e');
       return <SellerOrder>[];
     });
-    _inventoryStatsFuture = SellerApiService.getIncomingOrders(); // For stats
   }
 
   @override

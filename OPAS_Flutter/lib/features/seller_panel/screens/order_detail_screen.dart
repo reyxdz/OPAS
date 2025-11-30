@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/seller_order_model.dart';
+import '../services/seller_api_service.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final SellerOrder order;
@@ -69,31 +70,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Order #${_order.orderNumber}',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                  Text(
+                    'Order #${_order.orderNumber}',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: statusColor.withOpacity(0.6), width: 1.5),
+                    ),
+                    child: Text(
+                      _order.status.toUpperCase(),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: statusColor.withOpacity(0.6), width: 1.5),
-                        ),
-                        child: Text(
-                          _order.status.toUpperCase(),
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: statusColor,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -202,14 +199,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     context,
                     'Additional Information',
                     [
-                      _buildInfoRow(context, 'Order ID', _order.id.toString()),
-                      const SizedBox(height: 12),
-                      _buildInfoRow(context, 'Seller ID', _order.seller.toString()),
-                      const SizedBox(height: 12),
-                      _buildInfoRow(context, 'Buyer ID', _order.buyer.toString()),
+                      if (_order.buyerPhone != null) ...[
+                        _buildInfoRow(context, 'Buyer Phone', _order.buyerPhone!),
+                      ],
                       if (_order.deliveryLocation != null) ...[
                         const SizedBox(height: 12),
-                        _buildInfoRow(context, 'Delivery Location', _order.deliveryLocation!),
+                        _buildInfoRow(context, 'Delivery Address', _order.deliveryLocation!),
                       ],
                       if (_order.rejectionReason != null) ...[
                         const SizedBox(height: 12),
@@ -375,66 +370,61 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildActionButtons(BuildContext context) {
-    return Column(
+    return Row(
       children: [
-        // Accept Button
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              _showConfirmationDialog(
-                context,
-                'Accept Order',
-                'Accept order #${_order.orderNumber}?\n\nQuantity: ${_order.quantity} units\nTotal: ₱${_order.totalAmount.toStringAsFixed(2)}',
-                () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Order accepted successfully!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  // TODO: Call API to accept order
-                },
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+        // Reject Button
+        Expanded(
+          child: SizedBox(
+            height: 50,
+            child: OutlinedButton(
+              onPressed: () {
+                _showRejectDialog(context);
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red, width: 1.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-            ),
-            child: const Text(
-              'Accept Order',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+              child: const Text(
+                'Reject Order',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        // Reject Button (Only visible if pending)
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton(
-            onPressed: () {
-              _showRejectDialog(context);
-            },
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Colors.red, width: 1.5),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+        const SizedBox(width: 12),
+        // Accept Button
+        Expanded(
+          child: SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              onPressed: () {
+                _showConfirmationDialog(
+                  context,
+                  'Accept Order',
+                  () async {
+                    _acceptOrder(context);
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-            ),
-            child: const Text(
-              'Reject Order',
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+              child: const Text(
+                'Accept Order',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
@@ -443,42 +433,220 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
+  Future<void> _acceptOrder(BuildContext context) async {
+    try {
+      // Show loading indicator
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Call API to accept order
+      await SellerApiService.acceptOrder(_order.id);
+
+      if (!mounted) return;
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Update local order status
+      setState(() {
+        _order = SellerOrder(
+          id: _order.id,
+          orderNumber: _order.orderNumber,
+          seller: _order.seller,
+          buyer: _order.buyer,
+          product: _order.product,
+          productName: _order.productName,
+          quantity: _order.quantity,
+          pricePerUnit: _order.pricePerUnit,
+          totalAmount: _order.totalAmount,
+          status: 'ACCEPTED',
+          rejectionReason: _order.rejectionReason,
+          deliveryLocation: _order.deliveryLocation,
+          deliveryDate: _order.deliveryDate,
+          statusDisplay: _order.statusDisplay,
+          canBeAccepted: _order.canBeAccepted,
+          canBeRejected: _order.canBeRejected,
+          canBeFulfilled: _order.canBeFulfilled,
+          canBeDelivered: _order.canBeDelivered,
+          createdAt: _order.createdAt,
+          acceptedAt: DateTime.now(),
+          fulfilledAt: _order.fulfilledAt,
+          deliveredAt: _order.deliveredAt,
+          updatedAt: _order.updatedAt,
+          buyerName: _order.buyerName,
+          buyerPhone: _order.buyerPhone,
+          productUnit: _order.productUnit,
+          sellerName: _order.sellerName,
+        );
+      });
+
+      if (!mounted) return;
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Order #${_order.orderNumber} accepted successfully!'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // Close loading dialog if still open
+      Navigator.of(context).pop();
+
+      // Parse error message from exception
+      String errorMessage = 'Failed to accept order';
+      final errorStr = e.toString();
+      
+      if (errorStr.contains('400')) {
+        if (errorStr.contains('already been processed')) {
+          errorMessage = 'This order has already been processed';
+        } else if (errorStr.contains('Insufficient stock')) {
+          errorMessage = 'Insufficient stock available for this order';
+        } else {
+          errorMessage = 'Invalid request. Please check the order details.';
+        }
+      } else if (errorStr.contains('401')) {
+        errorMessage = 'Session expired. Please log in again.';
+      } else if (errorStr.contains('404')) {
+        errorMessage = 'Order not found';
+      }
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   void _showConfirmationDialog(
     BuildContext context,
     String title,
-    String message,
     VoidCallback onConfirm,
   ) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(title),
-          content: Text(message),
+          title: Text(
+            title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Accept order #${_order.orderNumber}?',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildConfirmationInfoRow('Quantity', '${_order.quantity} ${_order.productUnit ?? 'unit(s)'}'),
+                const SizedBox(height: 12),
+                _buildConfirmationInfoRow('Price per Unit', '₱${_order.pricePerUnit.toStringAsFixed(2)}/${_order.productUnit ?? 'unit'}'),
+                const SizedBox(height: 12),
+                _buildConfirmationInfoRow('Total', '₱${_order.totalAmount.toStringAsFixed(2)}'),
+                if (_order.sellerName != null) ...[
+                  const SizedBox(height: 12),
+                  _buildConfirmationInfoRow('Store', _order.sellerName!),
+                ],
+              ],
+            ),
+          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                onConfirm();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-              ),
-              child: const Text(
-                'Confirm',
-                style: TextStyle(color: Colors.white),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        onConfirm();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirm',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildConfirmationInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Colors.grey[600],
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -202,7 +202,21 @@ class SellerService {
   /// DELETE /api/seller/products/{id}/ - Delete product
   static Future<void> deleteProduct(int productId) async {
     final response = await _makeRequest('DELETE', '/users/seller/products/$productId/');
-    if (response.statusCode != 204) {
+    
+    if (response.statusCode == 204) {
+      // Success - product deleted
+      return;
+    } else if (response.statusCode == 400) {
+      // Bad request - likely order protection error
+      try {
+        final errorData = jsonDecode(response.body);
+        final orderCount = errorData['order_count'] ?? 0;
+        final message = errorData['message'] ?? 'Cannot delete product with active orders';
+        throw Exception('ORDER_PROTECTION|$orderCount|$message');
+      } catch (_) {
+        throw Exception('Failed to delete product: ${response.statusCode} - ${response.body}');
+      }
+    } else {
       throw Exception('Failed to delete product: ${response.statusCode}');
     }
   }

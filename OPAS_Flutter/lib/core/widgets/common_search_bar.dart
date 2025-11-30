@@ -6,6 +6,8 @@ class CommonSearchBar extends StatelessWidget {
   final String hintText;
   final Function(String)? onChanged;
   final VoidCallback? onTap;
+  final Function(String)? onSubmitted;
+  final VoidCallback? onFilterTap;
   final bool enabled;
 
   const CommonSearchBar({
@@ -14,56 +16,74 @@ class CommonSearchBar extends StatelessWidget {
     this.hintText = 'Search products...',
     this.onChanged,
     this.onTap,
+    this.onSubmitted,
+    this.onFilterTap,
     this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      padding: const EdgeInsets.symmetric(horizontal: AppDimensions.paddingMedium),
       child: GestureDetector(
         onTap: onTap,
-        child: TextField(
-          controller: controller,
-          enabled: enabled,
-          style: const TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.normal,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: const TextStyle(
-              fontWeight: FontWeight.normal,
-              color: Colors.grey,
+          child: TextField(
+            controller: controller,
+            enabled: enabled,
+            textInputAction: TextInputAction.search,
+            style: TextStyle(
+              color: Colors.grey[800],
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
             ),
-            prefixIcon: const Icon(
-              Icons.search,
-              color: Colors.grey,
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: TextStyle(
+                fontWeight: FontWeight.w400,
+                color: Colors.grey[400],
+                fontSize: 14,
+              ),
+              prefixIcon: Icon(
+                Icons.search,
+                color: Colors.grey[400],
+                size: 20,
+              ),
+              suffixIcon: enabled
+                  ? GestureDetector(
+                      onTap: onFilterTap ?? () => onSubmitted?.call(controller?.text ?? ''),
+                      child: Icon(
+                        Icons.filter_list,
+                        color: Colors.grey[300],
+                        size: 20,
+                      ),
+                    )
+                  : null,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              filled: false,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 0,
+                vertical: 14,
+              ),
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            filled: true,
-            fillColor: Colors.grey[50],
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
+            onChanged: onChanged,
+            onSubmitted: onSubmitted,
           ),
-          onChanged: onChanged,
         ),
       ),
     );

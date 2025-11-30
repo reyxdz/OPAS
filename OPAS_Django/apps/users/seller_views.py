@@ -647,9 +647,23 @@ class ProductManagementViewSet(viewsets.ViewSet):
             )
 
     def destroy(self, request, pk=None):
-        """Delete product"""
+        """Delete product - with order check protection"""
         try:
             product = SellerProduct.objects.get(id=pk, seller=request.user)
+            
+            # Check if product has orders
+            if product.has_orders():
+                order_count = product.get_order_count()
+                return Response(
+                    {
+                        'detail': 'Cannot delete product with active orders',
+                        'order_count': order_count,
+                        'message': f'This product has {order_count} order(s). Please complete or cancel the orders first.'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Safe to delete
             product.delete()
             logger.info(f'Product {pk} deleted by: {request.user.email}')
             return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1113,6 +1127,17 @@ class OrderManagementViewSet(viewsets.ViewSet):
             
             # 1. Status check - prevent state changes for non-pending orders
             if order.status != OrderStatus.PENDING:
+                # If already accepted, return success (idempotent behavior)
+                if order.status == OrderStatus.ACCEPTED:
+                    serializer = SellerOrderSerializer(order)
+                    return Response(
+                        {
+                            **serializer.data,
+                            'message': 'Order was already accepted',
+                        },
+                        status=status.HTTP_200_OK
+                    )
+                
                 return Response(
                     {
                         'error': f'Cannot accept order in {order.get_status_display()} status',

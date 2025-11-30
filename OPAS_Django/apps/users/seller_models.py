@@ -317,6 +317,14 @@ class SellerProduct(models.Model):
         self.deletion_reason = ''
         self.save()
     
+    def has_orders(self):
+        """Check if product has any associated orders"""
+        return SellerOrder.objects.filter(product=self).exists()
+    
+    def get_order_count(self):
+        """Get count of orders for this product"""
+        return SellerOrder.objects.filter(product=self).count()
+    
     def __str__(self):
         return f"{self.name} ({self.seller.email})"
     
@@ -449,6 +457,8 @@ class SellerOrder(models.Model):
             models.Index(fields=['seller', 'status']),
             models.Index(fields=['buyer', 'status']),
             models.Index(fields=['order_number']),
+            models.Index(fields=['product', 'status']),  # For product deletion protection
+            models.Index(fields=['product', 'buyer']),   # For product-buyer queries
         ]
     
     @property

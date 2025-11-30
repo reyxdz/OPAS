@@ -530,7 +530,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   Widget _buildGridView() {
     return GridView.builder(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 150),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         childAspectRatio: 0.75,
@@ -555,7 +555,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
   Widget _buildListView() {
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 150),
       itemCount: _filteredProducts.length + (_isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _filteredProducts.length) {

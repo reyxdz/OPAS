@@ -27,7 +27,19 @@ class SellerApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> orders = data['results'] ?? data['orders'] ?? [];
+        
+        // Handle different response formats
+        List<dynamic> orders = [];
+        if (data is List) {
+          orders = data;
+        } else if (data is Map) {
+          if (data['results'] is List) {
+            orders = data['results'];
+          } else if (data['orders'] is List) {
+            orders = data['orders'];
+          }
+        }
+        
         return orders
             .map((o) => Order.fromJson(o as Map<String, dynamic>))
             .toList();
@@ -105,7 +117,7 @@ class SellerApiService {
   }
 
   /// Accept an order
-  static Future<Order> acceptOrder(int orderId) async {
+  static Future<void> acceptOrder(int orderId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access') ?? '';
@@ -120,7 +132,7 @@ class SellerApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return Order.fromJson(data as Map<String, dynamic>);
+        debugPrint('✅ Order accept successful: $data');
       } else {
         throw Exception('Failed to accept order: ${response.statusCode}');
       }
@@ -130,7 +142,7 @@ class SellerApiService {
   }
 
   /// Reject an order
-  static Future<Order> rejectOrder(int orderId, {String? reason}) async {
+  static Future<void> rejectOrder(int orderId, {String? reason}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access') ?? '';
@@ -146,7 +158,7 @@ class SellerApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return Order.fromJson(data as Map<String, dynamic>);
+        debugPrint('✅ Order reject successful: $data');
       } else {
         throw Exception('Failed to reject order: ${response.statusCode}');
       }

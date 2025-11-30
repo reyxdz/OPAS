@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../order_management/models/order_model.dart';
 import '../../products/services/buyer_api_service.dart';
 import 'order_detail_screen.dart';
+import '../../profile/screens/profile_screen.dart';
+import '../../profile/screens/notification_history_screen.dart';
 
 class OrderHistoryScreen extends StatefulWidget {
   const OrderHistoryScreen({super.key});
@@ -17,12 +19,32 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   int _currentPage = 1;
 
   final List<String> _filters = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
+  
+  // User data
+  String _userFirstName = 'Guest';
+  String _userLastName = '';
 
   @override
   void initState() {
     super.initState();
+    _loadUserData();
     _debugAuthStatus();
     _loadOrders();
+  }
+
+  /// Load user first name and last name from SharedPreferences
+  Future<void> _loadUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final firstName = prefs.getString('first_name') ?? 'Guest';
+      final lastName = prefs.getString('last_name') ?? '';
+      setState(() {
+        _userFirstName = firstName;
+        _userLastName = lastName;
+      });
+    } catch (e) {
+      debugPrint('Failed to load user data: $e');
+    }
   }
 
   Future<void> _debugAuthStatus() async {
@@ -49,24 +71,19 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // === HEADER ===
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'My Orders',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              _buildOrderHeader(context),
+              const SizedBox(height: 16),
+              Divider(
+                color: Colors.grey[200],
+                thickness: 1,
+                height: 1,
               ),
               const SizedBox(height: 24),
 
@@ -178,7 +195,20 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
 
                   // Filter orders
                   if (_selectedFilter != 'all') {
-                    orders = orders.where((order) => order.status == _selectedFilter).toList();
+                    orders = orders.where((order) {
+                      switch (_selectedFilter) {
+                        case 'pending':
+                          return order.isPending;
+                        case 'confirmed':
+                          return order.isConfirmed;
+                        case 'completed':
+                          return order.isCompleted;
+                        case 'cancelled':
+                          return order.isCancelled;
+                        default:
+                          return true;
+                      }
+                    }).toList();
                   }
 
                   if (orders.isEmpty) {
@@ -330,6 +360,16 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       statusColor = Colors.red;
     }
 
+    // Format status for display
+    String displayStatus = order.status.toUpperCase();
+    if (order.status.toLowerCase() == 'accepted') {
+      displayStatus = 'CONFIRMED';
+    } else if (order.status.toLowerCase() == 'delivered' || order.status.toLowerCase() == 'fulfilled') {
+      displayStatus = 'COMPLETED';
+    } else if (order.status.toLowerCase() == 'rejected') {
+      displayStatus = 'CANCELLED';
+    }
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -389,7 +429,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     border: Border.all(color: statusColor.withOpacity(0.5)),
                   ),
                   child: Text(
-                    order.status.toUpperCase(),
+                    displayStatus,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: statusColor,
@@ -398,6 +438,85 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+
+            // Divider
+            Divider(color: Colors.grey[200], height: 12),
+            const SizedBox(height: 12),
+
+            // Product Information Section
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: order.items.map((item) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Product Name
+                    Text(
+                      item.productName,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Shop Name (Seller Store Name)
+                    Text(
+                      order.sellerStoreName ?? 'Shop Name',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Price per Unit with Unit
+                    Text(
+                      '₱${item.pricePerKilo.toStringAsFixed(2)}/${item.unit}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Method of Fulfillment (Placeholder - to be delivered or for pickup)
+                    Row(
+                      children: [
+                        Icon(
+                          order.fulfillmentMethod?.toLowerCase() == 'pickup' 
+                            ? Icons.store_outlined 
+                            : Icons.local_shipping_outlined, 
+                          size: 14, 
+                          color: Colors.grey[600]
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          order.fulfillmentMethod != null
+                            ? (order.fulfillmentMethod!.toLowerCase() == 'pickup' 
+                              ? 'For pickup' 
+                              : 'To be delivered')
+                            : 'To be delivered',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Divider between items if multiple
+                    if (order.items.indexOf(item) < order.items.length - 1)
+                      Column(
+                        children: [
+                          Divider(color: Colors.grey[100], height: 1),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                  ],
+                );
+              }).toList(),
             ),
             const SizedBox(height: 12),
 
@@ -410,7 +529,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     Icon(Icons.shopping_bag_outlined, size: 16, color: Colors.grey[600]),
                     const SizedBox(width: 6),
                     Text(
-                      '${order.items.length} item${order.items.length > 1 ? 's' : ''}',
+                      '${order.items.fold<int>(0, (sum, item) => sum + item.quantity)} item${order.items.fold<int>(0, (sum, item) => sum + item.quantity) > 1 ? 's' : ''}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.grey[600],
                       ),
@@ -479,4 +598,79 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     }
   }
+
+  /// Build header widget for order screen
+  Widget _buildOrderHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$_userFirstName $_userLastName',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'OPAS Orders',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00B464).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.person_outline),
+                  color: const Color(0xFF00B464),
+                  iconSize: 24,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.notifications_outlined),
+                  color: Colors.red,
+                  iconSize: 24,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationHistoryScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
+

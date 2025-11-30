@@ -392,6 +392,80 @@ class BuyerApiService {
     }
   }
 
+  /// Cancel an order
+  static Future<void> cancelOrder(int orderId) async {
+    try {
+      debugPrint('📡 Cancel order request: POST /orders/$orderId/cancel/');
+      final prefs = await SharedPreferences.getInstance();
+      var token = prefs.getString('access') ?? '';
+
+      var response = await http.post(
+        Uri.parse('$baseUrl/orders/$orderId/cancel/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      debugPrint('📋 Cancel order response: Status ${response.statusCode}');
+      debugPrint('📋 Response body: ${response.body}');
+
+      // Handle 401 - try to refresh token and retry
+      if (response.statusCode == 401 && token.isNotEmpty) {
+        debugPrint('🔄 Token expired, attempting refresh...');
+        final refreshToken = prefs.getString('refresh') ?? '';
+        if (refreshToken.isNotEmpty) {
+          try {
+            final refreshResponse = await http.post(
+              Uri.parse('$baseUrl/auth/token/refresh/'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'refresh': refreshToken}),
+            ).timeout(const Duration(seconds: 15));
+
+            if (refreshResponse.statusCode == 200) {
+              final refreshData = jsonDecode(refreshResponse.body);
+              final newToken = refreshData['access'] ?? '';
+              await prefs.setString('access', newToken);
+              token = newToken;
+              debugPrint('✅ Token refreshed, retrying cancel order...');
+
+              // Retry the request with new token
+              response = await http.post(
+                Uri.parse('$baseUrl/orders/$orderId/cancel/'),
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Content-Type': 'application/json',
+                },
+              ).timeout(const Duration(seconds: 15));
+              debugPrint('📋 Retry response: Status ${response.statusCode}');
+            }
+          } catch (e) {
+            debugPrint('❌ Token refresh failed: $e');
+          }
+        }
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('✅ Order $orderId cancelled successfully');
+        return;
+      } else if (response.statusCode == 400) {
+        try {
+          final data = jsonDecode(response.body);
+          throw Exception(data['detail'] ?? 'Cannot cancel this order');
+        } catch (e) {
+          throw Exception('Cannot cancel this order: ${response.body}');
+        }
+      } else if (response.statusCode == 401) {
+        throw Exception('Unauthorized - Please log in again');
+      } else {
+        throw Exception('Failed to cancel order: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('❌ Cancel order error: $e');
+      throw Exception('Failed to cancel order: $e');
+    }
+  }
+
   /// ==================== PRICING TRANSPARENCY ====================
   /// Get price trends for a product
   static Future<PriceTrend> getPriceTrend(int productId) async {
@@ -695,6 +769,21 @@ class BuyerApiService {
       return municipalities;
     } catch (e) {
       throw Exception('Failed to fetch municipalities: $e');
+    }
+  }
+
+  /// Get all available product categories in the system
+  /// Returns all known categories regardless of whether products exist
+  static Future<List<String>> getAvailableCategories() async {
+    try {
+      // Return all known categories in the system
+      final allCategories = ['VEGETABLE', 'FRUIT', 'LIVESTOCK', 'POULTRY', 'SEEDS', 'FERTILIZERS', 'FEEDS', 'MEDICINES'];
+      debugPrint('✅ All system categories: $allCategories');
+      return allCategories;
+    } catch (e) {
+      debugPrint('❌ Error fetching categories: $e');
+      // Return all known categories as fallback
+      return ['VEGETABLE', 'FRUIT', 'LIVESTOCK', 'POULTRY', 'SEEDS', 'FERTILIZERS', 'FEEDS', 'MEDICINES'];
     }
   }
 }

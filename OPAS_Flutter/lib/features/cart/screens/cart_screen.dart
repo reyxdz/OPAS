@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cart_item_model.dart';
 import '../../../services/cart_storage_service.dart';
 import 'checkout_screen.dart';
+import '../../profile/screens/profile_screen.dart';
+import '../../profile/screens/notification_history_screen.dart';
 
 /// Cart Screen - Fully Functional Shopping Cart with Modern Professional Design
 /// 
@@ -32,6 +34,10 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   final _cartService = CartStorageService();
   bool _isInitialized = false;  // Track if cart has been initialized
   AppLifecycleState? _lastLifecycleState;  // Track last lifecycle state
+  
+  // User data
+  String _userFirstName = 'Guest';
+  String _userLastName = '';
 
   @override
   void initState() {
@@ -40,6 +46,7 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
     _cartFuture = Future.value([]);
     // Register lifecycle observer to detect when app resumes
     WidgetsBinding.instance.addObserver(this);
+    _loadUserData();
     _initializeCart();
   }
 
@@ -48,6 +55,21 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
     // Unregister lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Load user first name and last name from SharedPreferences
+  Future<void> _loadUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final firstName = prefs.getString('first_name') ?? 'Guest';
+      final lastName = prefs.getString('last_name') ?? '';
+      setState(() {
+        _userFirstName = firstName;
+        _userLastName = lastName;
+      });
+    } catch (e) {
+      debugPrint('Failed to load user data: $e');
+    }
   }
 
   @override
@@ -350,13 +372,17 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
                 children: [
                   // Cart Items List with Header
                   SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'My Cart',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        // Header Section - Matching Home Screen
+                        _buildCartHeader(context),
+                        const SizedBox(height: 16),
+                        Divider(
+                          color: Colors.grey[200],
+                          thickness: 1,
+                          height: 1,
                         ),
                         const SizedBox(height: 24),
                         ...cartItems.asMap().entries.map((entry) {
@@ -713,6 +739,80 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build header widget for cart screen
+  Widget _buildCartHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$_userFirstName $_userLastName',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'OPAS Cart',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00B464).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.person_outline),
+                  color: const Color(0xFF00B464),
+                  iconSize: 24,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.notifications_outlined),
+                  color: Colors.red,
+                  iconSize: 24,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationHistoryScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),

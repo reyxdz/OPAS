@@ -41,25 +41,30 @@ class BuyerOrderListSerializer:
             seller_farm_name = seller_app.farm_name
             seller_farm_address = seller_app.farm_location
         
-        # Group all orders by order_number to reconstruct the original multi-item order
+        # Handle case where product might be deleted - use order's stored data
+        product_id = order.product.id if order.product else None
+        product_name = order.product.name if order.product else f"[Deleted Product #{order.product_id}]"
+        image_url = order.product.image_url if (order.product and hasattr(order.product, 'image_url')) else ''
+        
         return {
             'id': order.id,
             'order_number': order.order_number,
             'items': [
                 {
                     'id': order.id,
-                    'product_id': order.product.id,
-                    'product_name': order.product.name,
+                    'product_id': product_id,
+                    'product_name': product_name,
                     'price_per_kilo': float(order.price_per_unit),
                     'quantity': order.quantity,
                     'unit': 'kg',
                     'subtotal': float(order.total_amount),
-                    'image_url': order.product.image_url if hasattr(order.product, 'image_url') else '',
+                    'image_url': image_url,
                 }
             ],
             'total_amount': float(order.total_amount),
             'status': order.status.lower(),
             'payment_method': 'delivery' if order.delivery_location else 'pickup',
+            'fulfillment_method': 'delivery' if order.delivery_location else 'pickup',
             'created_at': order.created_at.isoformat(),
             'completed_at': order.delivered_at.isoformat() if order.delivered_at else None,
             'delivery_address': order.delivery_location or '',
@@ -257,3 +262,72 @@ class BuyerOrderViewSet(viewsets.ModelViewSet):
         last_order = SellerOrder.objects.order_by('-id').first()
         sequence = (last_order.id + 1) if last_order else 1
         return f"ORD-{timestamp}-{sequence:06d}"
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def cancel(self, request, pk=None):
+        """
+        Cancel an order (buyer-side).
+        
+        Endpoint: POST /api/orders/{id}/cancel/
+        
+        Only allows cancellation if:
+        - Order status is PENDING
+        - OR product has been deleted by seller
+        
+        Returns:
+        - 200: Order successfully cancelled
+        - 400: Cannot cancel order (wrong status or other business logic)
+        - 403: Unauthorized (not order owner)
+        - 404: Order not found
+        """
+        try:
+            order = self.get_object()
+            
+            # Check if buyer owns this order
+            if order.buyer != request.user:
+                return Response(
+                    {'detail': 'You cannot cancel someone else\'s order'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Check if order can be cancelled:
+            # 1. Status must be PENDING
+            # 2. OR product has been deleted
+            can_cancel = (order.status == OrderStatus.PENDING) or (order.product is None)
+            
+            if not can_cancel:
+                return Response(
+                    {'detail': f'Cannot cancel order with status {order.status}. Only pending orders can be cancelled.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Cancel the order in a transaction
+            with transaction.atomic():
+                # Update order status
+                order.status = OrderStatus.CANCELLED
+                order.save()
+                
+                # Restore product stock (only if product exists)
+                if order.product:
+                    order.product.stock_level += order.quantity
+                    order.product.save()
+            
+            print(f'✅ Order {order.id} ({order.order_number}) cancelled by buyer {request.user.username}')
+            
+            return Response(
+                {'detail': 'Order cancelled successfully'},
+                status=status.HTTP_200_OK
+            )
+            
+        except SellerOrder.DoesNotExist:
+            return Response(
+                {'detail': 'Order not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            print(f'❌ Error cancelling order: {str(e)}')
+            return Response(
+                {'detail': f'Failed to cancel order: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+

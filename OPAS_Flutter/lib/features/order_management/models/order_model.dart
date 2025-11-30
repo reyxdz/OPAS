@@ -51,6 +51,7 @@ class Order {
   final double totalAmount;
   final String status;
   final String paymentMethod;
+  final String? fulfillmentMethod;
   final DateTime createdAt;
   final DateTime? completedAt;
   final String deliveryAddress;
@@ -68,6 +69,7 @@ class Order {
     required this.totalAmount,
     required this.status,
     required this.paymentMethod,
+    this.fulfillmentMethod,
     required this.createdAt,
     this.completedAt,
     required this.deliveryAddress,
@@ -90,6 +92,7 @@ class Order {
       totalAmount: (json['total_amount'] ?? 0).toDouble(),
       status: json['status'] ?? 'pending',
       paymentMethod: json['payment_method'] ?? 'cash_on_delivery',
+      fulfillmentMethod: json['fulfillment_method'] as String?,
       createdAt:
           DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
       completedAt: json['completed_at'] != null
@@ -112,6 +115,7 @@ class Order {
     'total_amount': totalAmount,
     'status': status,
     'payment_method': paymentMethod,
+    'fulfillment_method': fulfillmentMethod,
     'created_at': createdAt.toIso8601String(),
     'completed_at': completedAt?.toIso8601String(),
     'delivery_address': deliveryAddress,
@@ -123,8 +127,8 @@ class Order {
     'seller_phone': sellerPhone,
   };
 
-  bool get isPending => status == 'pending';
-  bool get isConfirmed => status == 'confirmed';
-  bool get isCompleted => status == 'completed';
-  bool get isCancelled => status == 'cancelled';
+  bool get isPending => status.toLowerCase() == 'pending';
+  bool get isConfirmed => status.toLowerCase() == 'confirmed' || status.toLowerCase() == 'accepted';
+  bool get isCompleted => status.toLowerCase() == 'completed' || status.toLowerCase() == 'delivered' || status.toLowerCase() == 'fulfilled';
+  bool get isCancelled => status.toLowerCase() == 'cancelled' || status.toLowerCase() == 'rejected';
 }

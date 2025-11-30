@@ -17,6 +17,7 @@ class Product {
   final String? farmLocation;
   final bool isAvailable;
   final DateTime createdAt;
+  final String? fulfillmentMethods; // e.g., "delivery", "pickup", "delivery_and_pickup"
 
   Product({
     required this.id,
@@ -35,6 +36,7 @@ class Product {
     this.farmLocation,
     required this.isAvailable,
     required this.createdAt,
+    this.fulfillmentMethods,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -88,6 +90,9 @@ class Product {
             : null,
         isAvailable: json['is_available'] ?? json['is_in_stock'] ?? true,
         createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+        fulfillmentMethods: (json['fulfillment_methods'] != null && json['fulfillment_methods'].toString().isNotEmpty)
+            ? json['fulfillment_methods'].toString()
+            : null,
       );
     } catch (e, stackTrace) {
       debugPrint('Error in Product.fromJson: $e');
@@ -114,6 +119,7 @@ class Product {
     'farm_location': farmLocation,
     'is_available': isAvailable,
     'created_at': createdAt.toIso8601String(),
+    'fulfillment_methods': fulfillmentMethods,
   };
 
   double get priceComparison => opasRegulatedPrice - pricePerKilo;
