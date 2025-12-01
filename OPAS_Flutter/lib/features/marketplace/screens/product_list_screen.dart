@@ -372,80 +372,96 @@ class _ProductListScreenState extends State<ProductListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Products'),
-        centerTitle: true,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(_viewMode == 'grid' ? Icons.list : Icons.grid_3x3),
-            onPressed: () {
-              setState(() {
-                _viewMode = _viewMode == 'grid' ? 'list' : 'grid';
-              });
-            },
-            tooltip: _viewMode == 'grid' ? 'List View' : 'Grid View',
-          ),
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: () async {
           _loadProducts(reset: true);
           // Wait for products to load
           await Future.delayed(const Duration(milliseconds: 500));
         },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            children: [
-              // Search and Filter Bar
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search products...',
-                          prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Colors.grey),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(
-                              color: Colors.grey.shade300,
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              // Collapsible Search and Filter Bar
+              SliverAppBar(
+                pinned: false,
+                floating: true,
+                snap: true,
+                elevation: 0,
+                backgroundColor: Colors.white,
+                title: const Text('Products'),
+                centerTitle: true,
+                toolbarHeight: 120,
+                actions: [
+                  IconButton(
+                    icon: Icon(_viewMode == 'grid' ? Icons.list : Icons.grid_3x3),
+                    onPressed: () {
+                      setState(() {
+                        _viewMode = _viewMode == 'grid' ? 'list' : 'grid';
+                      });
+                    },
+                    tooltip: _viewMode == 'grid' ? 'List View' : 'Grid View',
+                  ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  collapseMode: CollapseMode.pin,
+                  background: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // Search and Filter Bar
+                      Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                decoration: InputDecoration(
+                                  hintText: 'Search products...',
+                                  prefixIcon: const Icon(Icons.search),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(color: Colors.grey),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  isDense: true,
+                                ),
+                              ),
                             ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          isDense: true,
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed: _showFilterBottomSheet,
+                              icon: const Icon(Icons.filter_list),
+                              label: const Text('Filter'),
+                              style: ElevatedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: _showFilterBottomSheet,
-                      icon: const Icon(Icons.filter_list),
-                      label: const Text('Filter'),
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-
+            ];
+          },
+          body: Column(
+            children: [
               // Active Filters Display
               _buildActiveFiltersRow(),
 
@@ -471,15 +487,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 ),
 
               // Products Grid/List
-              if (_isLoading)
-                _buildShimmerLoadingGrid()
-              else if (_filteredProducts.isEmpty)
-                SizedBox(
-                  height: MediaQuery.of(context).size.height - 300,
-                  child: _buildEmptyState(),
-                )
-              else
-                _buildProductsView(),
+              Expanded(
+                child: _isLoading
+                    ? _buildShimmerLoadingGrid()
+                    : _filteredProducts.isEmpty
+                        ? _buildEmptyState()
+                        : _buildProductsView(),
+              ),
             ],
           ),
         ),
