@@ -388,25 +388,39 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 snap: true,
                 elevation: 0,
                 backgroundColor: Colors.white,
-                title: const Text('Products'),
-                centerTitle: true,
-                toolbarHeight: 120,
-                actions: [
-                  IconButton(
-                    icon: Icon(_viewMode == 'grid' ? Icons.list : Icons.grid_3x3),
-                    onPressed: () {
-                      setState(() {
-                        _viewMode = _viewMode == 'grid' ? 'list' : 'grid';
-                      });
-                    },
-                    tooltip: _viewMode == 'grid' ? 'List View' : 'Grid View',
-                  ),
-                ],
+                expandedHeight: 120,
+                automaticallyImplyLeading: false,
                 flexibleSpace: FlexibleSpaceBar(
-                  collapseMode: CollapseMode.pin,
+                  collapseMode: CollapseMode.parallax,
                   background: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      // Title and Toggle Button Row
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Products',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(_viewMode == 'grid' ? Icons.list : Icons.grid_3x3),
+                              onPressed: () {
+                                setState(() {
+                                  _viewMode = _viewMode == 'grid' ? 'list' : 'grid';
+                                });
+                              },
+                              tooltip: _viewMode == 'grid' ? 'List View' : 'Grid View',
+                            ),
+                          ],
+                        ),
+                      ),
                       // Search and Filter Bar
                       Padding(
                         padding: const EdgeInsets.all(12.0),
