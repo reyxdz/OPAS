@@ -74,7 +74,8 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       body: RefreshIndicator(
         onRefresh: () async {
           _refreshOrders();
-          await _ordersFuture;
+          // Wait a bit for state to update
+          await Future.delayed(const Duration(milliseconds: 500));
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
