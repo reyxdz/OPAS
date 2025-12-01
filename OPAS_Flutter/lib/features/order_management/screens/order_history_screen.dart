@@ -71,14 +71,20 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // === HEADER ===
-              _buildOrderHeader(context),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _refreshOrders();
+          await _ordersFuture;
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // === HEADER ===
+                _buildOrderHeader(context),
               const SizedBox(height: 16),
               Divider(
                 color: Colors.grey[200],
@@ -246,6 +252,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -377,7 +384,11 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
           MaterialPageRoute(
             builder: (_) => OrderDetailScreen(order: order),
           ),
-        );
+        ).then((result) {
+          if (result == true) {
+            _refreshOrders();
+          }
+        });
       },
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -557,7 +568,11 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     MaterialPageRoute(
                       builder: (_) => OrderDetailScreen(order: order),
                     ),
-                  );
+                  ).then((result) {
+                    if (result == true) {
+                      _refreshOrders();
+                    }
+                  });
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00B464),
