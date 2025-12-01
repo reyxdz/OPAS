@@ -17,6 +17,11 @@ class SellerProduct {
   final String? previousStatus;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final int initialStock;
+  final int baselineStock;
+  final DateTime stockBaselineUpdatedAt;
+  final double stockPercentage;
+  final String stockStatus;
 
   SellerProduct({
     required this.id,
@@ -35,7 +40,12 @@ class SellerProduct {
     this.previousStatus,
     required this.createdAt,
     this.updatedAt,
-  });
+    this.initialStock = 0,
+    this.baselineStock = 0,
+    DateTime? stockBaselineUpdatedAt,
+    this.stockPercentage = 100.0,
+    this.stockStatus = 'HIGH',
+  }) : stockBaselineUpdatedAt = stockBaselineUpdatedAt ?? DateTime.now();
 
   factory SellerProduct.fromJson(Map<String, dynamic> json) {
     return SellerProduct(
@@ -59,6 +69,13 @@ class SellerProduct {
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'].toString())
           : null,
+      initialStock: _parseInt(json['initial_stock']),
+      baselineStock: _parseInt(json['baseline_stock']),
+      stockBaselineUpdatedAt: json['stock_baseline_updated_at'] != null
+          ? DateTime.parse(json['stock_baseline_updated_at'].toString())
+          : DateTime.now(),
+      stockPercentage: _parseDouble(json['stock_percentage']),
+      stockStatus: json['stock_status']?.toString() ?? 'HIGH',
     );
   }
 
@@ -113,6 +130,11 @@ class SellerProduct {
     'updated_at': updatedAt?.toIso8601String(),
     'quality_grade': qualityGrade,
     'previous_status': previousStatus,
+    'initial_stock': initialStock,
+    'baseline_stock': baselineStock,
+    'stock_baseline_updated_at': stockBaselineUpdatedAt.toIso8601String(),
+    'stock_percentage': stockPercentage,
+    'stock_status': stockStatus,
   };
 
   bool get isActive => status == 'ACTIVE';

@@ -586,8 +586,13 @@ class ProductManagementViewSet(viewsets.ViewSet):
                 context={'request': request}
             )
             if serializer.is_valid():
-                serializer.save(seller=request.user)
-                logger.info(f'Product created by: {request.user.email}')
+                stock_level = request.data.get('stock_level', 0)
+                product = serializer.save(
+                    seller=request.user,
+                    initial_stock=stock_level,
+                    baseline_stock=stock_level
+                )
+                logger.info(f'Product created by: {request.user.email} with initial_stock={stock_level}, baseline_stock={stock_level}')
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             
             # Log detailed validation errors
@@ -625,11 +630,26 @@ class ProductManagementViewSet(viewsets.ViewSet):
         """Update product"""
         try:
             product = SellerProduct.objects.get(id=pk, seller=request.user)
+            old_stock = product.stock_level
+            new_stock = request.data.get('stock_level')
+            
             serializer = SellerProductCreateUpdateSerializer(product, data=request.data, partial=True)
             
             if serializer.is_valid():
-                serializer.save()
-                logger.info(f'Product {pk} updated by: {request.user.email}')
+                # Detect restock: new stock > old stock (seller added stock)
+                if new_stock is not None and isinstance(new_stock, int) and new_stock > old_stock:
+                    serializer.save(
+                        baseline_stock=new_stock,
+                        stock_baseline_updated_at=timezone.now()
+                    )
+                    logger.info(f'Product {pk} restocked by: {request.user.email} - New baseline: {new_stock}')
+                else:
+                    serializer.save()
+                    if new_stock is not None:
+                        logger.info(f'Product {pk} stock updated by: {request.user.email} - Stock: {old_stock} -> {new_stock}')
+                    else:
+                        logger.info(f'Product {pk} updated by: {request.user.email}')
+                
                 return Response(serializer.data, status=status.HTTP_200_OK)
             
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1197,8 +1217,16 @@ class OrderManagementViewSet(viewsets.ViewSet):
             )
 
     @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
-        """Reject an order"""
+        """
+        Reject an order.
+        
+        Business Logic:
+        - Update order status to REJECTED
+        - Restore product stock (quantity that was deducted at checkout)
+        - Only allow rejection if order is PENDING
+        """
         try:
             order = SellerOrder.objects.get(id=pk, seller=request.user)
             
@@ -1208,15 +1236,28 @@ class OrderManagementViewSet(viewsets.ViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            order.status = OrderStatus.REJECTED
-            order.rejected_at = timezone.now()
-            reason = request.data.get('reason', '')
-            if reason:
-                order.rejection_reason = reason
-            order.save()
+            # Reject order in transaction to ensure stock restoration
+            with transaction.atomic():
+                order.status = OrderStatus.REJECTED
+                
+                # Get reason from request data safely
+                try:
+                    reason = request.data.get('reason', '') if request.data else ''
+                except (AttributeError, TypeError):
+                    reason = ''
+                
+                if reason:
+                    order.rejection_reason = reason
+                order.save()
+                
+                # Restore product stock (only if product exists)
+                if order.product:
+                    order.product.stock_level += order.quantity
+                    order.product.save()
+                    logger.info(f'Stock restored for product {order.product.id}: +{order.quantity} units')
             
             serializer = SellerOrderSerializer(order)
-            logger.info(f'Order {pk} rejected by: {request.user.email}')
+            logger.info(f'Order {pk} rejected by seller {request.user.email}. Stock restored: +{order.quantity} units')
             return Response(serializer.data, status=status.HTTP_200_OK)
         
         except SellerOrder.DoesNotExist:
@@ -1227,7 +1268,7 @@ class OrderManagementViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f'Error rejecting order: {str(e)}')
             return Response(
-                {'error': 'Failed to reject order'},
+                {'error': f'Failed to reject order: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

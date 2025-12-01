@@ -5,13 +5,13 @@ from .seller_models import SellerProduct, SellerOrder, SellToOPAS, SellerPayout,
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ('id', 'phone_number', 'username', 'first_name', 'last_name', 'municipality', 'barangay', 'farm_municipality', 'farm_barangay', 'role', 'created_at')
-    search_fields = ('phone_number', 'username', 'first_name', 'last_name', 'municipality', 'barangay', 'farm_municipality', 'farm_barangay')
+    list_display = ('id', 'phone_number', 'first_name', 'last_name', 'municipality', 'barangay', 'farm_municipality', 'farm_barangay', 'role', 'created_at')
+    search_fields = ('phone_number', 'first_name', 'last_name', 'municipality', 'barangay', 'farm_municipality', 'farm_barangay')
     list_filter = ('role', 'municipality', 'farm_municipality', 'created_at')
     ordering = ('-created_at',)
     
     fieldsets = (
-        (None, {'fields': ('username', 'phone_number', 'password')}),
+        (None, {'fields': ('phone_number', 'password')}),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'address')}),
         ('Residence Location', {'fields': ('municipality', 'barangay')}),
         ('Farm Location', {'fields': ('farm_municipality', 'farm_barangay')}),
@@ -24,7 +24,7 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'phone_number', 'password1', 'password2'),
+            'fields': ('phone_number', 'password1', 'password2'),
         }),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'address')}),
         ('Residence Location', {'fields': ('municipality', 'barangay')}),

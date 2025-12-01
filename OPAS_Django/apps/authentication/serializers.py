@@ -10,10 +10,16 @@ class SignUpSerializer(serializers.ModelSerializer):
                   'municipality', 'barangay', 'role')
         extra_kwargs = {
             'password': {'write_only': True},
+            'username': {'required': False, 'allow_blank': True},
         }
 
     def create(self, validated_data):
         password = validated_data.pop('password')
+        # Auto-generate username from phone_number if not provided
+        if not validated_data.get('username'):
+            phone_number = validated_data.get('phone_number', '')
+            # Use phone number without +63 prefix as username
+            validated_data['username'] = phone_number.replace('+', '').replace(' ', '')
         # Set email to be the same as phone_number for compatibility
         validated_data['email'] = validated_data.get('phone_number', '')
         user = User(**validated_data)

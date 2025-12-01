@@ -189,6 +189,18 @@ class SellerProduct(models.Model):
         default=0,
         help_text='Minimum stock level before alert'
     )
+    initial_stock = models.IntegerField(
+        default=0,
+        help_text='Original stock amount when product was first created (for analytics)'
+    )
+    baseline_stock = models.IntegerField(
+        default=0,
+        help_text='Current baseline stock for percentage calculation (updates on restock)'
+    )
+    stock_baseline_updated_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='Timestamp when baseline stock was last updated (on restock)'
+    )
     
     # ==================== QUALITY & GRADING ====================
     quality_grade = models.CharField(
@@ -302,6 +314,25 @@ class SellerProduct(models.Model):
     def is_low_stock(self):
         """Check if stock is below minimum"""
         return self.stock_level < self.minimum_stock
+    
+    @property
+    def stock_percentage(self):
+        """Calculate stock percentage based on baseline stock"""
+        if self.baseline_stock == 0:
+            return 100.0
+        return round((self.stock_level / self.baseline_stock) * 100, 2)
+    
+    @property
+    def stock_status(self):
+        """Determine stock status based on percentage thresholds"""
+        percentage = self.stock_percentage
+        
+        if percentage < 40:
+            return 'LOW'
+        elif percentage < 70:
+            return 'MODERATE'
+        else:
+            return 'HIGH'
     
     def soft_delete(self, reason=''):
         """Soft delete the product"""

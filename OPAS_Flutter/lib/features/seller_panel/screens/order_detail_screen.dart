@@ -700,15 +700,38 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Order #${_order.orderNumber} rejected'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                // TODO: Call API to reject order with reason
+              onPressed: () async {
+                // Get the parent context before closing the dialog
+                final parentContext = context;
+                
+                // Close the dialog
+                Navigator.pop(parentContext);
+                
+                try {
+                  final reason = reasonController.text.trim();
+                  await SellerApiService.rejectOrder(_order.id, reason: reason.isEmpty ? null : reason);
+                  
+                  // Now show success message in the parent context
+                  if (mounted) {
+                    ScaffoldMessenger.of(parentContext).showSnackBar(
+                      SnackBar(
+                        content: Text('Order #${_order.orderNumber} rejected successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    // Refresh the order list and close this screen
+                    Navigator.pop(parentContext, true); // Pass true to indicate order was rejected
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(parentContext).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to reject order: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,

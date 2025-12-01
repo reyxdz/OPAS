@@ -1,11 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'dart:convert';
-import '../widgets/auth_text_field.dart';
 import './registration_screen.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/logger_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/routing/admin_router.dart';
+
+// Custom input formatter for phone numbers (exactly 11 digits)
+class LoginPhoneNumberInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Only allow digits
+    String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Limit to 11 digits
+    if (digitsOnly.length > 11) {
+      digitsOnly = digitsOnly.substring(0, 11);
+    }
+
+    // Format: XXXX XXX XXXX (with space dividers)
+    String formatted = '';
+    if (digitsOnly.isNotEmpty) {
+      formatted += digitsOnly.substring(0, digitsOnly.length > 4 ? 4 : digitsOnly.length);
+    }
+    if (digitsOnly.length > 4) {
+      formatted += ' ${digitsOnly.substring(4, digitsOnly.length > 7 ? 7 : digitsOnly.length)}';
+    }
+    if (digitsOnly.length > 7) {
+      formatted += ' ${digitsOnly.substring(7)}';
+    }
+
+    return newValue.copyWith(
+      text: formatted,
+      selection: TextSelection(
+        baseOffset: formatted.length,
+        extentOffset: formatted.length,
+      ),
+    );
+  }
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,115 +57,357 @@ class _LoginScreenState extends State<LoginScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: Center(
-          child: FractionallySizedBox(
-            heightFactor: 0.7,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
               child: Form(
                 key: _formKey,
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 48),
-                    // Logo
-                    Image.asset(
-                      'assets/images/opas_logo.png',
-                      height: 50,
-                    ),
-                    const SizedBox(height: 60),
-                    
-                    // Phone Number field
-                    AuthTextField(
-                      label: 'Phone Number',
-                      controller: _phoneController,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your phone number';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Password field
-                    AuthTextField(
-                      label: 'Password',
-                      isPassword: true,
-                      controller: _passwordController,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your password';
-                        }
-                        return null;
-                      },
-                    ),
-                    
-                    // Forgot password link
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                        onPressed: () {
-                          // Handle forgot password
-                        },
-                        child: Text(
-                          'Forgot your password?',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
+                    // OPAS Logo
+                    Center(
+                      child: Image.asset(
+                        'assets/images/opas_logo.png',
+                        height: 60,
                       ),
                     ),
                     
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 48),
                     
-                    // Login button
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _handleLogin,
-                      child: _isLoading ? const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)) : const Text('Log In'),
-                    ),
+                    // Header
+                    _buildHeader(context),
                     
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
                     
-                    // Sign up link
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Don\'t have an account? ',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const RegistrationScreen(),
-                              ),
-                            );
-                          },
-                          child: Text(
-                            'Sign up!',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    // Form Section
+                    _buildFormSection(context),
+                    
+                    const SizedBox(height: 32),
+                    
+                    // Login Button
+                    _buildLoginButton(context),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Sign Up Link
+                    _buildSignUpLink(context),
                   ],
                 ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Header Section
+  Widget _buildHeader(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Welcome Dear!',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Log in to your OPAS account',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Colors.grey[600],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Main Form Section
+  Widget _buildFormSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Phone Number Field
+        _buildTextField(
+          controller: _phoneController,
+          label: 'Phone Number',
+          hint: '+63 XXXX XXX XXXX',
+          keyboardType: TextInputType.number,
+          inputFormatters: [LoginPhoneNumberInputFormatter()],
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter your phone number';
+            }
+            final digitsOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
+            if (digitsOnly.length != 10) {
+              return 'Phone number must be exactly 11 digits';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 20),
+        
+        // Password Field with Visibility Toggle
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Password',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
+                hintText: 'Enter your password',
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+                filled: true,
+                fillColor: Colors.grey[50],
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey[200]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey[200]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF00B464), width: 2),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.red[400]!, width: 1.5),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.red[400]!, width: 2),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                    size: 20,
+                    color: Colors.grey[500],
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
+                errorStyle: TextStyle(
+                  color: Colors.red[700],
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your password';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 12),
+        
+        // Forgot Password Link
+        Align(
+          alignment: Alignment.centerRight,
+          child: GestureDetector(
+            onTap: () {
+              // Handle forgot password
+            },
+            child: Text(
+              'Forgot password?',
+              style: TextStyle(
+                color: const Color(0xFF00B464),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Reusable Text Field with Modern Design
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          obscureText: isPassword,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+            filled: true,
+            fillColor: Colors.grey[50],
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[200]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[200]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF00B464), width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.red[400]!, width: 1.5),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.red[400]!, width: 2),
+            ),
+            suffixIcon: isPassword
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: IconButton(
+                      icon: const Icon(Icons.visibility_off_outlined, size: 20),
+                      onPressed: () {},
+                      color: Colors.grey[500],
+                    ),
+                  )
+                : null,
+            errorStyle: TextStyle(
+              color: Colors.red[700],
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          validator: validator,
+        ),
+      ],
+    );
+  }
+
+  /// Login Button
+  Widget _buildLoginButton(BuildContext context) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF00B464), Color(0xFF009450)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00B464).withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _isLoading ? null : _handleLogin,
+          borderRadius: BorderRadius.circular(12),
+          child: Center(
+            child: _isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.5,
+                    ),
+                  )
+                : const Text(
+                    'Log In',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Sign Up Link
+  Widget _buildSignUpLink(BuildContext context) {
+    return Center(
+      child: RichText(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: 'Don\'t have an account? ',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 13,
+              ),
+            ),
+            TextSpan(
+              text: 'Sign Up',
+              style: const TextStyle(
+                color: Color(0xFF00B464),
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+              recognizer: TapGestureRecognizer()
+                ..onTap = () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RegistrationScreen(),
+                    ),
+                  );
+                },
+            ),
+          ],
         ),
       ),
     );
@@ -139,7 +419,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final phone = _phoneController.text.trim();
+      // Remove spaces from phone number for API call
+      final phone = _phoneController.text.trim().replaceAll(' ', '');
       LoggerService.info(
         'User login attempt',
         tag: 'AUTH',

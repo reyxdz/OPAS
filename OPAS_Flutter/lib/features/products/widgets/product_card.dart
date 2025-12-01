@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/product_model.dart';
 import '../screens/product_detail_screen.dart';
+import 'stock_status_widget.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
@@ -99,35 +100,7 @@ class ProductCard extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                 ),
                           ),
-                          const SizedBox(width: 8),
-                          if (!product.isWithinRegulatedPrice)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.orange[100],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                'High',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.orange[700],
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
                         ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'OPAS: ₱${product.opasRegulatedPrice.toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                          fontSize: 10,
-                        ),
                       ),
                     ],
                   ),
@@ -245,36 +218,23 @@ class ProductCard extends StatelessWidget {
                                     fontWeight: FontWeight.bold,
                                   ),
                         ),
-                        if (!product.isWithinRegulatedPrice)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.orange[100],
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'High Price',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.orange[700],
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      product.isAvailable
-                          ? 'Stock: ${product.stock}'
-                          : 'Out of Stock',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: product.isAvailable ? Colors.green : Colors.red,
+                    if (product.isAvailable)
+                      StockStatusWidget(
+                        status: product.stockStatus,
+                        percentage: product.stockPercentage,
+                        currentStock: product.stock,
+                        unit: product.unit,
+                      )
+                    else
+                      Text(
+                        'Out of Stock',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.red,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

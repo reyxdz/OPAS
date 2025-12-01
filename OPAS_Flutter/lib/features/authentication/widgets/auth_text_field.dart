@@ -1,6 +1,7 @@
 // lib/features/authentication/widgets/auth_text_field.dart
 // Reusable text field widget for authentication screens
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // Convert to StatefulWidget since we need to manage visibility state
 class AuthTextField extends StatefulWidget {
@@ -9,6 +10,7 @@ class AuthTextField extends StatefulWidget {
   final bool isPassword;
   final TextEditingController? controller;
   final String? Function(String?)? validator;
+  final List<TextInputFormatter>? inputFormatters;
 
   const AuthTextField({
     super.key,
@@ -16,6 +18,7 @@ class AuthTextField extends StatefulWidget {
     this.isPassword = false,
     this.controller,
     this.validator,
+    this.inputFormatters,
   });
 
   @override
@@ -39,8 +42,26 @@ class _AuthTextFieldState extends State<AuthTextField> {
       controller: widget.controller,
       // Use _obscureText state for password visibility
       obscureText: _obscureText,
+      inputFormatters: widget.inputFormatters,
       decoration: InputDecoration(
         labelText: widget.label,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.error,
+            width: 1.5,
+          ),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.error,
+            width: 2,
+          ),
+        ),
         // Show suffix icon only for password fields
         suffixIcon: widget.isPassword
             ? IconButton(
@@ -58,6 +79,11 @@ class _AuthTextFieldState extends State<AuthTextField> {
                 ),
               )
             : null,
+        errorStyle: TextStyle(
+          color: Theme.of(context).colorScheme.error,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
       ),
       validator: widget.validator,
     );

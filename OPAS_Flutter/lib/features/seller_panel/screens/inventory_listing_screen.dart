@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/seller_service.dart';
+import '../../../features/products/widgets/stock_status_widget.dart';
 
 class InventoryListingScreen extends StatefulWidget {
   const InventoryListingScreen({Key? key}) : super(key: key);
@@ -96,6 +97,12 @@ class _InventoryListingScreenState extends State<InventoryListingScreen> {
       'lowStock': _allInventory.where((item) => (item['is_low_stock'] as bool? ?? false)).length,
       'active': _allInventory.where((item) => item['status'] == 'ACTIVE').length,
     };
+  }
+
+  String _getStockStatusFromPercentage(double percentage) {
+    if (percentage < 0.4) return 'LOW';
+    if (percentage < 0.7) return 'MODERATE';
+    return 'HIGH';
   }
 
   Color _getStockStatusColor(bool isLowStock) {
@@ -596,42 +603,12 @@ class _InventoryListingScreenState extends State<InventoryListingScreen> {
 
             const SizedBox(height: 12),
 
-            // Stock Progress Bar
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Stock Level',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      '${(stockPercentage * 100).toStringAsFixed(0)}%',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: isLowStock ? Colors.red : const Color(0xFF00B464),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: stockPercentage,
-                    minHeight: 10,
-                    backgroundColor: Colors.grey[200],
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      isLowStock ? Colors.red : const Color(0xFF00B464),
-                    ),
-                  ),
-                ),
-              ],
+            // Stock Status Widget
+            StockStatusWidget(
+              status: _getStockStatusFromPercentage(stockPercentage),
+              percentage: stockPercentage * 100,
+              currentStock: currentStock,
+              unit: unit,
             ),
 
             const SizedBox(height: 16),

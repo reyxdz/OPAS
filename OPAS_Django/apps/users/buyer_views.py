@@ -331,3 +331,64 @@ class BuyerOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated])
+    def delete(self, request, pk=None):
+        """
+        Delete an order from buyer's view only.
+        
+        Endpoint: DELETE /api/orders/{id}/delete/
+        
+        This removes the order from the buyer's order history.
+        The seller still retains the order record.
+        
+        Only allows deletion if:
+        - Order status is CANCELLED or REJECTED
+        
+        Returns:
+        - 200/204: Order successfully deleted from buyer view
+        - 400: Cannot delete order (wrong status)
+        - 403: Unauthorized (not order owner)
+        - 404: Order not found
+        """
+        try:
+            order = self.get_object()
+            
+            # Check if buyer owns this order
+            if order.buyer != request.user:
+                return Response(
+                    {'detail': 'You cannot delete someone else\'s order'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Check if order can be deleted:
+            # - Status must be CANCELLED or REJECTED
+            allowed_statuses = [OrderStatus.CANCELLED, OrderStatus.REJECTED]
+            
+            if order.status not in allowed_statuses:
+                return Response(
+                    {'detail': f'Cannot delete order with status {order.get_status_display()}. Only cancelled or rejected orders can be deleted.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Delete the order from buyer's view
+            order.delete()
+            
+            print(f'✅ Order {pk} deleted from buyer view by {request.user.username}')
+            
+            return Response(
+                {'detail': 'Order deleted successfully'},
+                status=status.HTTP_204_NO_CONTENT
+            )
+            
+        except SellerOrder.DoesNotExist:
+            return Response(
+                {'detail': 'Order not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            print(f'❌ Error deleting order: {str(e)}')
+            return Response(
+                {'detail': f'Failed to delete order: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+

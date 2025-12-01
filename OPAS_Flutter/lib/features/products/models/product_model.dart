@@ -6,7 +6,6 @@ class Product {
   final String category;
   final String description;
   final double pricePerKilo;
-  final double opasRegulatedPrice;
   final int stock;
   final String unit;
   final String imageUrl;
@@ -18,6 +17,11 @@ class Product {
   final bool isAvailable;
   final DateTime createdAt;
   final String? fulfillmentMethods; // e.g., "delivery", "pickup", "delivery_and_pickup"
+  final int initialStock;
+  final int baselineStock;
+  final DateTime stockBaselineUpdatedAt;
+  final double stockPercentage;
+  final String stockStatus;
 
   Product({
     required this.id,
@@ -25,7 +29,6 @@ class Product {
     required this.category,
     required this.description,
     required this.pricePerKilo,
-    required this.opasRegulatedPrice,
     required this.stock,
     required this.unit,
     required this.imageUrl,
@@ -37,6 +40,11 @@ class Product {
     required this.isAvailable,
     required this.createdAt,
     this.fulfillmentMethods,
+    required this.initialStock,
+    required this.baselineStock,
+    required this.stockBaselineUpdatedAt,
+    required this.stockPercentage,
+    required this.stockStatus,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -74,7 +82,6 @@ class Product {
         category: json['category'] != null ? json['category'].toString() : 'GENERAL',
         description: json['description']?.toString() ?? '',
         pricePerKilo: double.tryParse(json['price']?.toString() ?? '0') ?? 0,
-        opasRegulatedPrice: double.tryParse(json['opas_regulated_price']?.toString() ?? '0') ?? 0,
         stock: json['stock_level'] ?? json['stock'] ?? 0,
         unit: json['unit']?.toString() ?? 'kg',
         imageUrl: primaryImage,
@@ -93,6 +100,13 @@ class Product {
         fulfillmentMethods: (json['fulfillment_methods'] != null && json['fulfillment_methods'].toString().isNotEmpty)
             ? json['fulfillment_methods'].toString()
             : null,
+        initialStock: json['initial_stock'] ?? 0,
+        baselineStock: json['baseline_stock'] ?? 0,
+        stockBaselineUpdatedAt: json['stock_baseline_updated_at'] != null 
+            ? DateTime.parse(json['stock_baseline_updated_at'].toString())
+            : DateTime.now(),
+        stockPercentage: double.tryParse(json['stock_percentage']?.toString() ?? '100') ?? 100.0,
+        stockStatus: json['stock_status']?.toString() ?? 'HIGH',
       );
     } catch (e, stackTrace) {
       debugPrint('Error in Product.fromJson: $e');
@@ -108,7 +122,6 @@ class Product {
     'category': category,
     'description': description,
     'price_per_kilo': pricePerKilo,
-    'opas_regulated_price': opasRegulatedPrice,
     'stock': stock,
     'unit': unit,
     'image_url': imageUrl,
@@ -120,8 +133,11 @@ class Product {
     'is_available': isAvailable,
     'created_at': createdAt.toIso8601String(),
     'fulfillment_methods': fulfillmentMethods,
+    'initial_stock': initialStock,
+    'baseline_stock': baselineStock,
+    'stock_baseline_updated_at': stockBaselineUpdatedAt.toIso8601String(),
+    'stock_percentage': stockPercentage,
+    'stock_status': stockStatus,
   };
 
-  double get priceComparison => opasRegulatedPrice - pricePerKilo;
-  bool get isWithinRegulatedPrice => pricePerKilo <= opasRegulatedPrice;
 }

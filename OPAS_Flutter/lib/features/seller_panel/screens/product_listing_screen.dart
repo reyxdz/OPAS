@@ -3,6 +3,7 @@ import 'dart:async';
 import '../models/seller_product_model.dart';
 import '../services/seller_service.dart';
 import '../../../core/services/api_service.dart';
+import '../../../features/products/widgets/stock_status_widget.dart';
 
 class ProductListingScreen extends StatefulWidget {
   const ProductListingScreen({super.key});
@@ -626,31 +627,16 @@ class _ProductListingScreenState extends State<ProductListingScreen> with Widget
           children: [
             const SizedBox(height: 4),
             Text(
-              '₱${product.price.toStringAsFixed(2)} • Stock: ${product.stockLevel} units',
+              '₱${product.price.toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            if (product.priceExceedsCeiling)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Price exceeds ceiling (₱${product.ceilingPrice})',
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            if (product.isLowStock)
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text(
-                  'Low stock',
-                  style: TextStyle(
-                    color: Colors.orange,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
+            const SizedBox(height: 8),
+            StockStatusWidget(
+              status: product.stockStatus,
+              percentage: product.stockPercentage,
+              currentStock: product.stockLevel,
+              unit: 'units',
+            ),
           ],
         ),
         trailing: SizedBox(

@@ -191,6 +191,7 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     - Status information
     - Quick reference fields
     - Product images from ProductImage relationship
+    - Stock tracking (initial_stock, baseline_stock, stock_percentage, stock_status)
     
     NOTE: Optimized for list views with efficient image loading.
     """
@@ -201,6 +202,8 @@ class SellerProductListSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField(read_only=True)
     primary_image = serializers.SerializerMethodField(read_only=True)
     image_url = serializers.SerializerMethodField(read_only=True)
+    stock_percentage = serializers.SerializerMethodField(read_only=True)
+    stock_status = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = SellerProduct
@@ -214,6 +217,11 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'unit',
             'stock_level',
             'minimum_stock',
+            'initial_stock',
+            'baseline_stock',
+            'stock_baseline_updated_at',
+            'stock_percentage',
+            'stock_status',
             'quality_grade',
             'status',
             'previous_status',
@@ -237,7 +245,20 @@ class SellerProductListSerializer(serializers.ModelSerializer):
             'status_display',
             'seller_name',
             'category',
+            'initial_stock',
+            'baseline_stock',
+            'stock_baseline_updated_at',
+            'stock_percentage',
+            'stock_status',
         ]
+
+    def get_stock_percentage(self, obj):
+        """Get calculated stock percentage"""
+        return obj.stock_percentage
+    
+    def get_stock_status(self, obj):
+        """Get calculated stock status"""
+        return obj.stock_status
 
     def get_images(self, obj):
         """Get list of image URLs from ProductImage relationship"""

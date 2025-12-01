@@ -239,7 +239,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen> {
     return RefreshIndicator(
       onRefresh: () => _loadFeaturedProducts(forceRefresh: true),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 120),
+        padding: const EdgeInsets.only(top: 8, bottom: 120),
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

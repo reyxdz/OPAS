@@ -26,9 +26,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
   bool _productCreatedSuccessfully = false;
 
   // Category dropdown state
-  List<ProductCategory> _categories = [];
-  ProductCategory? _selectedCategory;
-  bool _categoriesLoading = true;
+  final Map<String, Map<String, dynamic>> _categoryMap = {
+    'VEGETABLE': {'label': 'Vegetables', 'icon': Icons.eco, 'color': const Color(0xFF2E7D32), 'id': 223},
+    'FRUIT': {'label': 'Fruits', 'icon': Icons.apple, 'color': const Color(0xFFD32F2F), 'id': 274},
+    'LIVESTOCK': {'label': 'Livestock', 'icon': Icons.pets, 'color': const Color(0xFF8B4513), 'id': 322},
+    'POULTRY': {'label': 'Poultry', 'icon': Icons.egg_outlined, 'color': const Color(0xFFE65100), 'id': 359},
+    'SEEDS': {'label': 'Seeds', 'icon': Icons.grain, 'color': const Color(0xFF7B1FA2), 'id': 360},
+    'FERTILIZERS': {'label': 'Fertilizers', 'icon': Icons.landscape, 'color': const Color(0xFF9C7C38), 'id': 361},
+    'FEEDS': {'label': 'Feeds', 'icon': Icons.food_bank, 'color': const Color(0xFF6D4C41), 'id': 362},
+    'MEDICINES': {'label': 'Medicines', 'icon': Icons.medical_services_outlined, 'color': const Color(0xFFC2185B), 'id': 363},
+  };
+  String? _selectedCategoryKey;
+  bool _categoriesLoading = false;
 
   // Delivery and Pickup options
   bool _isAvailableForDelivery = false;
@@ -42,30 +51,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Future<void> _loadCategories() async {
-    try {
-      final categoriesData = await SellerService.getProductCategories();
-      setState(() {
-        _categories = categoriesData
-            .map((data) => ProductCategory.fromJson(data))
-            .toList();
-        _categoriesLoading = false;
-      });
-      print('Categories loaded: ${_categories.length}');
-    } catch (e) {
-      print('Error loading categories: $e');
-      setState(() {
-        _categoriesLoading = false;
-      });
-      // Show error to user
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not load categories: $e'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    }
+    setState(() => _categoriesLoading = false);
+    debugPrint('✅ Categories initialized: ${_categoryMap.length} categories available');
   }
 
   Future<void> _loadFormDraft() async {
@@ -82,13 +69,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _selectedUnit = prefs.getString('draft_product_unit') ?? 'kg';
 
         // Load category selection
-        final draftCategoryId = prefs.getInt('draft_product_category_id');
-
-        if (draftCategoryId != null && _categories.isNotEmpty) {
-          _selectedCategory = _categories.firstWhere(
-            (c) => c.id == draftCategoryId,
-            orElse: () => _categories.first,
-          );
+        final draftCategoryKey = prefs.getString('draft_product_category_key');
+        if (draftCategoryKey != null && _categoryMap.containsKey(draftCategoryKey)) {
+          _selectedCategoryKey = draftCategoryKey;
         }
 
         // Load delivery and pickup options
@@ -111,8 +94,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.setString('draft_product_unit', _selectedUnit);
 
       // Save category selection
-      if (_selectedCategory != null) {
-        await prefs.setInt('draft_product_category_id', _selectedCategory!.id);
+      if (_selectedCategoryKey != null) {
+        await prefs.setString('draft_product_category_key', _selectedCategoryKey!);
       }
 
       // Save delivery and pickup options
@@ -131,7 +114,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       await prefs.remove('draft_product_price');
       await prefs.remove('draft_product_quantity');
       await prefs.remove('draft_product_unit');
-      await prefs.remove('draft_product_category_id');
+      await prefs.remove('draft_product_category_key');
       await prefs.remove('draft_product_delivery');
       await prefs.remove('draft_product_pickup');
     } catch (e) {
@@ -146,7 +129,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     _quantityController.clear();
     setState(() {
       _selectedUnit = 'kg';
-      _selectedCategory = null;
+      _selectedCategoryKey = null;
       _selectedImages.clear();
       _isAvailableForDelivery = false;
       _isAvailableForPickup = false;
@@ -290,7 +273,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
     try {
       // Use selected category
-      final categoryId = _selectedCategory?.id;
+      final categoryKey = _selectedCategoryKey;
+      final categoryId = categoryKey != null ? _categoryMap[categoryKey]!['id'] : null;
 
       final productData = {
         'name': name,
@@ -654,19 +638,25 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       const SizedBox(height: 8),
                       _categoriesLoading
                           ? const CircularProgressIndicator()
-                          : DropdownButtonFormField<ProductCategory>(
-                              value: _selectedCategory,
+                          : DropdownButtonFormField<String>(
+                              value: _selectedCategoryKey,
                               hint: const Text('Select Category'),
-                              items: _categories.map((category) {
+                              items: _categoryMap.entries.map((entry) {
                                 return DropdownMenuItem(
-                                  value: category,
-                                  child: Text(category.name),
+                                  value: entry.key,
+                                  child: Text(entry.value['label'] as String),
                                 );
                               }).toList(),
                               onChanged: (value) {
                                 setState(() {
-                                  _selectedCategory = value;
+                                  _selectedCategoryKey = value;
                                 });
+                              },
+                              validator: (value) {
+                                if (value == null) {
+                                  return 'Please select a category';
+                                }
+                                return null;
                               },
                               decoration: _buildInputDecoration(''),
                             ),

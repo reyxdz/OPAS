@@ -466,6 +466,80 @@ class BuyerApiService {
     }
   }
 
+  /// Delete an order from buyer's view only (only for cancelled orders)
+  static Future<void> deleteOrder(int orderId) async {
+    try {
+      debugPrint('📡 Delete order request: DELETE /orders/$orderId/delete/');
+      final prefs = await SharedPreferences.getInstance();
+      var token = prefs.getString('access') ?? '';
+
+      var response = await http.delete(
+        Uri.parse('$baseUrl/orders/$orderId/delete/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      debugPrint('📋 Delete order response: Status ${response.statusCode}');
+      debugPrint('📋 Response body: ${response.body}');
+
+      // Handle 401 - try to refresh token and retry
+      if (response.statusCode == 401 && token.isNotEmpty) {
+        debugPrint('🔄 Token expired, attempting refresh...');
+        final refreshToken = prefs.getString('refresh') ?? '';
+        if (refreshToken.isNotEmpty) {
+          try {
+            final refreshResponse = await http.post(
+              Uri.parse('$baseUrl/auth/token/refresh/'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'refresh': refreshToken}),
+            ).timeout(const Duration(seconds: 15));
+
+            if (refreshResponse.statusCode == 200) {
+              final refreshData = jsonDecode(refreshResponse.body);
+              final newToken = refreshData['access'] ?? '';
+              await prefs.setString('access', newToken);
+              token = newToken;
+              debugPrint('✅ Token refreshed, retrying delete order...');
+
+              // Retry the request with new token
+              response = await http.delete(
+                Uri.parse('$baseUrl/orders/$orderId/delete/'),
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Content-Type': 'application/json',
+                },
+              ).timeout(const Duration(seconds: 15));
+              debugPrint('📋 Retry response: Status ${response.statusCode}');
+            }
+          } catch (e) {
+            debugPrint('❌ Token refresh failed: $e');
+          }
+        }
+      }
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('✅ Order $orderId deleted successfully from buyer view');
+        return;
+      } else if (response.statusCode == 400) {
+        try {
+          final data = jsonDecode(response.body);
+          throw Exception(data['detail'] ?? 'Cannot delete this order');
+        } catch (e) {
+          throw Exception('Cannot delete this order: ${response.body}');
+        }
+      } else if (response.statusCode == 401) {
+        throw Exception('Unauthorized - Please log in again');
+      } else {
+        throw Exception('Failed to delete order: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('❌ Delete order error: $e');
+      throw Exception('Failed to delete order: $e');
+    }
+  }
+
   /// ==================== PRICING TRANSPARENCY ====================
   /// Get price trends for a product
   static Future<PriceTrend> getPriceTrend(int productId) async {
