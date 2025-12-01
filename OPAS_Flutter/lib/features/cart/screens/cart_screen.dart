@@ -361,17 +361,19 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
         return Scaffold(
           body: GestureDetector(
             onTap: _isCheckoutExpanded ? () => setState(() => _isCheckoutExpanded = false) : null,
-            child: RefreshIndicator(
-              onRefresh: () async {
-                setState(() {
-                  _cartFuture = _getCartFromStorage();
-                });
-              },
-              color: const Color(0xFF00B464),
-              child: Stack(
-                children: [
-                  // Cart Items List with Header
-                  SingleChildScrollView(
+            child: Stack(
+              children: [
+                // Cart Items List with Header wrapped in RefreshIndicator
+                RefreshIndicator(
+                  onRefresh: () async {
+                    setState(() {
+                      _cartFuture = _getCartFromStorage();
+                    });
+                    // Wait for cart to load
+                    await Future.delayed(const Duration(milliseconds: 500));
+                  },
+                  color: const Color(0xFF00B464),
+                  child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
                     child: Column(
@@ -396,72 +398,72 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
                       ],
                     ),
                   ),
-                  
-                  // Floating Collapsible Order Summary
-                  if (!_isCheckoutExpanded)
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 100),
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isCheckoutExpanded = true),
-                          child: Container(
-                            width: 60,
-                            height: 60,
-                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF00B464),
-                              borderRadius: BorderRadius.circular(30),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF00B464).withOpacity(0.4),
-                                  blurRadius: 8,
-                                  spreadRadius: 1,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.shopping_bag_outlined,
-                              color: Colors.white,
-                              size: 28,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 100),
+                ),
+                
+                // Floating Collapsible Order Summary
+                if (!_isCheckoutExpanded)
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 100),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _isCheckoutExpanded = true),
                         child: Container(
-                          width: MediaQuery.of(context).size.width - 32,
+                          width: 60,
+                          height: 60,
                           margin: const EdgeInsets.symmetric(horizontal: 16),
-                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
+                            color: const Color(0xFF00B464),
+                            borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 15,
-                                offset: const Offset(0, 5),
+                                color: const Color(0xFF00B464).withOpacity(0.4),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                                offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          child: _buildExpandedCheckout(context, totalAmount, cartItems),
+                          child: const Icon(
+                            Icons.shopping_bag_outlined,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                         ),
                       ),
                     ),
+                  )
+                else
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 100),
+                      child: Container(
+                        width: MediaQuery.of(context).size.width - 32,
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: _buildExpandedCheckout(context, totalAmount, cartItems),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-        );
-      },
-    );
-  }
+          );
+        },
+      );
+    }
 
   Widget _buildExpandedCheckout(BuildContext context, double totalAmount, List<CartItem> cartItems) {
     return Column(
