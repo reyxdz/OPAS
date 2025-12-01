@@ -372,6 +372,7 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
                 children: [
                   // Cart Items List with Header
                   SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
