@@ -394,11 +394,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
           // Wait for products to load
           await Future.delayed(const Duration(milliseconds: 500));
         },
-        child: CustomScrollView(
-          slivers: [
-            // Search and Filter Bar
-            SliverToBoxAdapter(
-              child: Padding(
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              // Search and Filter Bar
+              Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Row(
                   children: [
@@ -444,17 +445,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   ],
                 ),
               ),
-            ),
 
-            // Active Filters Display
-            SliverToBoxAdapter(
-              child: _buildActiveFiltersRow(),
-            ),
+              // Active Filters Display
+              _buildActiveFiltersRow(),
 
-            // Products count and loading indicator
-            if (!_isLoading && _filteredProducts.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
+              // Products count and loading indicator
+              if (!_isLoading && _filteredProducts.isNotEmpty)
+                Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -472,22 +469,19 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     ],
                   ),
                 ),
-              ),
 
-            // Products Grid/List
-            if (_isLoading)
-              SliverToBoxAdapter(
-                child: _buildShimmerLoadingGrid(),
-              )
-            else if (_filteredProducts.isEmpty)
-              SliverToBoxAdapter(
-                child: _buildEmptyState(),
-              )
-            else if (_viewMode == 'grid')
-              _buildGridViewSliver()
-            else
-              _buildListViewSliver(),
-          ],
+              // Products Grid/List
+              if (_isLoading)
+                _buildShimmerLoadingGrid()
+              else if (_filteredProducts.isEmpty)
+                SizedBox(
+                  height: MediaQuery.of(context).size.height - 300,
+                  child: _buildEmptyState(),
+                )
+              else
+                _buildProductsView(),
+            ],
+          ),
         ),
       ),
     );
@@ -544,52 +538,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
     } else {
       return _buildListView();
     }
-  }
-
-  Widget _buildGridViewSliver() {
-    return SliverGrid(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          if (index == _filteredProducts.length) {
-            _loadMoreProducts();
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          return ProductCard(
-            product: _filteredProducts[index],
-          );
-        },
-        childCount: _filteredProducts.length + (_isLoadingMore ? 1 : 0),
-      ),
-    );
-  }
-
-  Widget _buildListViewSliver() {
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          if (index == _filteredProducts.length) {
-            _loadMoreProducts();
-            return const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          final product = _filteredProducts[index];
-          return _buildListProductCard(product);
-        },
-        childCount: _filteredProducts.length + (_isLoadingMore ? 1 : 0),
-      ),
-    );
   }
 
   Widget _buildGridView() {
