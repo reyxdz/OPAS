@@ -388,96 +388,107 @@ class _ProductListScreenState extends State<ProductListScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Search and Filter Bar
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search products...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Colors.grey),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: Colors.grey.shade300,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _loadProducts(reset: true);
+          // Wait for products to load
+          await Future.delayed(const Duration(milliseconds: 500));
+        },
+        child: CustomScrollView(
+          slivers: [
+            // Search and Filter Bar
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search products...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.grey),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade300,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          isDense: true,
                         ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _showFilterBottomSheet,
+                      icon: const Icon(Icons.filter_list),
+                      label: const Text('Filter'),
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
-                      isDense: true,
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _showFilterBottomSheet,
-                  icon: const Icon(Icons.filter_list),
-                  label: const Text('Filter'),
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Active Filters Display
-          _buildActiveFiltersRow(),
-
-          // Products count and loading indicator
-          if (!_isLoading && _filteredProducts.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Total: $_totalCount products',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  if (_isLoadingMore)
-                    const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
               ),
             ),
 
-          // Products Grid/List with RefreshIndicator
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                _loadProducts(reset: true);
-                // Wait for products to load
-                await Future.delayed(const Duration(milliseconds: 500));
-              },
-              child: _isLoading
-                  ? _buildShimmerLoadingGrid()
-                  : _filteredProducts.isEmpty
-                      ? _buildEmptyState()
-                      : _buildProductsView(),
+            // Active Filters Display
+            SliverToBoxAdapter(
+              child: _buildActiveFiltersRow(),
             ),
-          ),
-        ],
+
+            // Products count and loading indicator
+            if (!_isLoading && _filteredProducts.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total: $_totalCount products',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (_isLoadingMore)
+                        const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // Products Grid/List
+            if (_isLoading)
+              SliverToBoxAdapter(
+                child: _buildShimmerLoadingGrid(),
+              )
+            else if (_filteredProducts.isEmpty)
+              SliverToBoxAdapter(
+                child: _buildEmptyState(),
+              )
+            else if (_viewMode == 'grid')
+              _buildGridViewSliver()
+            else
+              _buildListViewSliver(),
+          ],
+        ),
       ),
     );
   }
@@ -533,6 +544,52 @@ class _ProductListScreenState extends State<ProductListScreen> {
     } else {
       return _buildListView();
     }
+  }
+
+  Widget _buildGridViewSliver() {
+    return SliverGrid(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          if (index == _filteredProducts.length) {
+            _loadMoreProducts();
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          return ProductCard(
+            product: _filteredProducts[index],
+          );
+        },
+        childCount: _filteredProducts.length + (_isLoadingMore ? 1 : 0),
+      ),
+    );
+  }
+
+  Widget _buildListViewSliver() {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          if (index == _filteredProducts.length) {
+            _loadMoreProducts();
+            return const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          final product = _filteredProducts[index];
+          return _buildListProductCard(product);
+        },
+        childCount: _filteredProducts.length + (_isLoadingMore ? 1 : 0),
+      ),
+    );
   }
 
   Widget _buildGridView() {
