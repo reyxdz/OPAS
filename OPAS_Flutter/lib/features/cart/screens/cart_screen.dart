@@ -27,9 +27,11 @@ class CartScreen extends StatefulWidget {
   State<CartScreen> createState() => _CartScreenState();
 }
 
-class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
+class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
   late Future<List<CartItem>> _cartFuture;
   List<CartItem> _cachedCartItems = []; // Cache to preserve order during quantity updates
+  late AnimationController _fadeController; // Smooth fade transition
+  late Animation<double> _fadeAnimation;
   bool _isCheckoutExpanded = false;
   String? _userId;
   final _cartService = CartStorageService();
@@ -43,6 +45,13 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    // Initialize fade animation controller
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(_fadeController);
+    
     // Initialize _cartFuture with empty list to prevent LateInitializationError
     _cartFuture = Future.value([]);
     // Register lifecycle observer to detect when app resumes
@@ -65,6 +74,8 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    // Dispose animation controller
+    _fadeController.dispose();
     // Unregister lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -169,6 +180,25 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
     return orderedMap;
   }
 
+  /// Trigger smooth fade refresh animation
+  /// This provides a smooth visual transition instead of jarring black screen
+  Future<void> _triggerSmoothRefresh() async {
+    try {
+      // Fade out
+      await _fadeController.forward();
+      
+      // Update UI (happens while faded out, so invisible)
+      setState(() {
+        _cartFuture = Future.value(_cachedCartItems);
+      });
+      
+      // Fade back in
+      await _fadeController.reverse();
+    } catch (e) {
+      debugPrint('❌ Error during smooth refresh: $e');
+    }
+  }
+
   /// Save cart items to SharedPreferences
   Future<void> _saveCartToStorage(List<CartItem> items) async {
     try {
@@ -245,13 +275,12 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
         _cachedCartItems[index].quantity = newQuantity;
         
         if (!mounted) return;
-        debugPrint('🛒 _updateQuantity: Successfully updated cache, refreshing UI without reordering');
+        debugPrint('🛒 _updateQuantity: Successfully updated cache, triggering smooth refresh');
         
-        // Minimal setState - just triggers rebuild with cached data (no refetch)
-        setState(() {
-          _cartFuture = Future.value(_cachedCartItems);
-        });
+        // Trigger smooth fade refresh animation
+        await _triggerSmoothRefresh();
         
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Cart updated'),
@@ -434,41 +463,49 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
             });
           },
           child: Scaffold(
-            body: GestureDetector(
-              onTap: _isCheckoutExpanded ? () => setState(() => _isCheckoutExpanded = false) : null,
-              child: Stack(
-                children: [
-                  // Cart Items List with Header wrapped in RefreshIndicator
-                  RefreshIndicator(
-                    onRefresh: () async {
-                      setState(() {
-                        _cartFuture = _getCartFromStorage();
-                      });
-                      // Wait for cart to load
-                      await Future.delayed(const Duration(milliseconds: 500));
-                    },
-                    color: const Color(0xFF00B464),
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header Section - Matching Home Screen
-                          _buildCartHeader(context),
-                          const SizedBox(height: 16),
-                          Divider(
-                            color: Colors.grey[200],
-                            thickness: 1,
-                            height: 1,
-                          ),
-                          const SizedBox(height: 24),
-                          // Group items by seller
-                          ..._buildSellerGroupedItems(context, cartItems),
-                        ],
+            body: AnimatedBuilder(
+              animation: _fadeAnimation,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: _fadeAnimation.value,
+                  child: child,
+                );
+              },
+              child: GestureDetector(
+                onTap: _isCheckoutExpanded ? () => setState(() => _isCheckoutExpanded = false) : null,
+                child: Stack(
+                  children: [
+                    // Cart Items List with Header wrapped in RefreshIndicator
+                    RefreshIndicator(
+                      onRefresh: () async {
+                        setState(() {
+                          _cartFuture = _getCartFromStorage();
+                        });
+                        // Wait for cart to load
+                        await Future.delayed(const Duration(milliseconds: 500));
+                      },
+                      color: const Color(0xFF00B464),
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header Section - Matching Home Screen
+                            _buildCartHeader(context),
+                            const SizedBox(height: 16),
+                            Divider(
+                              color: Colors.grey[200],
+                              thickness: 1,
+                              height: 1,
+                            ),
+                            const SizedBox(height: 24),
+                            // Group items by seller
+                            ..._buildSellerGroupedItems(context, cartItems),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   
                   // Floating Collapsible Order Summary
                   if (!_isCheckoutExpanded)
@@ -530,11 +567,14 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
+            ),
           ),
         );
       },
     );
-  }  Widget _buildExpandedCheckout(BuildContext context, double totalAmount, List<CartItem> cartItems) {
+  }
+
+  Widget _buildExpandedCheckout(BuildContext context, double totalAmount, List<CartItem> cartItems) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
