@@ -11,7 +11,8 @@ class ApiService {
     'http://localhost:8000/api',      // Web/localhost
     'http://127.0.0.1:8000/api',      // Fallback localhost
     'http://10.0.2.2:8000/api',       // Android emulator special IP
-    'http://10.207.234.34:8000/api',  // Current machine IP
+    'http://10.104.199.34:8000/api',  // Current machine IP (Update this when network changes)
+    'http://10.207.234.34:8000/api',  // Alternative machine IP
     'http://192.168.1.1:8000/api',    // Common router IP
     'http://192.168.1.100:8000/api',  // Common local network
     'http://172.16.0.1:8000/api',     // Docker/VM network
@@ -34,7 +35,7 @@ class ApiService {
 
     // For mobile, start with network IP since localhost won't work
     // This will be validated on first API call
-    _cachedBaseUrl = _possibleBaseUrls[3]; // Start with current known network IP
+    _cachedBaseUrl = _possibleBaseUrls[3]; // Start with current known network IP (10.104.199.34)
     return _cachedBaseUrl!;
   }
 
