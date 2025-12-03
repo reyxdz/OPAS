@@ -69,6 +69,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         sellerName: product.sellerName,
       );
 
+      debugPrint('🛒 Adding to cart:');
+      debugPrint('   - Product: ${cartItem.productName}');
+      debugPrint('   - Image URL: ${cartItem.imageUrl}');
+      debugPrint('   - Quantity: ${cartItem.quantity}');
+
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? 'guest';
       

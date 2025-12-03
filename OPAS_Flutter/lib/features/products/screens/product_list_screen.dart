@@ -26,6 +26,7 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   
   List<Product> _allProducts = [];
   List<Product> _filteredProducts = [];
@@ -33,6 +34,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
   String? _selectedCategory;
   String? _selectedMunicipality;
   late List<String> _municipalities;
+  
+  // For collapsing top bar
+  bool _showTopBar = true;
+  double _lastScrollOffset = 0;
 
   @override
   void initState() {
@@ -52,12 +57,34 @@ class _ProductListScreenState extends State<ProductListScreen> {
     
     _loadProducts();
     _searchController.addListener(_filterProducts);
+    
+    // Add scroll listener for collapsing top bar
+    _scrollController.addListener(_handleScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Handle scroll events to show/hide top bar
+  void _handleScroll() {
+    final currentScrollOffset = _scrollController.offset;
+    const scrollThreshold = 10; // Minimum scroll distance to trigger animation
+    
+    // Scroll down - hide top bar
+    if (currentScrollOffset > _lastScrollOffset + scrollThreshold && _showTopBar) {
+      setState(() => _showTopBar = false);
+    }
+    
+    // Scroll up - show top bar
+    if (currentScrollOffset < _lastScrollOffset - scrollThreshold && !_showTopBar) {
+      setState(() => _showTopBar = true);
+    }
+    
+    _lastScrollOffset = currentScrollOffset;
   }
 
   Future<void> _loadProducts() async {
@@ -75,13 +102,47 @@ class _ProductListScreenState extends State<ProductListScreen> {
         _allProducts = products;
         _filterProducts(); // Apply local filtering with category and search term
       });
+      
+      // Show success notification
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                Text('${_filteredProducts.length} products loaded'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF00B464),
+            duration: const Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
     } catch (e) {
       debugPrint('Error loading products: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load products: $e'),
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Failed to load products: $e')),
+              ],
+            ),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -129,70 +190,97 @@ class _ProductListScreenState extends State<ProductListScreen> {
       ),
       body: Column(
         children: [
-          // Search Bar
-          CommonSearchBar(
-            controller: _searchController,
-            enabled: true,
-            onChanged: (_) => _filterProducts(),
+          // Animated Top Bar - Collapses on scroll down
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: _showTopBar ? null : 0,
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Search Bar
+                  CommonSearchBar(
+                    controller: _searchController,
+                    enabled: true,
+                    onChanged: (_) => _filterProducts(),
+                  ),
+                  
+                  // Dual Filter Row - Municipality and Category
+                  _buildFilterRow(context),
+                ],
+              ),
+            ),
           ),
           
-          // Dual Filter Row - Municipality and Category
-          _buildFilterRow(context),
-          
-          // Products Grid
+          // Products Grid with RefreshIndicator
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF00B464),
-                    ),
-                  )
-                : _filteredProducts.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+            child: RefreshIndicator(
+              onRefresh: _loadProducts,
+              color: const Color(0xFF00B464),
+              child: _isLoading && _filteredProducts.isEmpty
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF00B464),
+                      ),
+                    )
+                  : _filteredProducts.isEmpty
+                      ? ListView(
+                          controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(),
                           children: [
-                            Icon(
-                              Icons.shopping_bag_outlined,
-                              size: 64,
-                              color: Colors.grey[300],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No products found',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            if (_searchController.text.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  'Try different search terms',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[500],
-                                  ),
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.5,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.shopping_bag_outlined,
+                                      size: 64,
+                                      color: Colors.grey[300],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No products found',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    if (_searchController.text.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: Text(
+                                          'Try different search terms',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
+                            ),
                           ],
+                        )
+                      : GridView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.fromLTRB(AppDimensions.paddingMedium, AppDimensions.paddingMedium, AppDimensions.paddingMedium, 150),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.55,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 16,
+                          ),
+                          itemCount: _filteredProducts.length,
+                          itemBuilder: (context, index) {
+                            final product = _filteredProducts[index];
+                            return _buildProductCard(context, product);
+                          },
                         ),
-                      )
-                    : GridView.builder(
-                        padding: const EdgeInsets.fromLTRB(AppDimensions.paddingMedium, AppDimensions.paddingMedium, AppDimensions.paddingMedium, 150),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.55,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 16,
-                        ),
-                        itemCount: _filteredProducts.length,
-                        itemBuilder: (context, index) {
-                          final product = _filteredProducts[index];
-                          return _buildProductCard(context, product);
-                        },
-                      ),
+            ),
           ),
         ],
       ),

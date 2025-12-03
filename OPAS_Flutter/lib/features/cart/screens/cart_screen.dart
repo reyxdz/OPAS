@@ -51,6 +51,18 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh cart when screen comes back into focus (after navigation)
+    debugPrint('🛒 CartScreen: didChangeDependencies called - refreshing cart');
+    if (_isInitialized) {
+      setState(() {
+        _cartFuture = _getCartFromStorage();
+      });
+    }
+  }
+
+  @override
   void dispose() {
     // Unregister lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
@@ -192,14 +204,16 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
     }
 
     try {
+      debugPrint('🛒 _updateQuantity: Setting ${item.productId} quantity to $newQuantity');
       final cart = await _getCartFromStorage();
-      final index = cart.indexWhere((i) => i.id == item.id);
+      final index = cart.indexWhere((i) => i.productId == item.productId);
       
       if (index >= 0) {
         cart[index].quantity = newQuantity;
         await _saveCartToStorage(cart);
         
         if (!mounted) return;
+        debugPrint('🛒 _updateQuantity: Successfully updated, refreshing UI');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Cart updated'),
@@ -207,6 +221,8 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
             duration: Duration(seconds: 1),
           ),
         );
+      } else {
+        debugPrint('⚠️ _updateQuantity: Item not found in cart! Looking for ${item.productId}');
       }
     } catch (e) {
       if (!mounted) return;
@@ -222,9 +238,20 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   /// Remove item from cart
   Future<void> _removeItem(CartItem item) async {
     try {
+      debugPrint('🛒 _removeItem: Removing ${item.productId} (${item.productName})');
       await _cartService.removeCartItem(_userId ?? 'guest', item.productId);
       
       if (!mounted) return;
+      
+      // Wait a moment to ensure database write is complete on mobile
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+      // Refresh cart view with new data
+      debugPrint('🛒 _removeItem: Refreshing cart after removal');
+      setState(() {
+        _cartFuture = _getCartFromStorage();
+      });
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${item.productName} removed from cart'),
@@ -232,11 +259,6 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
           duration: const Duration(seconds: 1),
         ),
       );
-      
-      // Refresh cart view
-      setState(() {
-        _cartFuture = _getCartFromStorage();
-      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -358,114 +380,121 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
 
         final totalAmount = cartItems.fold<double>(0, (sum, item) => sum + item.subtotal);
 
-        return Scaffold(
-          body: GestureDetector(
-            onTap: _isCheckoutExpanded ? () => setState(() => _isCheckoutExpanded = false) : null,
-            child: Stack(
-              children: [
-                // Cart Items List with Header wrapped in RefreshIndicator
-                RefreshIndicator(
-                  onRefresh: () async {
-                    setState(() {
-                      _cartFuture = _getCartFromStorage();
-                    });
-                    // Wait for cart to load
-                    await Future.delayed(const Duration(milliseconds: 500));
-                  },
-                  color: const Color(0xFF00B464),
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header Section - Matching Home Screen
-                        _buildCartHeader(context),
-                        const SizedBox(height: 16),
-                        Divider(
-                          color: Colors.grey[200],
-                          thickness: 1,
-                          height: 1,
-                        ),
-                        const SizedBox(height: 24),
-                        ...cartItems.asMap().entries.map((entry) {
-                          final item = entry.value;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildModernCartItemCard(context, item),
-                          );
-                        }).toList(),
-                      ],
+        return PopScope(
+          onPopInvoked: (_) {
+            // Refresh cart when returning to this screen
+            debugPrint('🛒 CartScreen: PopScope detected pop, refreshing cart');
+            setState(() {
+              _cartFuture = _getCartFromStorage();
+            });
+          },
+          child: Scaffold(
+            body: GestureDetector(
+              onTap: _isCheckoutExpanded ? () => setState(() => _isCheckoutExpanded = false) : null,
+              child: Stack(
+                children: [
+                  // Cart Items List with Header wrapped in RefreshIndicator
+                  RefreshIndicator(
+                    onRefresh: () async {
+                      setState(() {
+                        _cartFuture = _getCartFromStorage();
+                      });
+                      // Wait for cart to load
+                      await Future.delayed(const Duration(milliseconds: 500));
+                    },
+                    color: const Color(0xFF00B464),
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header Section - Matching Home Screen
+                          _buildCartHeader(context),
+                          const SizedBox(height: 16),
+                          Divider(
+                            color: Colors.grey[200],
+                            thickness: 1,
+                            height: 1,
+                          ),
+                          const SizedBox(height: 24),
+                          ...cartItems.asMap().entries.map((entry) {
+                            final item = entry.value;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildModernCartItemCard(context, item),
+                            );
+                          }).toList(),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                
-                // Floating Collapsible Order Summary
-                if (!_isCheckoutExpanded)
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 100),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _isCheckoutExpanded = true),
+                  
+                  // Floating Collapsible Order Summary
+                  if (!_isCheckoutExpanded)
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 100),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _isCheckoutExpanded = true),
+                          child: Container(
+                            width: 60,
+                            height: 60,
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00B464),
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF00B464).withOpacity(0.4),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.shopping_bag_outlined,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 100),
                         child: Container(
-                          width: 60,
-                          height: 60,
+                          width: MediaQuery.of(context).size.width - 32,
                           margin: const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00B464),
-                            borderRadius: BorderRadius.circular(30),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF00B464).withOpacity(0.4),
-                                blurRadius: 8,
-                                spreadRadius: 1,
-                                offset: const Offset(0, 4),
+                                color: Colors.black.withOpacity(0.15),
+                                blurRadius: 15,
+                                offset: const Offset(0, 5),
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.shopping_bag_outlined,
-                            color: Colors.white,
-                            size: 28,
-                          ),
+                          child: _buildExpandedCheckout(context, totalAmount, cartItems),
                         ),
                       ),
                     ),
-                  )
-                else
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 100),
-                      child: Container(
-                        width: MediaQuery.of(context).size.width - 32,
-                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.15),
-                              blurRadius: 15,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        child: _buildExpandedCheckout(context, totalAmount, cartItems),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
-          );
-        },
-      );
-    }
-
-  Widget _buildExpandedCheckout(BuildContext context, double totalAmount, List<CartItem> cartItems) {
+          ),
+        );
+      },
+    );
+  }  Widget _buildExpandedCheckout(BuildContext context, double totalAmount, List<CartItem> cartItems) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -593,15 +622,24 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
             decoration: BoxDecoration(
               color: Colors.grey[100],
               borderRadius: BorderRadius.circular(10),
-              image: (item.imageUrl?.isNotEmpty ?? false)
+              image: (item.imageUrl != null && item.imageUrl!.isNotEmpty)
                   ? DecorationImage(
                       image: NetworkImage(item.imageUrl!),
                       fit: BoxFit.cover,
+                      onError: (exception, stackTrace) {
+                        debugPrint('❌ Failed to load image: ${item.imageUrl}');
+                      },
                     )
                   : null,
             ),
-            child: (item.imageUrl?.isEmpty ?? true)
-                ? Icon(Icons.image_not_supported, color: Colors.grey[400], size: 24)
+            child: (item.imageUrl == null || item.imageUrl!.isEmpty)
+                ? Center(
+                    child: Icon(
+                      Icons.image_outlined,
+                      color: Colors.grey[400],
+                      size: 24,
+                    ),
+                  )
                 : null,
           ),
           const SizedBox(width: 12),

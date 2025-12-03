@@ -236,6 +236,11 @@ class CartStorageService {
   Future<void> addOrUpdateCartItem(String userId, CartItem item) async {
     try {
       debugPrint('🛒 addOrUpdateCartItem called: userId=$userId, product=${item.productId}, _isWeb=$_isWeb');
+      debugPrint('🛒 addOrUpdateCartItem: Item details:');
+      debugPrint('   - productName: ${item.productName}');
+      debugPrint('   - imageUrl: ${item.imageUrl}');
+      debugPrint('   - price: ${item.price}');
+      debugPrint('   - quantity: ${item.quantity}');
       
       if (_isWeb) {
         debugPrint('🛒 Web platform detected - using SharedPreferences');
@@ -318,16 +323,27 @@ class CartStorageService {
           debugPrint('🛒 SQLite: Updated quantity for product ${item.productId} to $newQuantity (rows affected: $updateResult)');
         } else {
           final now = DateTime.now().toIso8601String();
+          final itemMap = item.toMap();
+          itemMap['user_id'] = userId;
+          itemMap['created_at'] = now;
+          itemMap['updated_at'] = now;
+          
+          debugPrint('🛒 SQLite: Inserting item map: $itemMap');
           final insertResult = await db.insert(
             'cart_items',
-            {
-              ...item.toMap(),
-              'user_id': userId,
-              'created_at': now,
-              'updated_at': now,
-            },
+            itemMap,
           );
           debugPrint('🛒 SQLite: Inserted new product ${item.productId} (rowid: $insertResult)');
+          
+          // Verify insertion
+          final verifyResult = await db.query(
+            'cart_items',
+            where: 'rowid = ?',
+            whereArgs: [insertResult],
+          );
+          if (verifyResult.isNotEmpty) {
+            debugPrint('✅ SQLite: Verified insertion - stored image_url: ${verifyResult[0]['image_url']}');
+          }
         }
       }
       
@@ -341,28 +357,48 @@ class CartStorageService {
   /// Remove a cart item
   Future<void> removeCartItem(String userId, String productId) async {
     try {
+      debugPrint('🛒 removeCartItem called: userId=$userId, productId=$productId, _isWeb=$_isWeb');
+      
       if (_isWeb) {
+        debugPrint('🛒 Web: Removing product $productId from SharedPreferences');
         final prefs = await SharedPreferences.getInstance();
+        await prefs.reload();
         final cartJson = prefs.getString(_getCartKey(userId)) ?? '[]';
         final List<dynamic> decoded = jsonDecode(cartJson);
         final cart = decoded
             .map((item) => CartItem.fromJson(item as Map<String, dynamic>))
             .toList();
+        final beforeCount = cart.length;
         cart.removeWhere((i) => i.productId == productId);
+        final afterCount = cart.length;
+        debugPrint('🛒 Web: Removed product, cart size: $beforeCount -> $afterCount');
+        
         final updatedJson =
             jsonEncode(cart.map((item) => item.toJson()).toList());
-        await prefs.setString(_getCartKey(userId), updatedJson);
+        final success = await prefs.setString(_getCartKey(userId), updatedJson);
+        debugPrint('🛒 Web: prefs.setString() returned $success');
       } else {
+        debugPrint('🛒 SQLite: Removing product $productId for userId=$userId');
         final db = await database;
-        await db.delete(
+        final rowsDeleted = await db.delete(
           'cart_items',
           where: 'user_id = ? AND product_id = ?',
           whereArgs: [userId, productId],
         );
+        debugPrint('🛒 SQLite: Deleted $rowsDeleted rows for product $productId');
+        
+        // Verify deletion
+        final remaining = await db.query(
+          'cart_items',
+          where: 'user_id = ?',
+          whereArgs: [userId],
+        );
+        debugPrint('🛒 SQLite: Cart now has ${remaining.length} items after deletion');
       }
       debugPrint('✅ Cart item removed: $productId');
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('❌ Error removing cart item: $e');
+      debugPrint('❌ Stack trace: $st');
     }
   }
 
