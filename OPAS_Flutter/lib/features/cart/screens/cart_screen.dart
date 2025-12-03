@@ -142,6 +142,32 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Group cart items by seller while preserving insertion order
+  /// Returns a map where key is seller name and value is list of items from that seller
+  Map<String, List<CartItem>> _groupItemsBySeller(List<CartItem> items) {
+    final Map<String, List<CartItem>> groupedItems = {};
+    final List<String> sellerOrder = []; // Preserve the order sellers appear
+    
+    for (final item in items) {
+      final sellerName = item.sellerName;
+      
+      if (!groupedItems.containsKey(sellerName)) {
+        groupedItems[sellerName] = [];
+        sellerOrder.add(sellerName);
+      }
+      
+      groupedItems[sellerName]!.add(item);
+    }
+    
+    // Return as a new map with sellers in the order they were first added
+    final orderedMap = <String, List<CartItem>>{};
+    for (final seller in sellerOrder) {
+      orderedMap[seller] = groupedItems[seller]!;
+    }
+    
+    return orderedMap;
+  }
+
   /// Save cart items to SharedPreferences
   Future<void> _saveCartToStorage(List<CartItem> items) async {
     try {
@@ -418,13 +444,8 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
                             height: 1,
                           ),
                           const SizedBox(height: 24),
-                          ...cartItems.asMap().entries.map((entry) {
-                            final item = entry.value;
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildModernCartItemCard(context, item),
-                            );
-                          }).toList(),
+                          // Group items by seller
+                          ..._buildSellerGroupedItems(context, cartItems),
                         ],
                       ),
                     ),
@@ -595,6 +616,88 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
         ),
       ],
     );
+  }
+
+  /// Build seller-grouped sections with items
+  /// Returns a list of widgets: seller headers followed by their items
+  List<Widget> _buildSellerGroupedItems(BuildContext context, List<CartItem> items) {
+    if (items.isEmpty) return [];
+    
+    final groupedItems = _groupItemsBySeller(items);
+    final widgets = <Widget>[];
+    
+    int sellerIndex = 0;
+    groupedItems.forEach((sellerName, sellerItems) {
+      // Add seller header
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00B464).withOpacity(0.1),
+              border: Border.all(color: const Color(0xFF00B464).withOpacity(0.3)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.storefront,
+                  color: const Color(0xFF00B464),
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    sellerName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: Color(0xFF00B464),
+                    ),
+                  ),
+                ),
+                Text(
+                  '${sellerItems.length} item${sellerItems.length > 1 ? 's' : ''}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      
+      // Add items for this seller
+      for (int itemIndex = 0; itemIndex < sellerItems.length; itemIndex++) {
+        final item = sellerItems[itemIndex];
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12, left: 8),
+            child: _buildModernCartItemCard(context, item),
+          ),
+        );
+      }
+      
+      // Add divider between sellers (except after the last seller)
+      sellerIndex++;
+      if (sellerIndex < groupedItems.length) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Divider(
+              color: Colors.grey[200],
+              thickness: 1,
+              height: 1,
+            ),
+          ),
+        );
+      }
+    });
+    
+    return widgets;
   }
 
   Widget _buildModernCartItemCard(BuildContext context, CartItem item) {
