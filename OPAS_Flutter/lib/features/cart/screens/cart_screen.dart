@@ -29,6 +29,7 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   late Future<List<CartItem>> _cartFuture;
+  List<CartItem> _cachedCartItems = []; // Cache to preserve order during quantity updates
   bool _isCheckoutExpanded = false;
   String? _userId;
   final _cartService = CartStorageService();
@@ -171,14 +172,17 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
   /// Save cart items to SharedPreferences
   Future<void> _saveCartToStorage(List<CartItem> items) async {
     try {
+      // Update cache
+      _cachedCartItems = items;
+      
       // Clear existing cart and add all items
       await _cartService.clearCart(_userId ?? 'guest');
       for (final item in items) {
         await _cartService.addOrUpdateCartItem(_userId ?? 'guest', item);
       }
-      // Refresh UI
+      // Refresh UI with cached data
       setState(() {
-        _cartFuture = _getCartFromStorage();
+        _cartFuture = Future.value(_cachedCartItems);
       });
     } catch (e) {
       debugPrint('Error saving cart: $e');
@@ -231,15 +235,23 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
 
     try {
       debugPrint('🛒 _updateQuantity: Setting ${item.productId} quantity to $newQuantity');
-      final cart = await _getCartFromStorage();
-      final index = cart.indexWhere((i) => i.productId == item.productId);
       
+      // Update in storage
+      await _cartService.updateQuantity(_userId ?? 'guest', item.productId, newQuantity);
+      
+      // Update in cache to preserve order and arrangement
+      final index = _cachedCartItems.indexWhere((i) => i.productId == item.productId);
       if (index >= 0) {
-        cart[index].quantity = newQuantity;
-        await _saveCartToStorage(cart);
+        _cachedCartItems[index].quantity = newQuantity;
         
         if (!mounted) return;
-        debugPrint('🛒 _updateQuantity: Successfully updated, refreshing UI');
+        debugPrint('🛒 _updateQuantity: Successfully updated cache, refreshing UI without reordering');
+        
+        // Minimal setState - just triggers rebuild with cached data (no refetch)
+        setState(() {
+          _cartFuture = Future.value(_cachedCartItems);
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Cart updated'),
@@ -248,7 +260,7 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
           ),
         );
       } else {
-        debugPrint('⚠️ _updateQuantity: Item not found in cart! Looking for ${item.productId}');
+        debugPrint('⚠️ _updateQuantity: Item not found in cache! Looking for ${item.productId}');
       }
     } catch (e) {
       if (!mounted) return;
@@ -272,10 +284,11 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
       // Wait a moment to ensure database write is complete on mobile
       await Future.delayed(const Duration(milliseconds: 200));
       
-      // Refresh cart view with new data
+      // Update cache and refresh cart view
+      _cachedCartItems.removeWhere((i) => i.productId == item.productId);
       debugPrint('🛒 _removeItem: Refreshing cart after removal');
       setState(() {
-        _cartFuture = _getCartFromStorage();
+        _cartFuture = Future.value(_cachedCartItems);
       });
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -349,6 +362,12 @@ class _CartScreenState extends State<CartScreen> with WidgetsBindingObserver {
         }
 
         final cartItems = snapshot.data ?? [];
+        
+        // Update cache whenever cart loads to preserve order during updates
+        if (cartItems.isNotEmpty) {
+          _cachedCartItems = cartItems;
+          debugPrint('🛒 build: Updated cache with ${cartItems.length} items');
+        }
 
         if (cartItems.isEmpty) {
           return Scaffold(
