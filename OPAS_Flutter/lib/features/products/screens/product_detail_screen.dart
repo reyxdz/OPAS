@@ -57,6 +57,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Future<void> _addToCart(Product product) async {
     setState(() => _isLoading = true);
     try {
+      debugPrint('🛒 Adding to cart - Product fulfillmentMethods from API: "${product.fulfillmentMethods}"');
+      
       final cartItem = CartItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         productId: product.id.toString(),
@@ -67,12 +69,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         imageUrl: product.imageUrl,
         sellerId: product.sellerId.toString(),
         sellerName: product.sellerName,
+        fulfillmentMethods: product.fulfillmentMethods,
       );
 
       debugPrint('🛒 Adding to cart:');
       debugPrint('   - Product: ${cartItem.productName}');
       debugPrint('   - Image URL: ${cartItem.imageUrl}');
       debugPrint('   - Quantity: ${cartItem.quantity}');
+      debugPrint('   - Fulfillment Methods: ${cartItem.fulfillmentMethods}');
+      debugPrint('   - Fulfillment Methods (raw): "${product.fulfillmentMethods}"');
 
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? 'guest';
@@ -108,6 +113,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       imageUrl: product.imageUrl,
       sellerId: product.sellerId.toString(),
       sellerName: product.sellerName,
+      fulfillmentMethods: product.fulfillmentMethods,
     );
 
     Navigator.of(context).push(

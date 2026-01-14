@@ -355,6 +355,7 @@ class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
             'stock_level',
             'minimum_stock',
             'quality_grade',
+            'fulfillment_methods',
             'image_url',
             'images',
             'status',
@@ -376,6 +377,7 @@ class SellerProductCreateUpdateSerializer(serializers.ModelSerializer):
             'minimum_stock': {'required': False},
             'description': {'required': False, 'allow_blank': True},
             'quality_grade': {'required': False},
+            'fulfillment_methods': {'required': False},
             'expiry_date': {'required': False, 'allow_null': True},
             'previous_status': {'required': False, 'allow_null': True},
         }
@@ -560,10 +562,15 @@ class SellToOPASSerializer(serializers.ModelSerializer):
     - Submission details
     - Pricing and quantity
     - Status tracking
+    - Product images
     """
     seller_name = serializers.CharField(source='seller.full_name', read_only=True)
-    product_name = serializers.CharField(source='product.name', read_only=True)
+    seller_address = serializers.SerializerMethodField()
+    product_name = serializers.CharField(source='product.name', read_only=True, allow_null=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    images = serializers.SerializerMethodField()
+    delivery_proof_images = serializers.SerializerMethodField()
+    purchase_order_id = serializers.SerializerMethodField()
 
     class Meta:
         model = SellToOPAS
@@ -572,6 +579,7 @@ class SellToOPASSerializer(serializers.ModelSerializer):
             'submission_number',
             'seller',
             'seller_name',
+            'seller_address',
             'product',
             'product_name',
             'quantity_offered',
@@ -588,12 +596,16 @@ class SellToOPASSerializer(serializers.ModelSerializer):
             'accepted_at',
             'completed_at',
             'updated_at',
+            'images',
+            'delivery_proof_images',
+            'purchase_order_id',
         ]
         read_only_fields = [
             'id',
             'submission_number',
             'seller',
             'seller_name',
+            'seller_address',
             'product_name',
             'approved_price',
             'status_display',
@@ -601,7 +613,93 @@ class SellToOPASSerializer(serializers.ModelSerializer):
             'accepted_at',
             'completed_at',
             'updated_at',
+            'images',
+            'delivery_proof_images',
+            'purchase_order_id',
         ]
+        extra_kwargs = {
+            'product': {'required': False, 'allow_null': True},
+        }
+
+    def get_seller_address(self, obj):
+        """Get seller's farm address from SellerApplication"""
+        try:
+            from .models import SellerApplication
+            seller_app = SellerApplication.objects.filter(user=obj.seller).order_by('-created_at').first()
+            if seller_app and seller_app.farm_location:
+                return seller_app.farm_location
+            return None
+        except Exception as e:
+            print(f'Error getting seller address: {e}')
+            return None
+
+    def get_purchase_order_id(self, obj):
+        """Get the related OPASPurchaseOrder ID if it exists"""
+        try:
+            purchase_order = obj.purchase_order
+            if purchase_order:
+                return purchase_order.id
+            return None
+        except Exception as e:
+            print(f'Error getting purchase order id: {e}')
+            return None
+
+    def get_images(self, obj):
+        """Get product images from related product with full URLs"""
+        if obj.product:
+            from .seller_models import ProductImage
+            from django.contrib.sites.shortcuts import get_current_site
+            
+            images = ProductImage.objects.filter(product=obj.product)
+            image_urls = []
+            request = self.context.get('request')
+            
+            for img in images:
+                if img.image:
+                    image_url = img.image.url
+                    # Build full URL if we have request context
+                    if request:
+                        try:
+                            # Use build_absolute_uri which is the proper way
+                            image_url = request.build_absolute_uri(image_url)
+                        except Exception as e:
+                            # Fallback: construct URL manually
+                            print(f'⚠️ Warning: build_absolute_uri failed: {e}')
+                            scheme = 'https' if request.is_secure() else 'http'
+                            host = request.META.get('HTTP_HOST', 'localhost:8000')
+                            image_url = f'{scheme}://{host}{image_url}'
+                    image_urls.append(image_url)
+            
+            return image_urls
+        return []
+
+    def get_delivery_proof_images(self, obj):
+        """Get delivery proof images with full URLs"""
+        try:
+            from .seller_models import DeliveryProof
+            
+            proof_images = DeliveryProof.objects.filter(submission=obj)
+            image_urls = []
+            request = self.context.get('request')
+            
+            for proof in proof_images:
+                if proof.image:
+                    image_url = proof.image.url
+                    # Build full URL if we have request context
+                    if request:
+                        try:
+                            image_url = request.build_absolute_uri(image_url)
+                        except Exception as e:
+                            print(f'⚠️ Warning: build_absolute_uri failed: {e}')
+                            scheme = 'https' if request.is_secure() else 'http'
+                            host = request.META.get('HTTP_HOST', 'localhost:8000')
+                            image_url = f'{scheme}://{host}{image_url}'
+                    image_urls.append(image_url)
+            
+            return image_urls
+        except Exception as e:
+            print(f'Error getting delivery proof images: {e}')
+            return []
 
     def validate_quantity_offered(self, value):
         """Validate quantity is positive"""
@@ -610,9 +708,20 @@ class SellToOPASSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        """Create submission with current seller"""
+        """Create submission with current seller and auto-generate submission_number"""
+        from datetime import datetime
+        import uuid
+        
         request = self.context.get('request')
         validated_data['seller'] = request.user
+        
+        # Auto-generate submission_number if not provided
+        if 'submission_number' not in validated_data or not validated_data.get('submission_number'):
+            # Format: OPAS-YYYYMMDD-XXXXX (e.g., OPAS-20251208-A1B2C)
+            timestamp = datetime.now().strftime('%Y%m%d')
+            unique_id = str(uuid.uuid4())[:5].upper()
+            validated_data['submission_number'] = f'OPAS-{timestamp}-{unique_id}'
+        
         return super().create(validated_data)
 
 
@@ -1795,9 +1904,7 @@ class ProductListBuyerSerializer(serializers.ModelSerializer):
 
     def get_fulfillment_methods(self, obj):
         """Get fulfillment methods available for this product"""
-        # Default: all sellers offer both delivery and pickup
-        # This can be customized per product or seller in the future
-        return 'delivery_and_pickup'
+        return obj.fulfillment_methods if obj.fulfillment_methods else 'delivery_and_pickup'
 
     def get_primary_image(self, obj):
         """Get primary product image"""
@@ -1902,9 +2009,7 @@ class ProductDetailBuyerSerializer(serializers.ModelSerializer):
 
     def get_fulfillment_methods(self, obj):
         """Get fulfillment methods available for this product"""
-        # Default: all sellers offer both delivery and pickup
-        # This can be customized per product or seller in the future
-        return 'delivery_and_pickup'
+        return obj.fulfillment_methods if obj.fulfillment_methods else 'delivery_and_pickup'
 
     def get_seller_info(self, obj):
         """Get seller profile information"""

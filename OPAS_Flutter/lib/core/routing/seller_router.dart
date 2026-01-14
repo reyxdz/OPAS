@@ -8,7 +8,7 @@ import '../../features/seller_panel/screens/orders_listing_screen.dart';
 import '../../features/seller_panel/screens/inventory_listing_screen.dart';
 import '../../features/seller_panel/screens/sales_analytics_screen.dart';
 import '../../features/seller_panel/screens/revenue_breakdown_screen.dart';
-import '../../features/seller_panel/screens/opas_requests_screen.dart';
+import '../../features/seller_panel/screens/opas_selling_dashboard_screen.dart';
 import '../../features/seller_panel/screens/submit_opas_offer_screen.dart';
 import '../../features/seller_panel/screens/opas_history_screen.dart';
 import '../../features/seller_panel/screens/payouts_listing_screen.dart';
@@ -211,7 +211,7 @@ class SellerRouter {
       sellerInventory: (context) => const InventoryListingScreen(),
       sellerAnalytics: (context) => const SalesAnalyticsScreen(),
       sellerRevenue: (context) => const RevenueBreakdownScreen(),
-      sellerOPAS: (context) => const OPASRequestsScreen(),
+      sellerOPAS: (context) => const OPASSellingDashboardScreen(),
       sellerOPASSubmit: (context) => const SubmitOPASOfferScreen(),
       sellerOPASHistory: (context) => const OPASHistoryScreen(),
       sellerWallet: (context) => const WalletScreen(),

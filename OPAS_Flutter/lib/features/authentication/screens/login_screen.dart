@@ -7,8 +7,9 @@ import '../../../core/services/api_service.dart';
 import '../../../core/services/logger_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/routing/admin_router.dart';
+import '../../../core/utils/top_notification_helper.dart';
 
-// Custom input formatter for phone numbers (exactly 11 digits)
+// Custom input formatter for phone numbers (exactly 10 digits)
 class LoginPhoneNumberInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -18,9 +19,9 @@ class LoginPhoneNumberInputFormatter extends TextInputFormatter {
     // Only allow digits
     String digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-    // Limit to 11 digits
-    if (digitsOnly.length > 11) {
-      digitsOnly = digitsOnly.substring(0, 11);
+    // Limit to 10 digits
+    if (digitsOnly.length > 10) {
+      digitsOnly = digitsOnly.substring(0, 10);
     }
 
     // Format: XXXX XXX XXXX (with space dividers)
@@ -58,6 +59,76 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  int _logoTapCount = 0;
+  DateTime? _lastLogoTap;
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _onLogoTapped() {
+    final now = DateTime.now();
+    
+    // Reset counter if more than 2 seconds have passed
+    if (_lastLogoTap != null && now.difference(_lastLogoTap!) > const Duration(seconds: 2)) {
+      _logoTapCount = 0;
+    }
+    
+    _logoTapCount++;
+    _lastLogoTap = now;
+    
+    // After 5 taps, show developer menu
+    if (_logoTapCount >= 5) {
+      _logoTapCount = 0;
+      _showDeveloperMenu();
+    }
+  }
+
+  Future<void> _showDeveloperMenu() async {
+    final customUrl = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Developer Settings'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Backend Server Configuration'),
+            const SizedBox(height: 16),
+            const Text('Current backend URL:', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Text(
+              ApiService.baseUrl,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            const Text('Options:'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          TextButton(
+            onPressed: () {
+              ApiService.resetCachedUrl();
+              Navigator.pop(context, 'reset');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Backend URL cache cleared. Will auto-detect on next login.')),
+                );
+              }
+            },
+            child: const Text('Reset URL'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,11 +147,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // OPAS Logo
-                    Center(
-                      child: Image.asset(
-                        'assets/images/opas_logo.png',
-                        height: 60,
+                    // OPAS Logo - Tappable for developer menu
+                    GestureDetector(
+                      onTap: _onLogoTapped,
+                      child: Center(
+                        child: Image.asset(
+                          'assets/images/opas_logo.png',
+                          height: 60,
+                        ),
                       ),
                     ),
                     
@@ -145,7 +219,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _buildTextField(
           controller: _phoneController,
           label: 'Phone Number',
-          hint: '+63 XXXX XXX XXXX',
+          hint: '9 XXXX XXX XXXX',
           keyboardType: TextInputType.number,
           inputFormatters: [LoginPhoneNumberInputFormatter()],
           validator: (value) {
@@ -154,7 +228,7 @@ class _LoginScreenState extends State<LoginScreen> {
             }
             final digitsOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
             if (digitsOnly.length != 10) {
-              return 'Phone number must be exactly 11 digits';
+              return 'Phone number must be exactly 10 digits';
             }
             return null;
           },
@@ -379,37 +453,42 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// Sign Up Link
   Widget _buildSignUpLink(BuildContext context) {
-    return Center(
-      child: RichText(
-        text: TextSpan(
-          children: [
-            TextSpan(
-              text: 'Don\'t have an account? ',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 13,
-              ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Center(
+          child: RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Don\'t have an account? ',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 13,
+                  ),
+                ),
+                TextSpan(
+                  text: 'Sign Up',
+                  style: const TextStyle(
+                    color: Color(0xFF00B464),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RegistrationScreen(),
+                        ),
+                      );
+                    },
+                ),
+              ],
             ),
-            TextSpan(
-              text: 'Sign Up',
-              style: const TextStyle(
-                color: Color(0xFF00B464),
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-              recognizer: TapGestureRecognizer()
-                ..onTap = () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RegistrationScreen(),
-                    ),
-                  );
-                },
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -506,9 +585,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login successful!')),
-      );
+      TopNotificationHelper.showSuccess(context, 'Login successful!');
       
       // Route based on user role
       final role = response['role'] ?? 'BUYER';
@@ -532,23 +609,116 @@ class _LoginScreenState extends State<LoginScreen> {
         error: e,
         metadata: {'phone': _phoneController.text.trim()},
       );
-      final message = e.toString().replaceAll('Exception: ', '');
+      
+      // Parse error message to extract meaningful user-friendly text
+      String message = _parseErrorMessage(e.toString());
+      
+      if (message.isEmpty) {
+        // Check if it's a backend connection error
+        if (e.toString().contains('Could not connect to backend') || 
+            e.toString().contains('Connection refused') ||
+            e.toString().contains('TimeoutException')) {
+          message = 'Unable to connect to server. Please check:\n'
+              '• Your internet connection\n'
+              '• Server is running: python manage.py runserver 0.0.0.0:8000\n\n'
+              '💡 Tap the logo 5 times to access developer settings.';
+        } else {
+          message = 'Login failed. Please try again.';
+        }
+      }
       
       if (!mounted) return;
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      TopNotificationHelper.showError(context, message, duration: const Duration(seconds: 5));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
   
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  /// Parse error message and convert to user-friendly text
+  String _parseErrorMessage(String errorString) {
+    try {
+      // Remove common prefixes
+      String cleaned = errorString
+          .replaceAll('Exception: ', '')
+          .replaceAll('Failed to login: ', '')
+          .trim();
+
+      // Look for JSON error object in the string
+      final jsonMatch = RegExp(r'\{.*\}').firstMatch(cleaned);
+      if (jsonMatch != null) {
+        final jsonStr = jsonMatch.group(0)!;
+        try {
+          final errorJson = jsonDecode(jsonStr);
+          
+          // Map common backend error messages to user-friendly ones
+          if (errorJson is Map) {
+            String? userMessage;
+            
+            // Check various error message keys
+            if (errorJson['error'] != null) {
+              userMessage = errorJson['error'];
+            } else if (errorJson['detail'] != null) {
+              userMessage = errorJson['detail'];
+            } else if (errorJson['non_field_errors'] != null) {
+              final errors = errorJson['non_field_errors'];
+              if (errors is List && errors.isNotEmpty) {
+                userMessage = errors[0].toString();
+              }
+            }
+            
+            // Normalize common backend messages to user-friendly ones
+            if (userMessage != null) {
+              return _normalizeErrorMessage(userMessage);
+            }
+          }
+        } catch (_) {
+          // JSON parsing failed, continue to regex extraction
+        }
+      }
+
+      // Try regex extraction of error message from JSON-like string
+      final errorMatch = RegExp(r'"(?:error|detail|message)"\s*:\s*"([^"]*)"')
+          .firstMatch(cleaned);
+      if (errorMatch != null) {
+        return _normalizeErrorMessage(errorMatch.group(1) ?? '');
+      }
+
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Normalize backend error messages to user-friendly text
+  String _normalizeErrorMessage(String message) {
+    if (message.isEmpty) return '';
+    
+    // Map backend messages to user-friendly ones
+    final messageMap = {
+      'invalid credentials': 'Phone number or password is incorrect',
+      'invalid password': 'Password is incorrect',
+      'user not found': 'Account not found with this phone number',
+      'user does not exist': 'Account not found with this phone number',
+      'account does not exist': 'Account not found. Please sign up first',
+      'account disabled': 'Your account has been disabled',
+      'account inactive': 'Your account is not active',
+      'authentication failed': 'Login unsuccessful. Please check your credentials',
+      'invalid token': 'Session expired. Please login again',
+      'token expired': 'Session expired. Please login again',
+    };
+    
+    final lowerMessage = message.toLowerCase().trim();
+    
+    // Find matching key and return user-friendly message
+    for (final entry in messageMap.entries) {
+      if (lowerMessage.contains(entry.key)) {
+        return entry.value;
+      }
+    }
+    
+    // If no mapping found, return the message as-is (already cleaned by backend hopefully)
+    return message.trim();
   }
 
   /// Extract user_id from JWT token payload

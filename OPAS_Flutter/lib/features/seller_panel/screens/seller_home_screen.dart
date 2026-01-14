@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:opas_flutter/features/seller_panel/widgets/seller_bottom_nav_bar.dart';
 import '../services/seller_api_service.dart';
-import '../../order_management/models/order_model.dart';
 import '../models/seller_order_model.dart';
 import 'product_listing_screen.dart';
+import 'opas_selling_dashboard_screen.dart';
 
 class SellerHomeScreen extends StatefulWidget {
   const SellerHomeScreen({super.key});
@@ -73,8 +73,6 @@ class _SellerHomeScreenState extends State<SellerHomeScreen> {
         return ProductListingScreen(key: ValueKey(_productListVersion));
       case 3:
         return const _SellToOPASTab();
-      case 4:
-        return const _DemandForecastingTab();
       default:
         return const _SellerHomeTab();
     }
@@ -110,19 +108,19 @@ class _SellerHomeTabState extends State<_SellerHomeTab> {
   void _loadSalesData() {
     // Initialize with sample data - in production, fetch from API
     _dailySales = {
-      'amount': 2450.0,
+      'amount': 450.0,
       'orders': 12,
       'trend': 'up',
       'percentage': 12.5,
     };
     _weeklySales = {
-      'amount': 15200.0,
+      'amount': 5200.0,
       'orders': 85,
       'trend': 'up',
       'percentage': 8.3,
     };
     _monthlySales = {
-      'amount': 62500.0,
+      'amount': 12500.0,
       'orders': 380,
       'trend': 'up',
       'percentage': 5.2,
@@ -138,7 +136,9 @@ class _SellerHomeTabState extends State<_SellerHomeTab> {
         children: [
           Text(
             'Dashboard',
-            style: Theme.of(context).textTheme.headlineSmall,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 24),
           // ===== SALES PERFORMANCE SECTION =====
@@ -332,12 +332,12 @@ class _SellerHomeTabState extends State<_SellerHomeTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Available Balance',
+            'Earnings ',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 8),
           Text(
-            '₱8,750.50',
+            '₱750.50',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -349,11 +349,6 @@ class _SellerHomeTabState extends State<_SellerHomeTab> {
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Card Holder', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white70)),
-                  const SizedBox(height: 4),
-                  Text('John Farmer', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white)),
-                ],
               ),
               Icon(Icons.account_balance_wallet, color: Colors.white.withOpacity(0.8), size: 32),
             ],
@@ -895,249 +890,7 @@ class _SellToOPASTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 100, left: 16, right: 16, top: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Sell to OPAS',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildOPASStats(context),
-          const SizedBox(height: 20),
-          Text(
-            'Pending Submissions',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          _buildSubmissionCard(context, 'Tomatoes', '50 kg', '₱2,500', 'PENDING'),
-          const SizedBox(height: 10),
-          _buildSubmissionCard(context, 'Onions', '30 kg', '₱1,500', 'PENDING'),
-          const SizedBox(height: 20),
-          Text(
-            'Approved Transactions',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          _buildSubmissionCard(context, 'Cabbage', '40 kg', '₱1,200', 'APPROVED'),
-        ],
-      ),
-    );
+    return const OPASSellingDashboardScreen();
   }
 
-  Widget _buildOPASStats(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatBox(context, 'Pending', '2', Colors.blue),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatBox(context, 'Approved', '8', Colors.green),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatBox(context, 'Total', '₱12,500', Colors.purple),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatBox(BuildContext context, String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSubmissionCard(BuildContext context, String product, String quantity, String amount, String status) {
-    final isApproved = status == 'APPROVED';
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: isApproved ? Colors.green.withOpacity(0.3) : Colors.blue.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(product, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text('$quantity • $amount', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey)),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isApproved ? Colors.green : Colors.blue,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              status,
-              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ======================== TAB 5: DEMAND FORECASTING ========================
-class _DemandForecastingTab extends StatelessWidget {
-  const _DemandForecastingTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 100, left: 16, right: 16, top: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Demand Forecasting',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF00B464).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF00B464).withOpacity(0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Next Month Forecast',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                _buildForecastItem(context, 'Tomatoes', '120 kg', 'Medium Risk'),
-                const SizedBox(height: 8),
-                _buildForecastItem(context, 'Peppers', '80 kg', 'Low Risk'),
-                const SizedBox(height: 8),
-                _buildForecastItem(context, 'Onions', '150 kg', 'High Risk'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Historical Comparison',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          _buildComparisonCard(context, 'Tomatoes', 'Forecasted: 120 kg', 'Actual: 115 kg', Colors.green),
-          const SizedBox(height: 10),
-          _buildComparisonCard(context, 'Peppers', 'Forecasted: 80 kg', 'Actual: 85 kg', Colors.orange),
-          const SizedBox(height: 20),
-          Text(
-            'Insights & Recommendations',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          _buildInsightCard(context, 'Production increased by 5% last month', Icons.trending_up),
-          const SizedBox(height: 8),
-          _buildInsightCard(context, 'Surplus risk high for onions - consider storage', Icons.warning),
-          const SizedBox(height: 8),
-          _buildInsightCard(context, 'Peppers demand stable - maintain production', Icons.check_circle),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildForecastItem(BuildContext context, String product, String forecast, String risk) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(product, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
-            Text(forecast, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey)),
-          ],
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: risk.contains('Low') ? Colors.green : risk.contains('Medium') ? Colors.orange : Colors.red,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            risk,
-            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildComparisonCard(BuildContext context, String product, String forecast, String actual, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        border: Border.all(color: color.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(product, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(forecast, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey)),
-          Text(actual, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInsightCard(BuildContext context, String insight, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF00B464), size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(insight, style: Theme.of(context).textTheme.bodySmall),
-          ),
-        ],
-      ),
-    );
-  }
 }

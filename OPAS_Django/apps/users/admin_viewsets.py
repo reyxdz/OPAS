@@ -28,6 +28,9 @@ from apps.users.models import (
 from apps.users.seller_models import (
     ProductStatus, OrderStatus,
 )
+from apps.users.opas_models import (
+    OPASProduct, OPASProductSale,
+)
 from apps.users.admin_models import (
     AdminUser, SellerRegistrationRequest, SellerDocumentVerification,
     SellerRegistrationStatus,
@@ -41,9 +44,9 @@ from .admin_serializers import (
     SellerApplicationSerializer, SellerManagementSerializer, SellerDetailsSerializer,
     PriceCeilingSerializer, PriceAdvisorySerializer, PriceHistorySerializer,
     PriceNonComplianceSerializer, OPASPurchaseOrderSerializer,
-    OPASInventorySerializer, AdminAuditLogSerializer, MarketplaceAlertSerializer,
+    OPASInventorySerializer, OPASProductUploadSerializer, AdminAuditLogSerializer, MarketplaceAlertSerializer,
     SystemNotificationSerializer, AdminAuditLogDetailedSerializer,
-    AdminDashboardStatsSerializer,
+    AdminDashboardStatsSerializer, get_or_create_opas_seller,
 )
 from .seller_serializers import SellerRegistrationRequestSerializer
 from .admin_permissions import (
@@ -1145,10 +1148,40 @@ class OPASPurchasingViewSet(viewsets.ModelViewSet):
         
         return queryset
     
+    def get_object(self):
+        """
+        Override to handle both OPASPurchaseOrder and SellToOPAS models.
+        
+        For approve/reject/mark_delivered actions, we work with SellToOPAS directly.
+        For other operations, we use the default viewset queryset.
+        """
+        # Check if this is an approve, reject, or mark_delivered action
+        if self.action in ['approve_seller_offer', 'reject_seller_offer', 'mark_delivered']:
+            # For these actions, get from SellToOPAS model
+            pk = self.kwargs.get('pk')
+            try:
+                sell_to_opas = SellToOPAS.objects.get(id=pk)
+                # For mark_delivered, we need to return the related purchase_order
+                if self.action == 'mark_delivered':
+                    # Return the related OPASPurchaseOrder if it exists
+                    if hasattr(sell_to_opas, 'purchase_order') and sell_to_opas.purchase_order:
+                        return sell_to_opas.purchase_order
+                    else:
+                        from rest_framework.exceptions import NotFound
+                        raise NotFound('OPASPurchaseOrder not found for this submission. Has it been approved?')
+                # For approve/reject, return the SellToOPAS object
+                return sell_to_opas
+            except SellToOPAS.DoesNotExist:
+                from rest_framework.exceptions import NotFound
+                raise NotFound('SellToOPAS submission not found')
+        
+        # For other actions, use default behavior
+        return super().get_object()
+    
     @action(detail=False, methods=['get'], url_path='submissions')
     def list_submissions(self, request):
         """List seller OPAS submissions pending review."""
-        submissions = self.get_queryset()
+        submissions = self.get_queryset().prefetch_related('product__product_images')
         serializer = self.get_serializer(submissions, many=True)
         return Response({
             'count': submissions.count(),
@@ -1158,7 +1191,7 @@ class OPASPurchasingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='submission')
     def get_submission(self, request, pk=None):
         """Get submission details."""
-        submission = self.get_object()
+        submission = self.get_queryset().prefetch_related('product__product_images').get(pk=pk)
         serializer = self.get_serializer(submission)
         return Response(serializer.data)
     
@@ -1245,6 +1278,47 @@ class OPASPurchasingViewSet(viewsets.ModelViewSet):
             affected_seller=purchase_order.seller,
             affected_product=purchase_order.product,
             description=f"Rejected OPAS submission: {purchase_order.rejection_reason}"
+        )
+        
+        serializer = self.get_serializer(purchase_order)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'], url_path='mark-delivered')
+    def mark_delivered(self, request, pk=None):
+        """
+        Mark OPAS submission as delivered with proof images.
+        
+        Handles multipart form data with proof_images.
+        """
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+        purchase_order = self.get_object()
+        
+        # Update status to DELIVERED
+        purchase_order.status = 'DELIVERED'
+        purchase_order.delivered_at = timezone.now()
+        purchase_order.save()
+        
+        # Handle proof images
+        proof_images = request.FILES.getlist('proof_images', [])
+        
+        if proof_images:
+            # Import the model for delivery proof
+            from .seller_models import DeliveryProof
+            
+            for image in proof_images[:3]:  # Limit to 3 images
+                DeliveryProof.objects.create(
+                    submission=purchase_order,
+                    image=image,
+                    uploaded_by=request.user,
+                )
+        
+        AdminAuditLog.objects.create(
+            admin=admin_user,
+            action_type='OPAS Submission Delivered',
+            action_category='OPAS_REVIEW',
+            affected_seller=purchase_order.seller,
+            affected_product=purchase_order.product,
+            description=f"Marked OPAS submission as delivered with {len(proof_images)} proof image(s)"
         )
         
         serializer = self.get_serializer(purchase_order)
@@ -1489,6 +1563,168 @@ class OPASPurchasingViewSet(viewsets.ModelViewSet):
             'count': transactions.count(),
             'results': serializer.data
         })
+    
+    @action(detail=False, methods=['get'], url_path='seller-offers')
+    def list_seller_offers(self, request):
+        """
+        List all seller OPAS offers (SellToOPAS submissions).
+        
+        Allows admin to view all product offers submitted by sellers.
+        
+        Query params:
+        - status: Filter by status (PENDING, ACCEPTED, REJECTED, COMPLETED)
+        - seller_id: Filter by seller
+        - page: Pagination page number
+        """
+        from .seller_serializers import SellToOPASSerializer
+        
+        # Get all SellToOPAS submissions
+        submissions = SellToOPAS.objects.select_related(
+            'seller', 'product'
+        ).prefetch_related('product__product_images').order_by('-created_at')
+        
+        # Filter by status if provided
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            submissions = submissions.filter(status=status_filter)
+        
+        # Filter by seller if provided
+        seller_id = request.query_params.get('seller_id')
+        if seller_id:
+            submissions = submissions.filter(seller_id=seller_id)
+        
+        # Paginate results
+        paginator = None
+        try:
+            from rest_framework.pagination import PageNumberPagination
+            paginator = PageNumberPagination()
+            paginator.page_size = 10
+            page = paginator.paginate_queryset(submissions, request)
+            if page is not None:
+                serializer = SellToOPASSerializer(page, many=True, context={'request': request})
+                return paginator.get_paginated_response(serializer.data)
+        except Exception as e:
+            pass  # Continue with unpaginated response
+        
+        serializer = SellToOPASSerializer(submissions, many=True, context={'request': request})
+        return Response({
+            'count': submissions.count(),
+            'results': serializer.data
+        })
+    
+    @action(
+        detail=True, methods=['post'],
+        url_path='approve'
+    )
+    def approve_seller_offer(self, request, pk=None):
+        """
+        Approve a seller's OPAS offer (SellToOPAS submission).
+        
+        Request body:
+        {
+            "quantity_accepted": 100,
+            "final_price": 450.00,
+            "delivery_terms": "Pickup",
+            "admin_notes": "Good quality"
+        }
+        
+        Note: pk refers to the SellToOPAS submission ID, not OPASPurchaseOrder
+        """
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+        
+        try:
+            # Get SellToOPAS submission directly, not from viewset queryset
+            submission = SellToOPAS.objects.get(id=pk)
+        except SellToOPAS.DoesNotExist:
+            return Response(
+                {'error': 'Submission not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Update submission status
+        submission.status = 'ACCEPTED'
+        submission.approved_price = request.data.get('final_price', submission.offered_price)
+        submission.delivery_date = timezone.now() + timezone.timedelta(days=7)  # Default 7 days
+        submission.save()
+        
+        # Create OPASPurchaseOrder for this approved submission
+        # This purchase order is what gets used for marking delivery
+        purchase_order, created = OPASPurchaseOrder.objects.get_or_create(
+            sell_to_opas=submission,
+            defaults={
+                'seller': submission.seller,
+                'product': submission.product,
+                'offered_quantity': submission.quantity_offered,
+                'offered_price': submission.offered_price,
+                'approved_quantity': request.data.get('quantity_accepted', submission.quantity_offered),
+                'final_price': submission.approved_price,
+                'status': 'APPROVED',
+                'approved_at': timezone.now(),
+                'reviewed_by': AdminUser.objects.get(user=request.user),
+                'delivery_terms': request.data.get('delivery_terms', ''),
+                'admin_notes': request.data.get('admin_notes', ''),
+            }
+        )
+        
+        # Create audit log
+        AdminAuditLog.objects.create(
+            admin=admin_user,
+            action_type='OPAS Offer Approved',
+            action_category='OPAS_APPROVAL',
+            affected_seller=submission.seller,
+            affected_product=submission.product,
+            description=f"Approved OPAS offer from {submission.seller.full_name} for {submission.product.name}",
+            new_value=f"Price: {submission.approved_price}"
+        )
+        
+        from .seller_serializers import SellToOPASSerializer
+        serializer = SellToOPASSerializer(submission, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(
+        detail=True, methods=['post'],
+        url_path='reject'
+    )
+    def reject_seller_offer(self, request, pk=None):
+        """
+        Reject a seller's OPAS offer.
+        
+        Request body:
+        {
+            "rejection_reason": "Quality not meeting standards"
+        }
+        
+        Note: pk refers to the SellToOPAS submission ID, not OPASPurchaseOrder
+        """
+        admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+        
+        try:
+            # Get SellToOPAS submission directly, not from viewset queryset
+            submission = SellToOPAS.objects.get(id=pk)
+        except SellToOPAS.DoesNotExist:
+            return Response(
+                {'error': 'Submission not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Update submission status
+        submission.status = 'REJECTED'
+        submission.rejection_reason = request.data.get('rejection_reason', '')
+        submission.save()
+        
+        # Create audit log
+        AdminAuditLog.objects.create(
+            admin=admin_user,
+            action_type='OPAS Offer Rejected',
+            action_category='OPAS_REJECTION',
+            affected_seller=submission.seller,
+            affected_product=submission.product,
+            description=f"Rejected OPAS offer from {submission.seller.full_name}: {submission.rejection_reason}"
+        )
+        
+        from .seller_serializers import SellToOPASSerializer
+        serializer = SellToOPASSerializer(submission, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 # ==================== MARKETPLACE OVERSIGHT VIEWSET ====================
@@ -3186,6 +3422,470 @@ class ProductApprovalViewSet(viewsets.ViewSet):
             )
 
 
+class OPASProductManagementViewSet(viewsets.ViewSet):
+    """
+    ViewSet for OPAS admins to create and manage OPAS marketplace products.
+    
+    Simplified endpoint for product uploads with automatic SellerProduct
+    and OPASInventory creation.
+    
+    Endpoints:
+    - POST /api/admin/opas-products/ - Create new OPAS product
+    - GET /api/admin/opas-products/ - List OPAS products
+    - GET /api/admin/opas-products/{id}/ - Get product details
+    - PUT /api/admin/opas-products/{id}/ - Update product
+    - DELETE /api/admin/opas-products/{id}/ - Delete product
+    """
+    permission_classes = [IsAuthenticated, IsAdmin]
+    serializer_class = OPASProductUploadSerializer
+    
+    def list(self, request):
+        """List all OPAS marketplace products"""
+        try:
+            # Get the shared OPAS seller account
+            opas_user = get_or_create_opas_seller()
+            
+            products = SellerProduct.objects.filter(seller=opas_user)
+            
+            data = []
+            for product in products:
+                # Get associated inventory
+                inventory = OPASInventory.objects.filter(product=product).first()
+                data.append({
+                    'id': inventory.id if inventory else product.id,
+                    'product_id': product.id,
+                    'product_name': product.name,
+                    'price': str(product.price),
+                    'stock_level': inventory.quantity_on_hand if inventory else 0,
+                    'category': product.category.name if product.category else 'Uncategorized',
+                    'description': product.description,
+                    'image': product.image_url if product.image_url else None,
+                    # Stock monitoring fields
+                    'initial_stock': product.initial_stock,
+                    'baseline_stock': product.baseline_stock,
+                    'stock_baseline_updated_at': product.stock_baseline_updated_at.isoformat() if product.stock_baseline_updated_at else None,
+                    'stock_percentage': product.stock_percentage,
+                    'stock_status': product.stock_status,
+                })
+            
+            return Response(data, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error listing OPAS products: {str(e)}')
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    def create(self, request):
+        """Create a new OPAS marketplace product with image"""
+        try:
+            serializer = OPASProductUploadSerializer(data=request.data)
+            if serializer.is_valid():
+                result = serializer.save()
+                
+                # Create audit log
+                admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+                AdminAuditLog.objects.create(
+                    admin=admin_user,
+                    action_type='OPAS Product Created',
+                    action_category='OPAS_PRODUCT',
+                    description=f'Created OPAS product "{result["product_name"]}" with stock {result["stock_level"]} at ₱{result["price"]}',
+                    new_value=str(result['id'])
+                )
+                
+                logger_instance = logging.getLogger(__name__)
+                logger_instance.info(f'OPAS product created: {result["product_name"]} by {request.user.phone_number}')
+                
+                return Response(result, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error creating OPAS product: {str(e)}')
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def retrieve(self, request, pk=None):
+        """Get details of a specific OPAS product"""
+        try:
+            inventory = OPASInventory.objects.get(pk=pk)
+            product = inventory.product
+            
+            data = {
+                'id': inventory.id,
+                'product_id': product.id,
+                'product_name': product.name,
+                'price': str(product.price),
+                'stock_level': inventory.quantity_on_hand,
+                'category': product.category,
+                'description': product.description,
+                'image': product.image.url if product.image else None,
+                'expiry_date': inventory.expiry_date,
+            }
+            
+            return Response(data, status=status.HTTP_200_OK)
+        except OPASInventory.DoesNotExist:
+            return Response(
+                {'error': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error retrieving OPAS product: {str(e)}')
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def update(self, request, pk=None):
+        """Update an OPAS product"""
+        try:
+            inventory = OPASInventory.objects.get(pk=pk)
+            product = inventory.product
+            
+            # Update product fields
+            if 'product_name' in request.data:
+                product.name = request.data['product_name']
+            if 'description' in request.data:
+                product.description = request.data['description']
+            if 'price' in request.data:
+                product.price = request.data['price']
+            if 'image' in request.data:
+                product.image = request.data['image']
+            
+            product.save()
+            
+            # Update inventory fields
+            if 'stock_level' in request.data:
+                inventory.quantity_on_hand = request.data['stock_level']
+            
+            inventory.save()
+            
+            # Create audit log
+            admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+            AdminAuditLog.objects.create(
+                admin=admin_user,
+                action_type='OPAS Product Updated',
+                action_category='OPAS_PRODUCT',
+                description=f'Updated OPAS product "{product.name}"',
+                new_value=str(inventory.id)
+            )
+            
+            return Response({
+                'id': inventory.id,
+                'product_id': product.id,
+                'product_name': product.name,
+                'price': str(product.price),
+                'stock_level': inventory.quantity_on_hand,
+            }, status=status.HTTP_200_OK)
+        except OPASInventory.DoesNotExist:
+            return Response(
+                {'error': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error updating OPAS product: {str(e)}')
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def destroy(self, request, pk=None):
+        """Delete an OPAS product"""
+        try:
+            # Try to get by inventory ID first
+            inventory = OPASInventory.objects.filter(pk=pk).first()
+            
+            # If not found by inventory ID, try by product ID
+            if not inventory:
+                product = SellerProduct.objects.filter(pk=pk).first()
+                if product:
+                    inventory = OPASInventory.objects.filter(product=product).first()
+            
+            if not inventory and not product:
+                return Response(
+                    {'error': 'Product not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            if inventory:
+                product = inventory.product
+                product_name = product.name
+                inventory_id = inventory.id
+                
+                # Create audit log before deletion
+                admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+                AdminAuditLog.objects.create(
+                    admin=admin_user,
+                    action_type='OPAS Product Deleted',
+                    action_category='OPAS_PRODUCT',
+                    description=f'Deleted OPAS product "{product_name}"',
+                    new_value=str(inventory.id)
+                )
+                
+                logger_instance = logging.getLogger(__name__)
+                logger_instance.info(f'OPAS product deleted: {product_name} by {request.user.phone_number}')
+                
+                # Delete inventory and product
+                inventory.delete()
+                product.delete()
+            else:
+                # No inventory but product exists, just delete product
+                product_name = product.name
+                admin_user, _ = AdminUser.objects.get_or_create(user=request.user)
+                AdminAuditLog.objects.create(
+                    admin=admin_user,
+                    action_type='OPAS Product Deleted',
+                    action_category='OPAS_PRODUCT',
+                    description=f'Deleted OPAS product "{product_name}"',
+                    new_value=str(product.id)
+                )
+                
+                logger_instance = logging.getLogger(__name__)
+                logger_instance.info(f'OPAS product deleted: {product_name} by {request.user.phone_number}')
+                
+                product.delete()
+            
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except SellerProduct.DoesNotExist:
+            return Response(
+                {'error': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error deleting OPAS product: {str(e)}')
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class OPASForecastingViewSet(viewsets.ViewSet):
+    """
+    OPAS Product Forecasting Dashboard
+    
+    Provides:
+    - List all OPAS product forecasts with demand and price predictions
+    - Group by category for dashboard visualization
+    - Filter by category, demand range, volatility
+    - Sort by various metrics (demand, price, volatility)
+    """
+    
+    def _get_forecast_period(self, last_aggregated_date):
+        """
+        Calculate the forecast period month/year based on aggregation date.
+        Forecast is for the next month from aggregation date.
+        """
+        if not last_aggregated_date:
+            return "N/A"
+        
+        from datetime import timedelta
+        from django.utils import timezone
+        
+        # Forecast is for the next month from when it was generated
+        next_month = last_aggregated_date + timedelta(days=31)
+        
+        # Format as "January 2025" or similar
+        return next_month.strftime("%B %Y")
+    
+    @action(detail=False, methods=['get'], url_path='dashboard')
+    def forecast_dashboard(self, request):
+        """
+        Get all OPAS product forecasts for admin dashboard.
+        
+        Query params:
+        - category: Filter by category (VEGETABLE, FRUIT, LIVESTOCK, etc.)
+        - sort_by: Sort field (demand, price, category) - default: demand desc
+        - min_demand: Minimum forecasted demand
+        - max_demand: Maximum forecasted demand
+        
+        Returns: Grouped by category with all forecast data
+        """
+        try:
+            products = OPASProduct.objects.filter(is_active=True).select_related()
+            
+            # Filter by category if provided
+            category_filter = request.query_params.get('category')
+            if category_filter:
+                products = products.filter(category_forecast=category_filter)
+            
+            # Filter by demand range if provided
+            min_demand = request.query_params.get('min_demand')
+            max_demand = request.query_params.get('max_demand')
+            if min_demand:
+                products = products.filter(forecasted_demand_next_month__gte=int(min_demand))
+            if max_demand:
+                products = products.filter(forecasted_demand_next_month__lte=int(max_demand))
+            
+            # Sort options
+            sort_by = request.query_params.get('sort_by', 'category')
+            if sort_by == 'demand':
+                products = products.order_by('-forecasted_demand_next_month')
+            elif sort_by == 'price':
+                products = products.order_by('-forecasted_price_next_month')
+            else:
+                products = products.order_by('category_forecast', '-forecasted_demand_next_month')
+            
+            # Pre-calculate historical data points for all products
+            from apps.forecasting.models import MarketHistoricalData
+            product_history_counts = {}
+            history_query = MarketHistoricalData.objects.values('product_name').annotate(
+                count=Count('id')
+            )
+            for item in history_query:
+                product_history_counts[item['product_name'].lower()] = item['count']
+            
+            # Build response grouped by category
+            from collections import defaultdict
+            grouped = defaultdict(list)
+            
+            for product in products:
+                demand_forecast = product.forecasted_demand_next_month or 0
+                price_forecast = float(product.forecasted_price_next_month) if product.forecasted_price_next_month else 0
+                
+                # Get historical data count for this product
+                historical_count = product_history_counts.get(product.name.lower(), 0)
+                
+                # Determine confidence level based on data availability
+                # HIGH: 15+ data points
+                # MEDIUM: 5-14 data points
+                # LOW: <5 data points
+                if historical_count >= 15:
+                    confidence_level = 'HIGH'
+                    confidence_margin = 0.10  # ±10% for high confidence
+                elif historical_count >= 5:
+                    confidence_level = 'MEDIUM'
+                    confidence_margin = 0.20  # ±20% for medium confidence
+                else:
+                    confidence_level = 'LOW'
+                    confidence_margin = 0.30  # ±30% for low confidence
+                
+                # Determine model type based on data points
+                # As historical data grows, automatically upgrade to more sophisticated models
+                if historical_count == 0:
+                    model_type = 'INSUFFICIENT_DATA'
+                elif historical_count < 15:
+                    model_type = 'SIMPLE'  # Simple averaging for <15 points
+                elif historical_count < 50:
+                    model_type = 'ARIMA'  # Time-series ARIMA for 15-49 points
+                else:
+                    model_type = 'SARIMA'  # Seasonal ARIMA for 50+ points (detects seasonality)
+                
+                # Calculate confidence intervals
+                demand_margin = int(demand_forecast * confidence_margin)
+                price_margin = price_forecast * confidence_margin
+                
+                product_data = {
+                    'id': product.id,
+                    'name': product.name,
+                    'product_name': product.name,
+                    'category': product.category_forecast,
+                    'category_name': product.category_forecast,
+                    'type': product.product_type,
+                    'subtype': product.product_subtype,
+                    'forecasted_demand_next_month': demand_forecast,
+                    'demand_forecast_kg': demand_forecast,
+                    'demand_lower_bound': max(0, demand_forecast - demand_margin),
+                    'demand_upper_bound': demand_forecast + demand_margin,
+                    'forecasted_price_next_month': price_forecast,
+                    'price_forecast': price_forecast,
+                    'price_lower_bound': max(0, price_forecast - price_margin),
+                    'price_upper_bound': price_forecast + price_margin,
+                    'confidence_level': confidence_level,
+                    'model_type': model_type,
+                    'historical_data_points': historical_count,
+                    'last_aggregated_date': product.last_aggregated_date.isoformat() if product.last_aggregated_date else None,
+                    'forecast_period': self._get_forecast_period(product.last_aggregated_date),
+                    'status': 'active' if product.is_active else 'inactive'
+                }
+                grouped[product.category_forecast].append(product_data)
+            
+            # Calculate category-level statistics
+            category_stats = {}
+            for category, products_list in grouped.items():
+                demands = [p['forecasted_demand_next_month'] for p in products_list]
+                prices = [p['forecasted_price_next_month'] for p in products_list]
+                
+                category_stats[category] = {
+                    'total_products': len(products_list),
+                    'total_demand': sum(demands),
+                    'avg_demand': sum(demands) / len(demands) if demands else 0,
+                    'avg_price': sum(prices) / len(prices) if prices else 0,
+                    'products': products_list
+                }
+            
+            return Response({
+                'success': True,
+                'total_products': sum(len(p) for p in grouped.values()),
+                'categories': dict(category_stats),
+                'timestamp': timezone.now().isoformat()
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error fetching forecasts: {str(e)}')
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'], url_path='summary')
+    def forecast_summary(self, request):
+        """Get summary statistics for all forecasts"""
+        try:
+            products = OPASProduct.objects.filter(is_active=True)
+            
+            all_demands = [
+                p.forecasted_demand_next_month 
+                for p in products if p.forecasted_demand_next_month
+            ]
+            all_prices = [
+                float(p.forecasted_price_next_month) 
+                for p in products if p.forecasted_price_next_month
+            ]
+            
+            if not all_demands or not all_prices:
+                return Response({
+                    'total_products': products.count(),
+                    'forecasted_products': 0,
+                    'message': 'No forecasts available yet'
+                }, status=status.HTTP_200_OK)
+            
+            import statistics as stat_module
+            
+            return Response({
+                'total_products': products.count(),
+                'forecasted_products': len(all_demands),
+                'total_demand': sum(all_demands),
+                'avg_demand': int(stat_module.mean(all_demands)),
+                'min_demand': min(all_demands),
+                'max_demand': max(all_demands),
+                'demand_stdev': int(stat_module.stdev(all_demands)) if len(all_demands) > 1 else 0,
+                'total_market_value': sum(all_demands[i] * all_prices[i] for i in range(len(all_demands))),
+                'avg_price': round(stat_module.mean(all_prices), 2),
+                'min_price': round(min(all_prices), 2),
+                'max_price': round(max(all_prices), 2),
+                'last_updated': OPASProduct.objects.filter(
+                    last_aggregated_date__isnull=False
+                ).order_by('-last_aggregated_date').first().last_aggregated_date.isoformat()
+                if OPASProduct.objects.filter(last_aggregated_date__isnull=False).exists()
+                else None,
+                'timestamp': timezone.now().isoformat()
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger_instance = logging.getLogger(__name__)
+            logger_instance.error(f'Error fetching summary: {str(e)}')
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 __all__ = [
     'SellerManagementViewSet',
     'PriceManagementViewSet',
@@ -3198,4 +3898,6 @@ __all__ = [
     'AdminMarketplaceViewSet',
     'AdminPriceMonitoringViewSet',
     'ProductApprovalViewSet',
+    'OPASProductManagementViewSet',
+    'OPASForecastingViewSet',
 ]

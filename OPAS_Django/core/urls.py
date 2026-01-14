@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/auth/', include('apps.authentication.urls')),
     path('api/users/', include('apps.users.urls')),
     path('api/admin/', include('apps.users.admin_urls')),
+    path('api/admin/', include('apps.forecasting.urls')),
     path('api/', include('apps.users.urls')),  # Buyer endpoints at /api/products and /api/seller
     path('api/debug/request-info/', debug_request_info, name='debug_request_info'),
     path('api/debug/image-test/', debug_image_test, name='debug_image_test'),

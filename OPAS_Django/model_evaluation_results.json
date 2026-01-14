@@ -1,0 +1,56 @@
+{
+  "evaluation_date": "2025-12-08T20:37:49.423960",
+  "total_forecasts": 1040,
+  "model_distribution": {
+    "ARIMA": {
+      "count": 359,
+      "percentage": 34.51923076923077
+    },
+    "SARIMA": {
+      "count": 345,
+      "percentage": 33.17307692307692
+    },
+    "SIMPLE": {
+      "count": 336,
+      "percentage": 32.30769230769231
+    }
+  },
+  "model_performance": {
+    "SARIMA": {
+      "count": 345,
+      "avg_demand": 274.52,
+      "std_demand": 129.41,
+      "min_demand": 47.95,
+      "max_demand": 512.13,
+      "avg_ci_width": 82.36,
+      "accuracy": 70.0,
+      "consistency": 52.86,
+      "f1_score": 60.234
+    },
+    "ARIMA": {
+      "count": 359,
+      "avg_demand": 278.45,
+      "std_demand": 133.48,
+      "min_demand": 47.56,
+      "max_demand": 516.76,
+      "avg_ci_width": 83.54,
+      "accuracy": 70.0,
+      "consistency": 52.06,
+      "f1_score": 59.713
+    },
+    "SIMPLE": {
+      "count": 336,
+      "avg_demand": 260.04,
+      "std_demand": 132.21,
+      "min_demand": 50.41,
+      "max_demand": 521.09,
+      "avg_ci_width": 78.01,
+      "accuracy": 70.0,
+      "consistency": 49.16,
+      "f1_score": 57.7567
+    }
+  },
+  "best_model": "SARIMA",
+  "best_f1_score": 60.234,
+  "products_evaluated": 1
+}

@@ -62,7 +62,7 @@ class SellerOrder {
 
   factory SellerOrder.fromJson(Map<String, dynamic> json) {
     // Helper function to safely convert values to double
-    double _toDouble(dynamic value) {
+    double toDouble(dynamic value) {
       if (value == null) return 0.0;
       if (value is double) return value;
       if (value is int) return value.toDouble();
@@ -73,7 +73,7 @@ class SellerOrder {
     }
 
     // Helper function to safely parse DateTime
-    DateTime? _parseDateTime(dynamic value) {
+    DateTime? parseDateTime(dynamic value) {
       if (value == null) return null;
       if (value is DateTime) return value;
       if (value is String) {
@@ -94,8 +94,8 @@ class SellerOrder {
       product: json['product'] ?? 0,
       productName: json['product_name'] ?? '',
       quantity: json['quantity'] ?? 0,
-      pricePerUnit: _toDouble(json['price_per_unit']),
-      totalAmount: _toDouble(json['total_amount']),
+      pricePerUnit: toDouble(json['price_per_unit']),
+      totalAmount: toDouble(json['total_amount']),
       status: json['status'] ?? 'pending',
       rejectionReason: json['rejection_reason'] as String?,
       deliveryLocation: json['delivery_location'] as String?,
@@ -105,11 +105,11 @@ class SellerOrder {
       canBeRejected: json['can_be_rejected'] as bool?,
       canBeFulfilled: json['can_be_fulfilled'] as bool?,
       canBeDelivered: json['can_be_delivered'] as bool?,
-      createdAt: _parseDateTime(json['created_at']) ?? DateTime.now(),
-      acceptedAt: _parseDateTime(json['accepted_at']),
-      fulfilledAt: _parseDateTime(json['fulfilled_at']),
-      deliveredAt: _parseDateTime(json['delivered_at']),
-      updatedAt: _parseDateTime(json['updated_at']),
+      createdAt: parseDateTime(json['created_at']) ?? DateTime.now(),
+      acceptedAt: parseDateTime(json['accepted_at']),
+      fulfilledAt: parseDateTime(json['fulfilled_at']),
+      deliveredAt: parseDateTime(json['delivered_at']),
+      updatedAt: parseDateTime(json['updated_at']),
       buyerName: json['buyer_name'] as String?,
       buyerPhone: json['buyer_phone'] as String?,
       productUnit: json['product_unit'] as String?,

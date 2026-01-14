@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:opas_flutter/core/models/forecast_model.dart';
 import 'package:opas_flutter/features/admin/widgets/forecast_card.dart';
 import 'package:opas_flutter/features/admin/widgets/alert_widget.dart';
+import 'package:opas_flutter/features/admin/screens/product_forecast_detail_screen.dart';
 
 class DemandForecastAdminScreen extends StatefulWidget {
   const DemandForecastAdminScreen({super.key});
@@ -33,49 +34,89 @@ class _DemandForecastAdminScreenState extends State<DemandForecastAdminScreen> {
       await Future.delayed(const Duration(milliseconds: 800));
       return [
         ForecastModel(
-          productName: 'Laptop Pro',
+          id: 1,
+          productId: 101,
+          productName: 'Tomato',
+          categoryName: 'Vegetables',
           forecastDate: DateTime.now().add(const Duration(days: 30)),
-          predictedDemand: 450,
-          confidence: 0.92,
-          seasonality: 'high',
-          trend: 'increasing',
-          recommendation: 'Increase inventory by 20%',
+          forecastPeriod: 'Week 1',
+          demandForecastKg: 450,
+          demandLowerBound: 405,
+          demandUpperBound: 495,
+          priceForecast: 85,
+          priceLowerBound: 80,
+          priceUpperBound: 90,
+          confidenceLevel: 'HIGH',
+          modelType: 'SARIMA',
+          isCurrent: true,
         ),
         ForecastModel(
-          productName: 'Smartphone X',
+          id: 2,
+          productId: 102,
+          productName: 'Cabbage',
+          categoryName: 'Vegetables',
           forecastDate: DateTime.now().add(const Duration(days: 30)),
-          predictedDemand: 850,
-          confidence: 0.88,
-          seasonality: 'medium',
-          trend: 'increasing',
-          recommendation: 'Maintain current stock levels',
+          forecastPeriod: 'Week 1',
+          demandForecastKg: 850,
+          demandLowerBound: 780,
+          demandUpperBound: 920,
+          priceForecast: 45,
+          priceLowerBound: 42,
+          priceUpperBound: 48,
+          confidenceLevel: 'HIGH',
+          modelType: 'SARIMA',
+          isCurrent: true,
         ),
         ForecastModel(
-          productName: 'Tablet Ultra',
+          id: 3,
+          productId: 103,
+          productName: 'Onion',
+          categoryName: 'Vegetables',
           forecastDate: DateTime.now().add(const Duration(days: 30)),
-          predictedDemand: 320,
-          confidence: 0.85,
-          seasonality: 'low',
-          trend: 'stable',
-          recommendation: 'Monitor closely for changes',
+          forecastPeriod: 'Week 1',
+          demandForecastKg: 320,
+          demandLowerBound: 288,
+          demandUpperBound: 352,
+          priceForecast: 35,
+          priceLowerBound: 33,
+          priceUpperBound: 37,
+          confidenceLevel: 'MEDIUM',
+          modelType: 'ARIMA',
+          isCurrent: true,
         ),
         ForecastModel(
-          productName: 'Wireless Headphones',
+          id: 4,
+          productId: 104,
+          productName: 'Carrot',
+          categoryName: 'Vegetables',
           forecastDate: DateTime.now().add(const Duration(days: 30)),
-          predictedDemand: 1200,
-          confidence: 0.79,
-          seasonality: 'high',
-          trend: 'decreasing',
-          recommendation: 'Reduce stock by 15%',
+          forecastPeriod: 'Week 1',
+          demandForecastKg: 1200,
+          demandLowerBound: 960,
+          demandUpperBound: 1440,
+          priceForecast: 50,
+          priceLowerBound: 45,
+          priceUpperBound: 55,
+          confidenceLevel: 'MEDIUM',
+          modelType: 'ARIMA',
+          isCurrent: true,
         ),
         ForecastModel(
-          productName: 'Smart Watch',
+          id: 5,
+          productId: 105,
+          productName: 'Bell Pepper',
+          categoryName: 'Vegetables',
           forecastDate: DateTime.now().add(const Duration(days: 30)),
-          predictedDemand: 580,
-          confidence: 0.91,
-          seasonality: 'medium',
-          trend: 'increasing',
-          recommendation: 'Increase inventory by 25%',
+          forecastPeriod: 'Week 1',
+          demandForecastKg: 580,
+          demandLowerBound: 522,
+          demandUpperBound: 638,
+          priceForecast: 150,
+          priceLowerBound: 140,
+          priceUpperBound: 160,
+          confidenceLevel: 'HIGH',
+          modelType: 'SARIMA',
+          isCurrent: true,
         ),
       ];
     } catch (e) {
@@ -214,14 +255,24 @@ class _DemandForecastAdminScreenState extends State<DemandForecastAdminScreen> {
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: 3,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, i) => const ForecastCard(
-                        productName: 'Loading...',
-                        predictedValue: 0,
-                        unit: 'units',
-                        confidence: 0.0,
-                        trend: 'stable',
-                        recommendation: '',
-                        isLoading: true,
+                      itemBuilder: (context, i) => ForecastCard(
+                        forecast: ForecastModel(
+                          id: i,
+                          productId: i,
+                          productName: 'Loading...',
+                          categoryName: 'Loading',
+                          forecastDate: DateTime.now(),
+                          forecastPeriod: 'Loading',
+                          demandForecastKg: 0,
+                          demandLowerBound: 0,
+                          demandUpperBound: 0,
+                          priceForecast: 0,
+                          priceLowerBound: 0,
+                          priceUpperBound: 0,
+                          confidenceLevel: 'N/A',
+                          modelType: 'UNKNOWN',
+                          isCurrent: false,
+                        ),
                       ),
                     );
                   }
@@ -244,17 +295,19 @@ class _DemandForecastAdminScreenState extends State<DemandForecastAdminScreen> {
                     itemBuilder: (context, index) {
                       final forecast = forecasts[index];
                       return ForecastCard(
-                        productName: forecast.productName,
-                        predictedValue: forecast.predictedDemand,
-                        unit: 'units',
-                        confidence: forecast.confidence,
-                        trend: forecast.trend,
-                        recommendation: forecast.recommendation,
-                        trendColor: forecast.trend == 'increasing'
-                            ? const Color(0xFF4CAF50)
-                            : forecast.trend == 'decreasing'
-                                ? const Color(0xFFF44336)
-                                : Colors.grey,
+                        forecast: forecast,
+                        onViewDetails: () {
+                          if (forecast.productId != null) {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => ProductForecastDetailScreen(
+                                  productId: forecast.productId!,
+                                  productName: forecast.productName,
+                                ),
+                              ),
+                            );
+                          }
+                        },
                       );
                     },
                   );

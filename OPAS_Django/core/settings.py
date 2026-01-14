@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.users',
     'apps.authentication',
+    'apps.forecasting',
 ]
 
 MIDDLEWARE = [
@@ -219,13 +220,65 @@ REST_FRAMEWORK = {
     'TEST_REQUEST_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ],
-    # Throttle settings for DRF throttling
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle',
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'user': '1000/hour',
-    }
+    # Throttle settings disabled for development
+    'DEFAULT_THROTTLE_CLASSES': [],
+    'DEFAULT_THROTTLE_RATES': {}
 }
+
+# ==================== CELERY CONFIGURATION ====================
+# Celery task queue for background jobs (forecasting, data aggregation, etc.)
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes hard limit
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes soft limit
+
+# Celery Beat Schedule for periodic tasks
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    # ============================================================================
+    # PHASE 6.1: Core Background Tasks
+    # ============================================================================
+    
+    'refresh_all_forecasts': {
+        'task': 'apps.forecasting.tasks.refresh_all_forecasts',
+        'schedule': crontab(day_of_week=6, hour=2, minute=0),  # Weekly Sunday 2 AM UTC
+        'options': {'queue': 'default'}
+    },
+    
+    'aggregate_recent_transactions': {
+        'task': 'apps.forecasting.tasks.aggregate_recent_transactions_phase6',
+        'schedule': crontab(hour=1, minute=0),  # Daily at 1:00 AM UTC
+        'options': {'queue': 'default'}
+    },
+    
+    'check_forecast_alerts': {
+        'task': 'apps.forecasting.tasks.check_forecast_alerts_phase6',
+        'schedule': crontab(hour=6, minute=0),  # Daily at 6:00 AM UTC
+        'options': {'queue': 'default'}
+    },
+    
+    # ============================================================================
+    # Additional Maintenance Tasks
+    # ============================================================================
+    
+    'cleanup_old_historical_transactions': {
+        'task': 'apps.forecasting.tasks.cleanup_old_historical_transactions',
+        'schedule': crontab(day_of_week=0, hour=3, minute=0),  # Weekly Sunday at 3 AM UTC
+        'options': {'queue': 'default'},
+        'kwargs': {'days': 365}
+    },
+    
+    'validate_data_quality_reports': {
+        'task': 'apps.forecasting.tasks.validate_data_quality_reports',
+        'schedule': crontab(day_of_week=0, hour=4, minute=0),  # Weekly Sunday at 4 AM UTC
+        'options': {'queue': 'default'}
+    },
+}
+

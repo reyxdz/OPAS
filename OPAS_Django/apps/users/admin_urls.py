@@ -31,13 +31,17 @@ from apps.users.admin_viewsets import (
     AdminMarketplaceViewSet,
     AdminPriceMonitoringViewSet,
     ProductApprovalViewSet,
+    OPASProductManagementViewSet,
+    OPASForecastingViewSet,
 )
+from apps.users.admin_views import UserManagementViewSet
 
 # Initialize SimpleRouter for automatic route generation
 router = SimpleRouter()
 
 # Register ViewSets with their base routes
 router.register(r'sellers', SellerManagementViewSet, basename='admin-sellers')
+router.register(r'users', UserManagementViewSet, basename='admin-users')
 router.register(r'prices', PriceManagementViewSet, basename='admin-prices')
 router.register(r'opas', OPASPurchasingViewSet, basename='admin-opas')
 router.register(r'marketplace', MarketplaceOversightViewSet, basename='admin-marketplace')
@@ -54,6 +58,12 @@ router.register(r'price-monitoring', AdminPriceMonitoringViewSet, basename='admi
 
 # Product Approval Management
 router.register(r'products', ProductApprovalViewSet, basename='admin-products')
+
+# OPAS Product Management
+router.register(r'opas-products', OPASProductManagementViewSet, basename='admin-opas-products')
+
+# OPAS Forecasting Dashboard
+router.register(r'forecasts', OPASForecastingViewSet, basename='admin-forecasts')
 
 # URL patterns
 urlpatterns = [

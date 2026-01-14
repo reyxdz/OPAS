@@ -39,8 +39,14 @@ class AdminProfile {
 
   /// Create from JSON (from API response)
   factory AdminProfile.fromJson(Map<String, dynamic> json) {
+    // Handle id - could be int or string from API
+    int? id;
+    if (json['id'] != null) {
+      id = json['id'] is int ? json['id'] : int.tryParse(json['id'].toString());
+    }
+    
     return AdminProfile(
-      id: json['id'],
+      id: id,
       firstName: json['first_name'] ?? '',
       lastName: json['last_name'] ?? '',
       email: json['email'],

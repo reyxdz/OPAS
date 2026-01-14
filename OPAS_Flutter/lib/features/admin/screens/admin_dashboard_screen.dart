@@ -7,6 +7,7 @@ import 'package:opas_flutter/core/models/sales_trend_model.dart';
 import 'package:opas_flutter/features/admin/widgets/metric_card.dart';
 import 'package:opas_flutter/features/admin/widgets/trend_chart.dart';
 import 'package:opas_flutter/features/admin/widgets/alert_widget.dart';
+import 'package:opas_flutter/features/admin/screens/forecasting_dashboard_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -404,15 +405,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     onTap: () {},
                   ),
                   _buildQuickActionButton(
+                    label: 'Forecasting',
+                    icon: Icons.trending_up,
+                    color: const Color(0xFF00BCD4),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ForecastingDashboardScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildQuickActionButton(
                     label: 'Price Management',
                     icon: Icons.local_offer,
                     color: const Color(0xFFFF9800),
-                    onTap: () {},
-                  ),
-                  _buildQuickActionButton(
-                    label: 'Generate Report',
-                    icon: Icons.description,
-                    color: const Color(0xFF9C27B0),
                     onTap: () {},
                   ),
                 ],

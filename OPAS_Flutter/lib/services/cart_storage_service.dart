@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart' as sqflite_db;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
 import 'package:path/path.dart';
@@ -12,7 +11,7 @@ import '../features/cart/models/cart_item_model.dart';
 class CartStorageService {
   static final CartStorageService _instance = CartStorageService._internal();
   static sqflite_db.Database? _database;
-  static bool _isWeb = kIsWeb;
+  static const bool _isWeb = kIsWeb;
 
   factory CartStorageService() {
     return _instance;
@@ -39,29 +38,37 @@ class CartStorageService {
     final dbPath = await sqflite_db.getDatabasesPath();
     final path = join(dbPath, 'opas_cart.db');
 
-    // CRITICAL: Force database deletion and recreation if it has the old schema
-    // This ensures we get the v3 schema with all required columns
+    // Check if database exists and has the correct schema
+    bool needsRecreate = false;
     try {
-      // Open the database to check its version
       final testDb = await sqflite_db.openDatabase(path);
-      final version = await testDb.getVersion();
-      debugPrint('🛒 SQLite: Current database version: $version');
       
-      if (version < 3) {
-        debugPrint('🛒 SQLite: Database is old version ($version), deleting to force recreation with v3 schema');
-        await testDb.close();
+      // Check if fulfillment_methods column exists
+      final result = await testDb.rawQuery('PRAGMA table_info(cart_items)');
+      final columnNames = (result).map((col) => col['name'].toString()).toList();
+      
+      debugPrint('🛒 SQLite: Current schema columns: $columnNames');
+      
+      if (!columnNames.contains('fulfillment_methods')) {
+        debugPrint('🛒 SQLite: fulfillment_methods column missing, will recreate database');
+        needsRecreate = true;
+      }
+      
+      await testDb.close();
+      
+      if (needsRecreate) {
+        debugPrint('🛒 SQLite: Deleting old database at $path');
         await sqflite_db.deleteDatabase(path);
-        debugPrint('✅ SQLite: Old database deleted, will be recreated with v3 schema');
-      } else {
-        await testDb.close();
+        debugPrint('✅ SQLite: Old database deleted, will be recreated with new schema');
       }
     } catch (e) {
-      debugPrint('ℹ️ SQLite: Could not check database version: $e (this is normal for first run)');
+      debugPrint('ℹ️ SQLite: Could not check database schema: $e (this is normal for first run)');
     }
 
+    debugPrint('🛒 SQLite: Opening database with version 6, onCreate and onUpgrade handlers');
     return await sqflite_db.openDatabase(
       path,
-      version: 3,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -80,6 +87,7 @@ class CartStorageService {
         quantity INTEGER NOT NULL,
         unit TEXT,
         image_url TEXT,
+        fulfillment_methods TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -131,8 +139,69 @@ class CartStorageService {
           await db.execute('ALTER TABLE cart_items ADD COLUMN seller_id TEXT NOT NULL DEFAULT "0"');
           debugPrint('✅ SQLite: Added missing seller_id column');
         }
+        
+        if (!columnNames.contains('fulfillment_methods')) {
+          await db.execute('ALTER TABLE cart_items ADD COLUMN fulfillment_methods TEXT');
+          debugPrint('✅ SQLite: Added missing fulfillment_methods column');
+        }
       } catch (e) {
         debugPrint('❌ SQLite: Error during v3 upgrade: $e');
+      }
+    }
+    
+    if (oldVersion < 4) {
+      debugPrint('🛒 SQLite: Upgrading to v4 - ensuring fulfillment_methods column');
+      try {
+        final result = await db.rawQuery('PRAGMA table_info(cart_items)');
+        final columnNames = (result).map((col) => col['name'].toString()).toList();
+        debugPrint('🛒 SQLite v4: Current columns: $columnNames');
+        
+        if (!columnNames.contains('fulfillment_methods')) {
+          await db.execute('ALTER TABLE cart_items ADD COLUMN fulfillment_methods TEXT');
+          debugPrint('✅ SQLite: Added fulfillment_methods column in v4 upgrade');
+        } else {
+          debugPrint('ℹ️ SQLite: fulfillment_methods column already exists');
+        }
+      } catch (e) {
+        debugPrint('❌ SQLite: Error during v4 upgrade: $e');
+      }
+    }
+    
+    if (oldVersion < 5) {
+      debugPrint('🛒 SQLite: Upgrading to v5 - final schema validation');
+      try {
+        final result = await db.rawQuery('PRAGMA table_info(cart_items)');
+        final columnNames = (result).map((col) => col['name'].toString()).toList();
+        debugPrint('🛒 SQLite v5: Current columns: $columnNames');
+        
+        // Ensure fulfillment_methods exists
+        if (!columnNames.contains('fulfillment_methods')) {
+          await db.execute('ALTER TABLE cart_items ADD COLUMN fulfillment_methods TEXT');
+          debugPrint('✅ SQLite: Added fulfillment_methods column in v5 upgrade');
+        } else {
+          debugPrint('ℹ️ SQLite: fulfillment_methods column already exists in v5');
+        }
+      } catch (e) {
+        debugPrint('❌ SQLite: Error during v5 upgrade: $e');
+      }
+    }
+    
+    if (oldVersion < 6) {
+      debugPrint('🛒 SQLite: Upgrading to v6 - ensuring fulfillment_methods column is present');
+      try {
+        final result = await db.rawQuery('PRAGMA table_info(cart_items)');
+        final columnNames = (result).map((col) => col['name'].toString()).toList();
+        debugPrint('🛒 SQLite v6: Current columns: $columnNames');
+        
+        if (!columnNames.contains('fulfillment_methods')) {
+          debugPrint('🛒 SQLite v6: Adding missing fulfillment_methods column');
+          await db.execute('ALTER TABLE cart_items ADD COLUMN fulfillment_methods TEXT');
+          debugPrint('✅ SQLite v6: Added fulfillment_methods column');
+        } else {
+          debugPrint('ℹ️ SQLite v6: fulfillment_methods column already exists');
+        }
+      } catch (e) {
+        debugPrint('❌ SQLite v6: Error adding fulfillment_methods: $e');
       }
     }
   }
@@ -329,20 +398,36 @@ class CartStorageService {
           itemMap['updated_at'] = now;
           
           debugPrint('🛒 SQLite: Inserting item map: $itemMap');
-          final insertResult = await db.insert(
-            'cart_items',
-            itemMap,
-          );
-          debugPrint('🛒 SQLite: Inserted new product ${item.productId} (rowid: $insertResult)');
-          
-          // Verify insertion
-          final verifyResult = await db.query(
-            'cart_items',
-            where: 'rowid = ?',
-            whereArgs: [insertResult],
-          );
-          if (verifyResult.isNotEmpty) {
-            debugPrint('✅ SQLite: Verified insertion - stored image_url: ${verifyResult[0]['image_url']}');
+          try {
+            final insertResult = await db.insert(
+              'cart_items',
+              itemMap,
+            );
+            debugPrint('🛒 SQLite: Inserted new product ${item.productId} (rowid: $insertResult)');
+            
+            // Verify insertion
+            final verifyResult = await db.query(
+              'cart_items',
+              where: 'rowid = ?',
+              whereArgs: [insertResult],
+            );
+            if (verifyResult.isNotEmpty) {
+              debugPrint('✅ SQLite: Verified insertion - stored image_url: ${verifyResult[0]['image_url']}');
+            }
+          } catch (insertError) {
+            // If the fulfillment_methods column doesn't exist, try without it
+            if (insertError.toString().contains('fulfillment_methods')) {
+              debugPrint('⚠️ SQLite: fulfillment_methods column not found, removing and retrying...');
+              itemMap.remove('fulfillment_methods');
+              
+              final insertResult = await db.insert(
+                'cart_items',
+                itemMap,
+              );
+              debugPrint('🛒 SQLite: Inserted new product ${item.productId} without fulfillment_methods (rowid: $insertResult)');
+            } else {
+              rethrow;
+            }
           }
         }
       }

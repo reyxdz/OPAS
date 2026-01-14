@@ -46,9 +46,12 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
   final List<String> _categories = [
     'VEGETABLE',
     'FRUIT',
-    'GRAIN',
-    'DAIRY',
+    'LIVESTOCK',
     'POULTRY',
+    'SEEDS',
+    'FERTILIZERS',
+    'FEEDS',
+    'MEDICINES',
   ];
 
 

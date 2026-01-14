@@ -145,6 +145,11 @@ class SellerProduct(models.Model):
         related_name='products',
         help_text='The seller who listed this product'
     )
+    opas_product_id = models.BigIntegerField(
+        blank=True,
+        null=True,
+        help_text='Links to OPASProduct for forecasting (only for OPAS Admin products)'
+    )
     
     # ==================== PRODUCT INFORMATION ====================
     name = models.CharField(
@@ -214,6 +219,18 @@ class SellerProduct(models.Model):
         help_text='Quality grade of the product'
     )
     
+    # ==================== FULFILLMENT ====================
+    fulfillment_methods = models.CharField(
+        max_length=50,
+        choices=[
+            ('delivery', 'Delivery Only'),
+            ('pickup', 'Pickup Only'),
+            ('delivery_and_pickup', 'Delivery & Pickup'),
+        ],
+        default='delivery_and_pickup',
+        help_text='Fulfillment methods available for this product'
+    )
+    
     # ==================== MEDIA ====================
     image_url = models.URLField(
         blank=True,
@@ -226,6 +243,28 @@ class SellerProduct(models.Model):
         help_text='List of product image URLs'
     )
     
+    # ==================== FORECASTING CLASSIFICATION ====================
+    # NEW: Hierarchical classification for smart forecasting
+    # Products with same category:type:subtype get grouped for better ML training
+    category_forecast = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Forecasting category (e.g., VEGETABLES, LIVESTOCK, FRUITS)'
+    )
+    product_type = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Product type within category (e.g., Fish, Poultry, Leafy Vegetables)'
+    )
+    product_subtype = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Specific product subtype (e.g., Bangus, Chicken, Tomato)'
+    )
+    
     # ==================== STATUS ====================
     status = models.CharField(
         max_length=20,
@@ -236,6 +275,10 @@ class SellerProduct(models.Model):
     is_deleted = models.BooleanField(
         default=False,
         help_text='Soft delete flag for product listing'
+    )
+    is_opas_managed = models.BooleanField(
+        default=False,
+        help_text='True if product is managed by OPAS Admin (CSV imports, forecasting data). Only OPAS Admin can edit these products.'
     )
     deleted_at = models.DateTimeField(
         blank=True,
@@ -289,6 +332,9 @@ class SellerProduct(models.Model):
             models.Index(fields=['expiry_date']),
             models.Index(fields=['is_deleted']),
             models.Index(fields=['seller', 'is_deleted']),
+            # NEW: Indices for forecasting grouping
+            models.Index(fields=['category_forecast', 'product_type', 'product_subtype']),
+            models.Index(fields=['is_deleted', 'status']),
         ]
     
     objects = SellerProductManager()
@@ -340,6 +386,22 @@ class SellerProduct(models.Model):
         self.deleted_at = timezone.now()
         self.deletion_reason = reason
         self.save()
+    
+    def get_forecast_group_key(self):
+        """
+        Get the forecast grouping key for this product
+        Format: category:type:subtype
+        Used to group similar products for smarter ML training
+        """
+        if all([self.category_forecast, self.product_type, self.product_subtype]):
+            return f"{self.category_forecast}:{self.product_type}:{self.product_subtype}"
+        return None
+    
+    @property
+    def forecast_group_name(self):
+        """Get human-readable forecast group name"""
+        parts = [self.category_forecast, self.product_type, self.product_subtype]
+        return ' > '.join([p for p in parts if p])
     
     def restore(self):
         """Restore a soft-deleted product"""
@@ -1298,3 +1360,59 @@ class SellerAnnouncementRead(models.Model):
     
     def __repr__(self):
         return f"<SellerAnnouncementRead: {self.seller.email} | {self.announcement.title}>"
+
+
+class DeliveryProof(models.Model):
+    """
+    Model for storing delivery proof images for OPAS submissions.
+    
+    Tracks:
+    - Proof images for completed deliveries
+    - Uploader information
+    - Upload timestamp
+    """
+    
+    # ==================== RELATIONSHIPS ====================
+    submission = models.ForeignKey(
+        SellToOPAS,
+        on_delete=models.CASCADE,
+        related_name='delivery_proof_images',
+        help_text='The OPAS submission this proof is for'
+    )
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_delivery_proofs',
+        help_text='Admin who uploaded this proof'
+    )
+    
+    # ==================== IMAGE STORAGE ====================
+    image = models.ImageField(
+        upload_to='opas_delivery_proofs/%Y/%m/%d/',
+        help_text='Proof image of delivery'
+    )
+    
+    # ==================== TIMESTAMPS ====================
+    uploaded_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text='When the proof was uploaded'
+    )
+    
+    class Meta:
+        db_table = 'delivery_proofs'
+        verbose_name = 'Delivery Proof'
+        verbose_name_plural = 'Delivery Proofs'
+        ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['submission', '-uploaded_at']),
+            models.Index(fields=['uploaded_by']),
+        ]
+    
+    def __str__(self):
+        return f"Proof for {self.submission.submission_number} - {self.uploaded_at.strftime('%Y-%m-%d %H:%M')}"
+    
+    def __repr__(self):
+        return f"<DeliveryProof: {self.submission.submission_number} | Uploaded: {self.uploaded_at}>"
+

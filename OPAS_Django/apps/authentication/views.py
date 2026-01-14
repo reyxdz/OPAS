@@ -50,9 +50,18 @@ class LoginView(APIView):
 
         phone_number = serializer.validated_data['phone_number']
         password = serializer.validated_data['password']
+        
+        # Remove spaces and special characters from phone number for lookup
+        # Handle both formatted (9327 538 189) and unformatted (9327538189) numbers
+        phone_number_clean = phone_number.replace(' ', '').replace('-', '').replace('+', '')
 
         try:
-            user = User.objects.get(phone_number=phone_number)
+            # Try exact match first, then try without spaces
+            try:
+                user = User.objects.get(phone_number=phone_number)
+            except User.DoesNotExist:
+                # Try the cleaned version
+                user = User.objects.get(phone_number=phone_number_clean)
         except User.DoesNotExist:
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 

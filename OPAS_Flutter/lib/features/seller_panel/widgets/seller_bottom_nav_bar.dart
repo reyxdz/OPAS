@@ -66,13 +66,6 @@ class SellerBottomNavBar extends StatelessWidget {
               onTap: () => onTap(3),
               iconSize: iconSize,
             ),
-            _NavItem(
-              icon: Icons.trending_up_outlined,
-              filledIcon: Icons.trending_up,
-              isSelected: selectedIndex == 4,
-              onTap: () => onTap(4),
-              iconSize: iconSize,
-            ),
           ],
         ),
       ),

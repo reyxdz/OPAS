@@ -2,21 +2,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'package:opas_flutter/core/config/backend_config.dart';
 
 class ApiService {
-  // Possible backend URLs for different emulators
-  // Web (Edge/Chrome): localhost
-  // Mobile (Android Phone): Try common local network patterns
-  static const List<String> _possibleBaseUrls = [
-    'http://localhost:8000/api',      // Web/localhost
-    'http://127.0.0.1:8000/api',      // Fallback localhost
-    'http://10.0.2.2:8000/api',       // Android emulator special IP
-    'http://10.104.199.34:8000/api',  // Current machine IP (Update this when network changes)
-    'http://10.207.234.34:8000/api',  // Alternative machine IP
-    'http://192.168.1.1:8000/api',    // Common router IP
-    'http://192.168.1.100:8000/api',  // Common local network
-    'http://172.16.0.1:8000/api',     // Docker/VM network
-  ];
+  // Use configuration from backend_config.dart
+  static final List<String> _possibleBaseUrls = BackendConfig.possibleBackendUrls;
 
   static String? _cachedBaseUrl; // Cache the working URL
 
@@ -29,45 +19,73 @@ class ApiService {
 
     // For web, always use localhost
     if (kIsWeb) {
-      _cachedBaseUrl = 'http://localhost:8000/api';
+      _cachedBaseUrl = 'http://localhost:${BackendConfig.port}${BackendConfig.apiPath}';
       return _cachedBaseUrl!;
     }
 
-    // For mobile, start with network IP since localhost won't work
+    // For mobile, start with trying localhost first, then other options
     // This will be validated on first API call
-    _cachedBaseUrl = _possibleBaseUrls[3]; // Start with current known network IP (10.104.199.34)
+    _cachedBaseUrl = _possibleBaseUrls[0]; // Start with localhost
     return _cachedBaseUrl!;
   }
 
-  /// Try to find a working backend URL by testing each possible URL
-  static Future<String> _findWorkingUrl() async {
-    for (final url in _possibleBaseUrls) {
+  /// Try to find a working backend URL by testing each possible URL in parallel
+  static Future<String> findWorkingUrl() async {
+    debugPrint('🔍 Starting parallel URL discovery...');
+    
+    // Create concurrent requests to all URLs with aggressive timeout
+    final futures = _possibleBaseUrls.asMap().entries.map((entry) async {
+      final index = entry.key;
+      final url = entry.value;
+      
       try {
-        final testUrl = '$url/auth/login/';
+        // Test with a simple GET to the base API URL
+        // This checks connectivity without requiring valid credentials
+        debugPrint('Testing [$index] $url...');
+        
         final response = await http
-            .post(
-              Uri.parse(testUrl),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({'phone_number': 'test', 'password': 'test'}),
-            )
-            .timeout(const Duration(seconds: 5));
+            .get(Uri.parse(url))
+            .timeout(const Duration(seconds: BackendConfig.singleRequestTimeout));
 
-        // If we get ANY response (even 400/401), the server is reachable
-        if (response.statusCode != 0) {
-          _cachedBaseUrl = url;
-          debugPrint('✅ Found working backend URL: $url');
-          return url;
-        }
+        // If we get ANY response (200, 404, 405, etc), the server is reachable
+        // 404 is actually good - it means Django is responding
+        debugPrint('  ✅ Got response ${response.statusCode} from $url');
+        return {'url': url, 'priority': 10 - index, 'statusCode': response.statusCode};
       } catch (e) {
-        debugPrint('❌ Failed to connect to $url: $e');
-        continue;
+        // Connection errors are expected during discovery
+        debugPrint('  ❌ [$index] Connection failed: ${e.toString().split('\n').first}');
+        return null;
       }
+    });
+
+    // Wait for all requests with a reasonable timeout
+    try {
+      final results = await Future.wait(futures, eagerError: false)
+          .timeout(const Duration(seconds: BackendConfig.totalDiscoveryTimeout));
+      
+      // Filter null results and sort by priority
+      final validResults = results
+          .where((r) => r != null)
+          .cast<Map<String, dynamic>>()
+          .toList()
+          ..sort((a, b) => (b['priority'] as int).compareTo(a['priority'] as int));
+
+      if (validResults.isNotEmpty) {
+        final workingUrl = validResults.first['url'] as String;
+        final statusCode = validResults.first['statusCode'] as int;
+        _cachedBaseUrl = workingUrl;
+        debugPrint('🎯 Using backend URL: $workingUrl (status: $statusCode)');
+        return workingUrl;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Timeout during parallel URL discovery: $e');
     }
 
-    // If nothing works, throw an error
+    // If nothing works, throw an error with instructions
     throw Exception(
       'Could not connect to backend. Tried: ${_possibleBaseUrls.join(", ")}. '
-      'Make sure Django is running with: python manage.py runserver 0.0.0.0:8000'
+      'Make sure Django is running with: ${BackendConfig.djangoRunCommand} '
+      'and update machineIp in lib/core/config/backend_config.dart if needed.'
     );
   }
 
@@ -90,7 +108,7 @@ class ApiService {
         Uri.parse('$baseUrl/auth/token/refresh/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refresh': refreshToken}),
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: BackendConfig.apiCallTimeout));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -112,7 +130,7 @@ class ApiService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode(userData),
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: BackendConfig.apiCallTimeout));
 
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
@@ -130,7 +148,7 @@ class ApiService {
         
         debugPrint('⚠️ Connection to $baseUrl failed, trying to find working backend...');
         try {
-          final workingUrl = await _findWorkingUrl();
+          final workingUrl = await findWorkingUrl();
           
           // Retry with working URL
           final retryResponse = await http.post(
@@ -160,21 +178,34 @@ class ApiService {
   static Future<Map<String, dynamic>> loginUser(
       String phoneNumber, String password) async {
     try {
+      debugPrint('🔐 Login Request:');
+      debugPrint('  URL: $baseUrl/auth/login/');
+      debugPrint('  Phone: $phoneNumber');
+      debugPrint('  Password: ${password.replaceAll(RegExp(r'.'), '*')}');
+      
+      final requestBody = {'phone_number': phoneNumber, 'password': password};
+      debugPrint('  Body: $requestBody');
+      
       final response = await http
           .post(
             Uri.parse('$baseUrl/auth/login/'),
             headers: {'Content-Type': 'application/json'},
-            body:
-                jsonEncode({'phone_number': phoneNumber, 'password': password}),
+            body: jsonEncode(requestBody),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: BackendConfig.apiCallTimeout));
+
+      debugPrint('🔐 Login Response Status: ${response.statusCode}');
+      debugPrint('🔐 Login Response Body (first 500 chars): ${response.body.substring(0, (response.body.length < 500) ? response.body.length : 500)}');
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        debugPrint('🔐 Login successful, user role: ${responseData['role']}');
+        return responseData;
       } else {
         // try to decode error body, otherwise use raw body
         try {
           final errorData = jsonDecode(response.body);
+          debugPrint('🔐 Login error response: $errorData');
           throw Exception(errorData.toString());
         } catch (_) {
           throw Exception(
@@ -194,7 +225,7 @@ class ApiService {
         
         debugPrint('⚠️ Connection to $baseUrl ($baseUrl) failed, trying to find working backend...');
         try {
-          final workingUrl = await _findWorkingUrl();
+          final workingUrl = await findWorkingUrl();
           
           // Retry with working URL
           final retryResponse = await http
@@ -204,7 +235,7 @@ class ApiService {
                 body:
                     jsonEncode({'phone_number': phoneNumber, 'password': password}),
               )
-              .timeout(const Duration(seconds: 30));
+              .timeout(const Duration(seconds: BackendConfig.apiCallTimeout));
 
           if (retryResponse.statusCode == 200) {
             debugPrint('✅ Login successful with $workingUrl');

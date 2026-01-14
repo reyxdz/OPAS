@@ -29,7 +29,70 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void initState() {
     super.initState();
     _loadUserAddress();
+    // Set default fulfillment method to first available option
+    _initializeFulfillmentMethod();
   }
+
+  /// Initialize fulfillment method based on available options
+  void _initializeFulfillmentMethod() {
+    final availableMethods = _getAvailableFulfillmentMethods();
+    if (availableMethods.isNotEmpty && _selectedFulfillmentMethod == null) {
+      setState(() => _selectedFulfillmentMethod = availableMethods.first['id']);
+    }
+  }
+
+  /// Get fulfillment methods supported by ALL cart items
+  /// Returns a list of methods that are common across all sellers
+  List<Map<String, dynamic>> _getAvailableFulfillmentMethods() {
+    if (widget.cartItems.isEmpty) {
+      return [];
+    }
+
+    // Parse fulfillment methods from all items
+    final allItemsMethods = widget.cartItems.map((item) {
+      final methods = item.fulfillmentMethods?.split(',').map((m) => m.trim().toLowerCase()).toList() ?? [];
+      return methods.isNotEmpty ? methods : ['delivery', 'pickup']; // Default if not specified
+    }).toList();
+
+    if (allItemsMethods.isEmpty) {
+      return [];
+    }
+
+    // Find common methods (intersection)
+    final commonMethods = allItemsMethods.first.toSet();
+    for (var methods in allItemsMethods.skip(1)) {
+      commonMethods.retainAll(methods);
+    }
+
+    // Build option list from common methods
+    final options = <Map<String, dynamic>>[];
+    
+    if (commonMethods.contains('delivery')) {
+      options.add({
+        'id': 'delivery',
+        'name': 'Delivery',
+        'description': 'Get your order delivered to your address',
+        'icon': Icons.local_shipping,
+      });
+    }
+
+    if (commonMethods.contains('pickup')) {
+      options.add({
+        'id': 'pickup',
+        'name': 'Pickup',
+        'description': 'Pick up your order from the seller',
+        'icon': Icons.storefront,
+      });
+    }
+
+    return options;
+  }
+
+  /// Check if items have incompatible fulfillment methods
+  bool _hasIncompatibleFulfillmentMethods() {
+    return _getAvailableFulfillmentMethods().isEmpty;
+  }
+
 
   Future<void> _loadUserAddress() async {
     final prefs = await SharedPreferences.getInstance();
@@ -41,6 +104,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _placeOrder() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    // Check if there are compatible fulfillment methods
+    if (_hasIncompatibleFulfillmentMethods()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No fulfillment method is supported by all sellers in your cart'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -142,7 +216,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _placeOrder,
+                  onPressed: (_isLoading || _hasIncompatibleFulfillmentMethods()) ? null : _placeOrder,
                   icon: _isLoading ? null : const Icon(Icons.check_circle_outline),
                   label: _isLoading
                       ? const SizedBox(
@@ -153,16 +227,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text(
-                          'Place Order',
-                          style: TextStyle(
+                      : Text(
+                          _hasIncompatibleFulfillmentMethods()
+                              ? 'Incompatible Items'
+                              : 'Place Order',
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.5,
                           ),
                         ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00B464),
+                    backgroundColor: (_isLoading || _hasIncompatibleFulfillmentMethods())
+                        ? Colors.grey[400]
+                        : const Color(0xFF00B464),
                     foregroundColor: Colors.white,
                     elevation: 4,
                     shape: RoundedRectangleBorder(
@@ -402,26 +480,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   /// Fulfillment Method Section (Delivery/Pickup based on seller options)
   Widget _buildFulfillmentMethodSection(BuildContext context) {
-    // Determine available fulfillment options from cart items
-    // Both delivery and pickup are available for all items
-
-    List<Map<String, dynamic>> fulfillmentOptions = [];
-    
-    // Add delivery option if available
-    fulfillmentOptions.add({
-      'id': 'delivery',
-      'name': 'Delivery',
-      'description': 'Get your order delivered to your address',
-      'icon': Icons.local_shipping,
-    });
-
-    // Add pickup option if available
-    fulfillmentOptions.add({
-      'id': 'pickup',
-      'name': 'Pickup',
-      'description': 'Pick up your order from the seller',
-      'icon': Icons.storefront,
-    });
+    final availableMethods = _getAvailableFulfillmentMethods();
+    final hasNoOptions = availableMethods.isEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,7 +507,46 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        if (_selectedFulfillmentMethod != null)
+        
+        // Show error if no compatible fulfillment methods
+        if (hasNoOptions)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+              borderRadius: BorderRadius.circular(12),
+              color: Colors.red.withOpacity(0.05),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.red[600], size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Incompatible Fulfillment Methods',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red[600],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'The products in your cart have different fulfillment method support. Please select compatible items.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.red[600],
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else if (_selectedFulfillmentMethod != null)
           _buildSelectedFulfillmentDisplay(context, _selectedFulfillmentMethod!)
         else
           Container(
@@ -470,14 +569,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () {
-              _showFulfillmentMethodSelector(context, fulfillmentOptions);
+            onPressed: hasNoOptions ? null : () {
+              _showFulfillmentMethodSelector(context, availableMethods);
             },
             icon: const Icon(Icons.edit),
             label: const Text('Change Fulfillment Method'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
-              side: const BorderSide(color: Color(0xFF00B464)),
+              side: BorderSide(
+                color: hasNoOptions ? Colors.grey[300]! : const Color(0xFF00B464),
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),

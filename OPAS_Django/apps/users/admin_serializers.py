@@ -20,6 +20,61 @@ from apps.users.admin_models import (
 )
 
 
+# ==================== HELPER FUNCTIONS ====================
+
+def get_or_create_opas_seller():
+    """
+    Get or create the shared OPAS seller account for product uploads.
+    
+    All OPAS admins use this shared account when posting products to the marketplace.
+    This ensures products are centrally managed and always visible to buyers.
+    
+    OPAS seller location: Naval, Biliran
+    
+    Returns:
+        User: The OPAS seller account (always with APPROVED status)
+    """
+    from apps.users.models import SellerStatus
+    
+    opas_seller, created = User.objects.get_or_create(
+        phone_number='OPAS_SYSTEM',
+        defaults={
+            'username': 'opas_system_seller',
+            'first_name': 'OPAS',
+            'last_name': 'System',
+            'email': 'system@opas.local',
+            'role': 'SELLER',
+            'seller_status': SellerStatus.APPROVED,
+            'farm_municipality': 'Naval',
+            'farm_barangay': 'Biliran',
+            'store_name': 'OPAS Central Store',
+        }
+    )
+    
+    # Ensure OPAS seller is always APPROVED and has correct location
+    needs_save = False
+    
+    if opas_seller.seller_status != SellerStatus.APPROVED:
+        opas_seller.seller_status = SellerStatus.APPROVED
+        needs_save = True
+    
+    if opas_seller.farm_municipality != 'Naval':
+        opas_seller.farm_municipality = 'Naval'
+        needs_save = True
+    
+    if opas_seller.farm_barangay != 'Biliran':
+        opas_seller.farm_barangay = 'Biliran'
+        needs_save = True
+    
+    if opas_seller.store_name != 'OPAS Central Store':
+        opas_seller.store_name = 'OPAS Central Store'
+        needs_save = True
+    
+    if needs_save:
+        opas_seller.save()
+    
+    return opas_seller
+
 
 # ==================== SELLER MANAGEMENT SERIALIZERS ====================
 
@@ -101,16 +156,35 @@ class SellerManagementSerializer(serializers.ModelSerializer):
 class SellerDetailsSerializer(serializers.ModelSerializer):
     """Serializer for detailed seller view with history and documents."""
     full_name = serializers.CharField(read_only=True)
+    farm_name = serializers.SerializerMethodField()
+    store_name_from_app = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'full_name', 'phone_number', 'address',
-            'store_name', 'store_description', 'role', 'seller_status',
+            'store_name', 'store_description', 'farm_name', 'store_name_from_app',
+            'role', 'seller_status',
             'seller_approval_date', 'seller_documents_verified',
             'suspension_reason', 'suspended_at', 'created_at', 'updated_at'
         ]
         read_only_fields = fields
+    
+    def get_farm_name(self, obj):
+        """Get farm name from seller application if exists"""
+        try:
+            seller_app = obj.seller_application
+            return seller_app.farm_name if seller_app else None
+        except:
+            return None
+    
+    def get_store_name_from_app(self, obj):
+        """Get store name from seller application if exists"""
+        try:
+            seller_app = obj.seller_application
+            return seller_app.store_name if seller_app else None
+        except:
+            return None
 
 
 class SellerApprovalRequestSerializer(serializers.Serializer):
@@ -307,6 +381,95 @@ class OPASInventorySerializer(serializers.ModelSerializer):
             'transactions'
         ]
         read_only_fields = ['id', 'received_at']
+
+
+class OPASProductUploadSerializer(serializers.Serializer):
+    """Simplified serializer for OPAS admins to create and upload products directly"""
+    product_name = serializers.CharField(max_length=255)
+    description = serializers.CharField(required=False, allow_blank=True)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    stock_level = serializers.IntegerField(min_value=0)
+    category_forecast = serializers.CharField(max_length=255, help_text="Forecasting category (VEGETABLE, FRUIT, etc.)")
+    product_type = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    product_subtype = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    unit = serializers.CharField(max_length=50, default='kg', required=False)
+    fulfillment_methods = serializers.CharField(max_length=50, default='delivery_and_pickup', required=False)
+    image = serializers.ImageField(required=False, allow_null=True)
+    
+    def create(self, validated_data):
+        """Create a SellerProduct and OPASInventory entry - OPAS products are ACTIVE immediately"""
+        from datetime import datetime, timedelta
+        from apps.users.seller_models import ProductCategory, ProductStatus
+        
+        # Get or create the shared OPAS seller account
+        opas_user = get_or_create_opas_seller()
+        
+        # Find or create the category by name (case-insensitive)
+        category_name = validated_data.get('category_forecast', '')
+        try:
+            product_category = ProductCategory.objects.get(name__iexact=category_name)
+        except ProductCategory.DoesNotExist:
+            # Create a new category if it doesn't exist
+            product_category = ProductCategory.objects.create(
+                name=category_name,
+                slug=category_name.lower().replace(' ', '-')
+            )
+        
+        # Create seller product with ACTIVE status (no approval needed for OPAS)
+        product = SellerProduct.objects.create(
+            seller=opas_user,
+            name=validated_data['product_name'],
+            description=validated_data.get('description', ''),
+            category=product_category,
+            category_forecast=validated_data.get('category_forecast', ''),
+            product_type=validated_data.get('product_type', ''),
+            product_subtype=validated_data.get('product_subtype', ''),
+            price=validated_data['price'],
+            unit=validated_data.get('unit', 'kg'),
+            stock_level=validated_data['stock_level'],
+            quality_grade='STANDARD',
+            fulfillment_methods=validated_data.get('fulfillment_methods', 'delivery_and_pickup'),
+            status=ProductStatus.ACTIVE,  # OPAS products are immediately ACTIVE
+            is_opas_managed=True,  # Mark as OPAS-managed
+        )
+        
+        # Handle image upload if provided
+        if validated_data.get('image'):
+            image_file = validated_data['image']
+            product_image = ProductImage.objects.create(
+                product=product,
+                image=image_file,
+                is_primary=True,  # Set as primary image
+                order=1
+            )
+            # Update product's image_url to point to the uploaded image
+            product.image_url = product_image.image.url
+            product.save()
+        
+        # Create OPAS inventory entry
+        stock_level = validated_data['stock_level']
+        inventory = OPASInventory.objects.create(
+            product=product,
+            quantity_received=stock_level,
+            quantity_on_hand=stock_level,
+            in_date=datetime.now(),
+            expiry_date=datetime.now() + timedelta(days=30),  # Default 30 days
+            storage_location='OPAS Warehouse',
+            storage_condition='AMBIENT'
+        )
+        
+        return {
+            'id': inventory.id,
+            'product_id': product.id,
+            'product_name': product.name,
+            'price': str(product.price),
+            'stock_level': stock_level,
+            'category': product_category.name,
+            'category_forecast': validated_data.get('category_forecast', ''),
+            'product_type': validated_data.get('product_type', ''),
+            'product_subtype': validated_data.get('product_subtype', ''),
+            'image': product.image_url,  # Return image URL
+        }
 
 
 class OPASInventoryAdjustmentSerializer(serializers.Serializer):
@@ -688,6 +851,7 @@ __all__ = [
     'OPASPurchaseOrderRejectionSerializer',
     'OPASInventoryTransactionSerializer',
     'OPASInventorySerializer',
+    'OPASProductUploadSerializer',
     'OPASInventoryAdjustmentSerializer',
     'OPASPurchaseHistorySerializer',
     'ProductListingSerializer',

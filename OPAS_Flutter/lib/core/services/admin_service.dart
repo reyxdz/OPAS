@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:opas_flutter/features/admin_panel/services/admin_audit_trail_service.dart';
 import 'api_service.dart';
@@ -432,6 +435,165 @@ class AdminService {
     }
   }
 
+  /// Get all users (buyers and sellers) on the platform
+  /// 
+  /// Parameters:
+  ///   - role: Filter by role (BUYER, SELLER, ADMIN) - optional
+  /// 
+  /// Returns: [{id, email, full_name, phone_number, address, role, seller_status, ...}]
+  /// Purpose: Display all users with their contact information in admin panel
+  static Future<List<Map<String, dynamic>>> getAllUsers({String? role}) async {
+    try {
+      String url = '$adminEndpoint/users/list_users/';
+      if (role != null) {
+        url += '?role=$role';
+      }
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Handle both list and object response formats
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data.map((u) => Map<String, dynamic>.from(u as Map)));
+        } else if (data is Map && data.containsKey('results')) {
+          final results = data['results'] as List;
+          return List<Map<String, dynamic>>.from(results.map((u) => Map<String, dynamic>.from(u as Map)));
+        } else {
+          return [];
+        }
+      } else {
+        throw Exception('Failed to fetch users: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching users: $e');
+      return [];
+    }
+  }
+
+  /// Get all buyers (users with BUYER role) on the platform
+  /// 
+  /// Returns: [{id, email, full_name, phone_number, address, created_at, ...}]
+  /// Purpose: Display all buyers with their contact information and account creation date in admin panel
+  static Future<List<Map<String, dynamic>>> getAllBuyers() async {
+    try {
+      final url = '$adminEndpoint/users/list_users/?role=BUYER';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Handle both list and object response formats
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data.map((u) => Map<String, dynamic>.from(u as Map)));
+        } else if (data is Map && data.containsKey('results')) {
+          final results = data['results'] as List;
+          return List<Map<String, dynamic>>.from(results.map((u) => Map<String, dynamic>.from(u as Map)));
+        } else {
+          return [];
+        }
+      } else {
+        throw Exception('Failed to fetch buyers: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching buyers: $e');
+      return [];
+    }
+  }
+
+  /// Get all sellers (users with SELLER role) on the platform
+  /// 
+  /// Returns: [{id, email, full_name, phone_number, address, store_name, store_description, seller_status, created_at, ...}]
+  /// Purpose: Display all sellers with their store information and account creation date in admin panel
+  static Future<List<Map<String, dynamic>>> getAllSellers() async {
+    try {
+      final url = '$adminEndpoint/users/list_users/?role=SELLER';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Handle both list and object response formats
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data.map((u) => Map<String, dynamic>.from(u as Map)));
+        } else if (data is Map && data.containsKey('results')) {
+          final results = data['results'] as List;
+          return List<Map<String, dynamic>>.from(results.map((u) => Map<String, dynamic>.from(u as Map)));
+        } else {
+          return [];
+        }
+      } else {
+        throw Exception('Failed to fetch sellers: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching sellers: $e');
+      return [];
+    }
+  }
+
+  /// Get all products (listings) on the platform
+  /// 
+  /// Returns: [{id, name, product_type, price, stock_level, status, seller_name, image, ...}]
+  /// Purpose: Display all product listings in admin panel
+  static Future<List<Map<String, dynamic>>> getAllProducts() async {
+    try {
+      // Use the buyer API endpoint to get all products
+      final url = '${ApiService.baseUrl}/products/';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      debugPrint('DEBUG: Products API Status: ${response.statusCode}');
+      debugPrint('DEBUG: Products API URL: $url');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        debugPrint('DEBUG: Products Response type: ${data.runtimeType}');
+        debugPrint('DEBUG: Products Response sample: ${json.encode(data).substring(0, 200)}');
+        
+        // Handle both list and object response formats
+        if (data is List) {
+          debugPrint('DEBUG: Got list response with ${data.length} products');
+          return List<Map<String, dynamic>>.from(data.map((p) => Map<String, dynamic>.from(p as Map)));
+        } else if (data is Map && data.containsKey('results')) {
+          final results = data['results'] as List;
+          debugPrint('DEBUG: Got map response with results key, ${results.length} products');
+          return List<Map<String, dynamic>>.from(results.map((p) => Map<String, dynamic>.from(p as Map)));
+        } else if (data is Map && data.containsKey('data')) {
+          // Some APIs wrap results in 'data' key
+          final results = data['data'];
+          if (results is List) {
+            debugPrint('DEBUG: Got map response with data key, ${results.length} products');
+            return List<Map<String, dynamic>>.from(results.map((p) => Map<String, dynamic>.from(p as Map)));
+          }
+        }
+        debugPrint('DEBUG: Could not parse products response');
+        return [];
+      } else {
+        debugPrint('DEBUG: Products API returned status ${response.statusCode}');
+        throw Exception('Failed to fetch products: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching products: $e');
+      return [];
+    }
+  }
+
   /// ============================================================================
   /// PRICE MANAGEMENT (8 methods)
   /// ============================================================================
@@ -717,7 +879,7 @@ class AdminService {
     int page = 1,
   }) async {
     try {
-      String url = '$adminEndpoint/opas/submissions/?page=$page';
+      String url = '$adminEndpoint/opas/seller-offers/?page=$page';
       if (status != null) url += '&status=$status';
 
       final response = await http.get(
@@ -777,16 +939,18 @@ class AdminService {
     required int quantityAccepted,
     required num finalPrice,
     String? terms,
+    String? adminNotes,
   }) async {
     try {
       final body = {
         'quantity_accepted': quantityAccepted,
         'final_price': finalPrice,
-        'terms': terms ?? '',
+        'delivery_terms': terms ?? '',
+        'admin_notes': adminNotes ?? '',
       };
 
       final response = await http.post(
-        Uri.parse('$adminEndpoint/opas/submissions/$id/approve/'),
+        Uri.parse('$adminEndpoint/opas/$id/approve/'),
         headers: await _getHeaders(),
         body: json.encode(body),
       );
@@ -834,10 +998,10 @@ class AdminService {
     required String reason,
   }) async {
     try {
-      final body = {'reason': reason};
+      final body = {'rejection_reason': reason};
 
       final response = await http.post(
-        Uri.parse('$adminEndpoint/opas/submissions/$id/reject/'),
+        Uri.parse('$adminEndpoint/opas/$id/reject/'),
         headers: await _getHeaders(),
         body: json.encode(body),
       );
@@ -862,6 +1026,68 @@ class AdminService {
         return data;
       } else {
         throw Exception('Failed to reject submission: ${response.statusCode}');
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// Mark OPAS submission as delivered with proof images
+  /// 
+  /// Parameters:
+  ///   - id: Submission ID (required)
+  ///   - images: List of proof images (up to 3)
+  /// 
+  /// Returns: {success: bool, message: string, delivery_proof_id: int}
+  static Future<Map<String, dynamic>> markOPASDelivered(
+    String id,
+    List<File> images,
+  ) async {
+    try {
+      // Create multipart request
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$adminEndpoint/opas/$id/mark-delivered/'),
+      );
+
+      // Add headers
+      final headers = await _getHeaders();
+      request.headers.addAll(headers);
+
+      // Add images
+      for (int i = 0; i < images.length && i < 3; i++) {
+        final file = images[i];
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'proof_images',
+            file.path,
+          ),
+        );
+      }
+
+      final response = await request.send();
+      final responseBody = await response.stream.bytesToString();
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(responseBody);
+
+        // Record audit trail
+        await AdminAuditTrailService.recordAuditTrail(
+          action: 'OPAS_MARK_DELIVERED',
+          category: AdminAuditTrailService.actionCategoryOPAS,
+          adminId: 'admin_001',
+          entityType: 'opas_submission',
+          entityId: id,
+          beforeState: {'status': 'APPROVED'},
+          afterState: {'status': 'DELIVERED', 'proof_images': images.length},
+          severity: AdminAuditTrailService.severityMedium,
+          reason: 'OPAS order marked as delivered',
+          notes: 'Uploaded ${images.length} proof images',
+        );
+
+        return data;
+      } else {
+        throw Exception('Failed to mark delivery: ${response.statusCode} - $responseBody');
       }
     } catch (e) {
       return {'success': false, 'error': e.toString()};
@@ -1914,6 +2140,541 @@ class AdminService {
     } catch (e) {
       // Silently fail - role refresh is not critical
       debugPrint('DEBUG: Failed to refresh user role: $e');
+    }
+  }
+
+  /// ============================================================================
+  /// FORECASTING (Phase 5.1)
+  /// ============================================================================
+  /// Operations: Get forecasts, metadata, refresh forecasts
+
+  /// Get all product forecasts with optional filtering
+  /// 
+  /// Returns: List of forecast objects with demand, price, and confidence data
+  /// Purpose: Display forecasts in admin dashboard
+  static Future<List<dynamic>> getAllForecasts({
+    String? category,
+    String? confidenceLevel,
+  }) async {
+    try {
+      String url = '$adminEndpoint/forecasts/dashboard/';
+      
+      final queryParams = <String, String>{};
+      if (category != null && category.isNotEmpty) {
+        queryParams['category'] = category;
+      }
+      if (confidenceLevel != null && confidenceLevel.isNotEmpty) {
+        queryParams['confidence_level'] = confidenceLevel;
+      }
+      
+      if (queryParams.isNotEmpty) {
+        url += '?${queryParams.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
+      }
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Handle our new dashboard response format
+        if (data is Map && data.containsKey('categories')) {
+          // Transform grouped data into flat list
+          final List<dynamic> forecasts = [];
+          final categories = data['categories'] as Map<String, dynamic>;
+          
+          for (var categoryData in categories.values) {
+            if (categoryData is Map && categoryData.containsKey('products')) {
+              final products = categoryData['products'] as List<dynamic>;
+              forecasts.addAll(products);
+            }
+          }
+          
+          return forecasts;
+        }
+        
+        // Fallback for other response formats
+        final forecasts = data is List ? data : data['results'] ?? [];
+        return forecasts;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw Exception('Unauthorized access to forecasts');
+      } else {
+        throw Exception('Failed to fetch forecasts: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching forecasts: $e');
+      return [];
+    }
+  }
+
+  /// Get all historical forecasts for a product (including old ones)
+  /// 
+  /// Parameters:
+  ///   - productName: Required. The product name to get history for
+  /// 
+  /// Returns: List of all forecasts for the product ordered by date (newest first)
+  /// Purpose: Display complete forecast history for a product
+  static Future<List<dynamic>> getHistoricalForecasts(String productName) async {
+    try {
+      final url = '$adminEndpoint/forecasts/history/?product_name=${Uri.encodeComponent(productName)}';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final forecasts = data is List ? data : data['results'] ?? [];
+        return forecasts;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw Exception('Unauthorized access to forecast history');
+      } else if (response.statusCode == 404) {
+        throw Exception('No forecasts found for product: $productName');
+      } else {
+        throw Exception('Failed to fetch forecast history: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching forecast history: $e');
+      return [];
+    }
+  }
+
+  /// Get forecast metadata (model info, data coverage, etc.)
+  /// 
+  /// Returns: Metadata about forecasting models and data coverage
+  /// Purpose: Show admin model reliability and data statistics
+  static Future<Map<String, dynamic>> getForecastMetadata() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$adminEndpoint/forecasts/metadata/'),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data is Map<String, dynamic> ? data : {};
+      } else {
+        throw Exception('Failed to fetch forecast metadata: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching forecast metadata: $e');
+      return {};
+    }
+  }
+
+  /// Trigger manual forecast refresh (Super Admin only)
+  /// 
+  /// Returns: Success status and refresh job info
+  /// Purpose: Allow admins to regenerate forecasts on demand
+  static Future<Map<String, dynamic>> refreshForecasts() async {
+    try {
+      final response = await http.post(
+        Uri.parse('$adminEndpoint/forecasts/refresh/'),
+        headers: await _getHeaders(),
+        body: json.encode({}),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200 || response.statusCode == 202) {
+        final data = json.decode(response.body);
+        return data is Map<String, dynamic> ? data : {'status': 'success'};
+      } else if (response.statusCode == 403) {
+        throw Exception('Only Super Admin can refresh forecasts');
+      } else {
+        throw Exception('Failed to refresh forecasts: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error refreshing forecasts: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
+  /// Get product classifications hierarchy for cascading dropdowns
+  /// 
+  /// Returns: Map with categories and full hierarchy (category -> type -> [subtypes])
+  /// Purpose: Populate Type and Subtype dropdowns dynamically
+  static Future<Map<String, dynamic>> getProductClassifications() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$adminEndpoint/forecasting/product-classifications/'),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data is Map<String, dynamic> ? data : {};
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw Exception('Unauthorized access to product classifications');
+      } else {
+        throw Exception('Failed to fetch classifications: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching product classifications: $e');
+      return {};
+    }
+  }
+
+  /// Get product types for a specific category
+  /// 
+  /// Fetches from API to get actual database types
+  /// Used when admin selects a category
+  /// 
+  /// Args:
+  ///   category: The category code (e.g., 'VEGETABLE', 'FRUIT')
+  /// 
+  /// Returns: List of product types for that category
+  static Future<List<String>> getTypesForCategory(String category) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$adminEndpoint/forecasts/types-for-category/?category=$category'),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is Map<String, dynamic> && data.containsKey('types')) {
+          final types = data['types'];
+          if (types is List) {
+            return List<String>.from(types.map((t) => t.toString()));
+          }
+        }
+        return [];
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw Exception('Unauthorized access to types');
+      } else if (response.statusCode == 404) {
+        return [];
+      } else {
+        throw Exception('Failed to fetch types: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching types for category $category: $e');
+      return [];
+    }
+  }
+
+  /// Get product subtypes for a specific category and type
+  /// 
+  /// Fetches from API to get actual database subtypes
+  /// Used when admin selects a product type
+  /// 
+  /// Args:
+  ///   category: The category code (e.g., 'VEGETABLE')
+  ///   type: The product type (e.g., 'Leafy', 'Root')
+  /// 
+  /// Returns: List of subtypes for that category:type combination
+  static Future<List<String>> getSubtypesForType(String category, String type) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$adminEndpoint/forecasts/subtypes-for-type/?category=$category&type=$type'),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is Map<String, dynamic> && data.containsKey('subtypes')) {
+          final subtypes = data['subtypes'];
+          if (subtypes is List) {
+            return List<String>.from(subtypes.map((s) => s.toString()));
+          }
+        }
+        return [];
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw Exception('Unauthorized access to subtypes');
+      } else if (response.statusCode == 404) {
+        return [];
+      } else {
+        throw Exception('Failed to fetch subtypes: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching subtypes for $category > $type: $e');
+      return [];
+    }
+  }
+
+  /// Get forecast summary statistics
+  static Future<Map<String, dynamic>> getForecastSummary() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$adminEndpoint/forecasts/summary/'),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data is Map<String, dynamic> ? data : {};
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw Exception('Unauthorized access to forecast summary');
+      } else {
+        throw Exception('Failed to fetch forecast summary: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching forecast summary: $e');
+      return {'error': e.toString()};
+    }
+  }
+
+  /// Get forecast alerts
+  /// 
+  /// Returns: List of alerts about demand/price anomalies
+  /// Purpose: Notify admin of unusual forecast conditions
+  static Future<List<dynamic>> getForecastAlerts() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$adminEndpoint/forecasts/alerts/'),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final alerts = data is List ? data : data['results'] ?? [];
+        return alerts;
+      } else {
+        throw Exception('Failed to fetch forecast alerts: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching forecast alerts: $e');
+      return [];
+    }
+  }
+
+  /// Get detailed forecast for single product (Phase 5.1 B)
+  /// 
+  /// Returns: Detailed forecast with historical data, charts data, alerts
+  /// Purpose: Display product forecast detail screen
+  static Future<Map<String, dynamic>> getForecastDetail(int productId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$adminEndpoint/forecasts/$productId/'),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data is Map<String, dynamic> ? data : {};
+      } else if (response.statusCode == 404) {
+        throw Exception('Forecast not found for product $productId');
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw Exception('Unauthorized access to forecast');
+      } else {
+        throw Exception('Failed to fetch forecast detail: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching forecast detail: $e');
+      rethrow;
+    }
+  }
+
+  /// ============================================================================
+  /// OPAS PRODUCT MANAGEMENT
+  /// ============================================================================
+  /// Operations: Create and manage OPAS marketplace products with image upload
+
+  /// Upload a new OPAS product with image to the marketplace
+  /// Parameters:
+  ///   - name: Product name
+  ///   - description: Product description
+  ///   - price: Product price (as string to preserve decimals)
+  ///   - quantity: Available quantity
+  ///   - category: Product category
+  ///   - imageFile: Image file object (null for placeholder upload)
+  /// Returns: {id, product_name, price, quantity, category, ...}
+  /// Throws: Exception on API error or network failure
+  static Future<Map<String, dynamic>> uploadOPASProduct({
+    required String name,
+    required String description,
+    required String price,
+    required String quantity,
+    required String category,
+    String? unit,
+    String? fulfillmentMethods,
+    String? productType,
+    String? productSubtype,
+    required http.MultipartFile? imageFile,
+  }) async {
+    try {
+      await _refreshTokenIfNeeded();
+      final headers = await _getHeaders();
+
+      // Ensure we have a working URL
+      await ApiService.findWorkingUrl();
+
+      // Use admin OPAS products endpoint
+      final url = Uri.parse('$adminEndpoint/opas-products/');
+
+      debugPrint('DEBUG: Uploading OPAS product to: $url');
+      debugPrint('DEBUG: Product name: $name, category: $category, price: $price');
+
+      // Create multipart request
+      final request = http.MultipartRequest('POST', url);
+
+      // Add headers
+      request.headers.addAll(headers);
+
+      // Add form fields
+      request.fields['product_name'] = name;
+      request.fields['description'] = description;
+      request.fields['price'] = price;
+      request.fields['stock_level'] = quantity;
+      request.fields['category_forecast'] = category;
+      request.fields['product_type'] = productType ?? category;
+      request.fields['product_subtype'] = (productSubtype == 'NONE' || productSubtype == null) ? '' : productSubtype;
+      request.fields['unit'] = unit ?? 'kg';
+      request.fields['fulfillment_methods'] = fulfillmentMethods ?? 'delivery_and_pickup';
+
+      // Add image file if provided
+      if (imageFile != null) {
+        debugPrint('DEBUG: Adding image file: ${imageFile.filename}');
+        request.files.add(imageFile);
+      }
+
+      debugPrint('DEBUG: Sending multipart request with ${request.fields.length} fields');
+
+      // Send request
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Product upload request timed out');
+        },
+      );
+
+      final response = await http.Response.fromStream(streamedResponse);
+
+      debugPrint('DEBUG: Upload response status: ${response.statusCode}');
+      debugPrint('DEBUG: Upload response: ${response.body.substring(0, min(response.body.length, 500))}');
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        debugPrint('DEBUG: OPAS product uploaded successfully: ${data['id']}');
+        return data;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        throw Exception('Unauthorized: Only OPAS admins can upload products');
+      } else if (response.statusCode == 400) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        debugPrint('DEBUG: Validation error: $data');
+        throw Exception('Validation error: ${data['detail'] ?? data.toString()}');
+      } else {
+        throw Exception('Failed to upload OPAS product: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error uploading OPAS product: $e');
+      rethrow;
+    }
+  }
+
+  /// ============================================================================
+  /// PRODUCT CLASSIFICATION MANAGEMENT
+  /// ============================================================================
+
+  /// Add a new product type to a category
+  /// 
+  /// Parameters:
+  ///   - category: The product category (e.g., "VEGETABLE")
+  ///   - type: The new type name (e.g., "Leafy")
+  /// 
+  /// Returns: {success: bool, message: string}
+  static Future<Map<String, dynamic>> addProductType({
+    required String category,
+    required String type,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final response = await http.post(
+        Uri.parse('$adminEndpoint/forecasting/add-type/'),
+        headers: headers,
+        body: jsonEncode({
+          'category': category,
+          'type': type,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      debugPrint('DEBUG: Add type response status: ${response.statusCode}');
+      debugPrint('DEBUG: Add type response: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Type added successfully',
+          'data': data,
+        };
+      } else if (response.statusCode == 400) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Invalid input',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': 'Failed to add type: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      debugPrint('Error adding product type: $e');
+      return {
+        'success': false,
+        'error': 'Network error: $e',
+      };
+    }
+  }
+
+  /// Add a new product subtype to a type
+  /// 
+  /// Parameters:
+  ///   - category: The product category (e.g., "VEGETABLE")
+  ///   - type: The product type (e.g., "Leafy")
+  ///   - subtype: The new subtype name (e.g., "Kale")
+  /// 
+  /// Returns: {success: bool, message: string}
+  static Future<Map<String, dynamic>> addProductSubtype({
+    required String category,
+    required String type,
+    required String subtype,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final response = await http.post(
+        Uri.parse('$adminEndpoint/forecasting/add-subtype/'),
+        headers: headers,
+        body: jsonEncode({
+          'category': category,
+          'type': type,
+          'subtype': subtype,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      debugPrint('DEBUG: Add subtype response status: ${response.statusCode}');
+      debugPrint('DEBUG: Add subtype response: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Subtype added successfully',
+          'data': data,
+        };
+      } else if (response.statusCode == 400) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        return {
+          'success': false,
+          'error': data['error'] ?? 'Invalid input',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': 'Failed to add subtype: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      debugPrint('Error adding product subtype: $e');
+      return {
+        'success': false,
+        'error': 'Network error: $e',
+      };
     }
   }
 }

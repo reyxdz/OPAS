@@ -1190,7 +1190,7 @@ class _ProductListingScreenState extends State<ProductListingScreen> with Widget
                   ),
                   child: Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.info_outline,
                         color: Colors.orange,
                         size: 18,

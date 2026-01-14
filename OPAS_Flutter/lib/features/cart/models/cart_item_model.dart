@@ -8,6 +8,7 @@ class CartItem {
   final String? imageUrl;
   final String sellerId;
   final String sellerName;
+  String? fulfillmentMethods; // e.g., "delivery", "pickup", "delivery_and_pickup" - mutable for enrichment
 
   CartItem({
     required this.id,
@@ -19,11 +20,18 @@ class CartItem {
     this.imageUrl,
     required this.sellerId,
     required this.sellerName,
+    this.fulfillmentMethods,
   });
 
   double get subtotal => price * quantity;
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
+    // Handle fulfillmentMethods that might be stored as string "null"
+    String? fulfillmentMethods = json['fulfillment_methods'];
+    if (fulfillmentMethods == 'null' || fulfillmentMethods == '') {
+      fulfillmentMethods = null;
+    }
+    
     return CartItem(
       id: json['id']?.toString() ?? '',
       productId: json['product_id']?.toString() ?? '0',
@@ -34,10 +42,17 @@ class CartItem {
       imageUrl: json['image_url'],
       sellerId: json['seller_id']?.toString() ?? '0',
       sellerName: json['seller_name'] ?? 'Unknown Seller',
+      fulfillmentMethods: fulfillmentMethods,
     );
   }
 
   factory CartItem.fromMap(Map<String, dynamic> map) {
+    // Handle fulfillmentMethods that might be stored as string "null"
+    String? fulfillmentMethods = map['fulfillment_methods'] as String?;
+    if (fulfillmentMethods == 'null' || fulfillmentMethods == '') {
+      fulfillmentMethods = null;
+    }
+    
     return CartItem(
       id: map['id'] as String,
       productId: map['product_id'] as String,
@@ -48,6 +63,7 @@ class CartItem {
       imageUrl: map['image_url'] as String?,
       sellerId: map['seller_id'] as String? ?? '0',
       sellerName: map['seller_name'] as String? ?? 'Unknown Seller',
+      fulfillmentMethods: fulfillmentMethods,
     );
   }
 
@@ -61,6 +77,7 @@ class CartItem {
     'image_url': imageUrl,
     'seller_id': sellerId,
     'seller_name': sellerName,
+    'fulfillment_methods': fulfillmentMethods,
   };
 
   Map<String, dynamic> toMap() => {
@@ -73,5 +90,6 @@ class CartItem {
     'image_url': imageUrl,
     'seller_id': sellerId,
     'seller_name': sellerName,
+    'fulfillment_methods': fulfillmentMethods,
   };
 }

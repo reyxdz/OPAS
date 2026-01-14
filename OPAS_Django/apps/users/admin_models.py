@@ -248,6 +248,7 @@ class OPASSubmissionStatus(models.TextChoices):
     """Status for OPAS bulk purchase submissions"""
     PENDING = 'PENDING', 'Pending Review'
     APPROVED = 'APPROVED', 'Approved'
+    DELIVERED = 'DELIVERED', 'Delivered'
     REJECTED = 'REJECTED', 'Rejected'
     PARTIALLY_APPROVED = 'PARTIALLY_APPROVED', 'Partially Approved'
     CANCELLED = 'CANCELLED', 'Cancelled'
@@ -1869,6 +1870,11 @@ class OPASPurchaseOrder(models.Model):
         null=True,
         help_text='When offer was approved'
     )
+    delivered_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text='When delivery proof was submitted'
+    )
     
     class Meta:
         db_table = 'opas_purchase_orders'
@@ -1885,6 +1891,7 @@ class OPASPurchaseOrder(models.Model):
             models.Index(fields=['reviewed_by_id']),
             models.Index(fields=['reviewed_at']),
             models.Index(fields=['approved_at']),
+            models.Index(fields=['delivered_at']),
         ]
     
     def __str__(self):

@@ -685,28 +685,50 @@ class SellerService {
     throw Exception('Failed to fetch OPAS requests: ${response.statusCode}');
   }
 
-  /// POST /api/seller/sell-to-opas/create/ - Submit OPAS offer
+  /// POST /api/users/seller/sell-to-opas/ - Submit OPAS offer
+  /// After submission, uploads any associated images to the product
   static Future<Map<String, dynamic>?> submitOPASoffer({
     required String productType,
     required int quantity,
     required String qualityGrade,
-    required int estimatedPrice,
+    required double estimatedPrice,
+    List<String> imagePaths = const [],
   }) async {
     final body = {
       'product_type': productType,
-      'quantity': quantity,
+      'quantity_offered': quantity,  // Backend expects quantity_offered
       'quality_grade': qualityGrade,
-      'offered_price': estimatedPrice,
+      'offered_price': estimatedPrice.toStringAsFixed(2),  // Send as decimal string
     };
 
     final response = await _makeRequest(
       'POST',
-      '/users/seller/sell-to-opas/create/',
+      '/users/seller/sell-to-opas/',
       body: body,
     );
 
     if (response.statusCode == 201 || response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
+      final submission = jsonDecode(response.body) as Map<String, dynamic>;
+      final productId = submission['product'] as int?;
+      
+      // Upload images if provided and product was created
+      if (imagePaths.isNotEmpty && productId != null) {
+        try {
+          for (int i = 0; i < imagePaths.length; i++) {
+            await uploadProductImage(
+              productId: productId,
+              imagePath: imagePaths[i],
+              isPrimary: i == 0, // First image is primary
+              altText: '$productType image ${i + 1}',
+            );
+          }
+        } catch (e) {
+          // Log error but don't fail the submission if images fail to upload
+          print('Warning: Failed to upload some images: $e');
+        }
+      }
+      
+      return submission;
     }
     throw Exception('Failed to submit OPAS offer: ${response.statusCode}');
   }

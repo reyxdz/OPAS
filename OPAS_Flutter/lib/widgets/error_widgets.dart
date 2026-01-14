@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/services/error_handler.dart';
+import '../core/utils/top_notification_helper.dart';
 
 /// Error SnackBar Widget
-/// Displays error messages in a dismissable snackbar
+/// Displays error messages in a dismissable notification
 class ErrorSnackBar {
   static void show(
     BuildContext context,
@@ -12,58 +13,9 @@ class ErrorSnackBar {
     VoidCallback? onDismiss,
     VoidCallback? onRetry,
   }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    message,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.only(left: 36),
-                child: Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        backgroundColor: Colors.red.shade700,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        margin: const EdgeInsets.all(16),
-        duration: duration,
-        action: onRetry != null
-            ? SnackBarAction(
-                label: 'RETRY',
-                textColor: Colors.yellow.shade200,
-                onPressed: onRetry,
-              )
-            : null,
-      ),
-    );
+    // Show error message with subtitle combined
+    final displayMessage = subtitle != null ? '$message\n$subtitle' : message;
+    TopNotificationHelper.showError(context, displayMessage, duration: duration);
   }
 
   /// Show error from APIException

@@ -352,40 +352,40 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w500,
                   ),
-                  items: [
-                    const DropdownMenuItem<String?>(
+                  items: const [
+                    DropdownMenuItem<String?>(
                       value: null,
                       child: Text('All Categories'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'VEGETABLE',
                       child: Text('Vegetables'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'FRUIT',
                       child: Text('Fruits'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'LIVESTOCK',
                       child: Text('Livestock'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'POULTRY',
                       child: Text('Poultry'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'SEEDS',
                       child: Text('Seeds'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'FERTILIZERS',
                       child: Text('Fertilizers'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'FEEDS',
                       child: Text('Feeds'),
                     ),
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: 'MEDICINES',
                       child: Text('Medicines'),
                     ),

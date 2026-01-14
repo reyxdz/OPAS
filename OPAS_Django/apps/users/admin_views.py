@@ -465,6 +465,9 @@ class UserManagementViewSet(viewsets.ViewSet):
             
             if role_filter:
                 users = users.filter(role=role_filter)
+                # If filtering by SELLER, only show APPROVED sellers
+                if role_filter == 'SELLER':
+                    users = users.filter(seller_status='APPROVED')
             
             users = users.order_by('-created_at')
             serializer = UserManagementSerializer(users, many=True)

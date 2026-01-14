@@ -492,3 +492,8 @@ __all__ = [
     'MarketplaceAlert',
     'SystemNotification',
 ]
+
+# Import models from opas_models so Django can discover them
+from .opas_models import OPASProduct, OPASProductSale
+
+__all__ += ['OPASProduct', 'OPASProductSale']

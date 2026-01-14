@@ -4,7 +4,7 @@ import 'package:flutter/gestures.dart';
 import '../../../core/services/api_service.dart';
 import '../models/location_data.dart';
 
-// Custom input formatter for first and last names (letters and hyphen only)
+// Custom input formatter for first and last names (letters, hyphen, and spaces only)
 class NameInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -12,7 +12,7 @@ class NameInputFormatter extends TextInputFormatter {
     TextEditingValue newValue,
   ) {
     final String filtered = newValue.text.replaceAll(
-      RegExp(r'[^a-zA-Z\-]'),
+      RegExp(r'[^a-zA-Z\-\s]'),
       '',
     );
 
@@ -38,7 +38,7 @@ class PhoneNumberInputFormatter extends TextInputFormatter {
 
     // Ensure first digit is 9
     if (digitsOnly.isNotEmpty && digitsOnly[0] != '9') {
-      digitsOnly = '9' + digitsOnly;
+      digitsOnly = '9$digitsOnly';
     }
 
     // Limit to 10 digits (Philippine number without +63)
@@ -48,11 +48,11 @@ class PhoneNumberInputFormatter extends TextInputFormatter {
 
     // Format: XXXX XXXXXX (with space divider)
     String formatted = '';
-    if (digitsOnly.length > 0) {
+    if (digitsOnly.isNotEmpty) {
       formatted += digitsOnly.substring(0, digitsOnly.length > 4 ? 4 : digitsOnly.length);
     }
     if (digitsOnly.length > 4) {
-      formatted += ' ' + digitsOnly.substring(4);
+      formatted += ' ${digitsOnly.substring(4)}';
     }
 
     return newValue.copyWith(
@@ -176,8 +176,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your first name';
                   }
-                  if (!RegExp(r'^[a-zA-Z\-]+$').hasMatch(value)) {
-                    return 'Letters and hyphen only';
+                  if (!RegExp(r'^[a-zA-Z\-\s]+$').hasMatch(value)) {
+                    return 'Letters, hyphen, and spaces only';
                   }
                   return null;
                 },
@@ -194,8 +194,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your last name';
                   }
-                  if (!RegExp(r'^[a-zA-Z\-]+$').hasMatch(value)) {
-                    return 'Letters and hyphen only';
+                  if (!RegExp(r'^[a-zA-Z\-\s]+$').hasMatch(value)) {
+                    return 'Letters, hyphen, and spaces only';
                   }
                   return null;
                 },
@@ -272,9 +272,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Password',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
@@ -358,11 +358,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         
         // Confirm Password Field
         Column(
+
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Confirm Password',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Colors.black87,
@@ -580,8 +581,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               return 'Please enter your phone number';
             }
             final digitsOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
-            if (digitsOnly.length < 10) {
-              return 'Please enter a complete phone number';
+            if (digitsOnly.length != 10) {
+              return 'Phone number must be exactly 10 digits';
             }
             return null;
           },
@@ -781,7 +782,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               backgroundColor: Colors.red[600],
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              margin: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(top: 16, left: 16, right: 16),
             ),
           );
         }

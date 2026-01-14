@@ -131,11 +131,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Row(
+                            content: const Row(
                               children: [
-                                const Icon(Icons.info, color: Colors.white, size: 20),
-                                const SizedBox(width: 12),
-                                const Expanded(
+                                Icon(Icons.info, color: Colors.white, size: 20),
+                                SizedBox(width: 12),
+                                Expanded(
                                   child: Text(
                                     'Review feature coming soon',
                                     style: TextStyle(fontWeight: FontWeight.w500),
@@ -263,9 +263,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                   ],
                 ),
-                Icon(
+                const Icon(
                   Icons.receipt_long,
-                  color: const Color(0xFF00B464),
+                  color: Color(0xFF00B464),
                   size: 28,
                 ),
               ],
@@ -557,7 +557,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         order.sellerPhone != null;
 
     if (!hasSellerInfo) {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
     return Container(

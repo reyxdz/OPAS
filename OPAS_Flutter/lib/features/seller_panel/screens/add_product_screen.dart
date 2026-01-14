@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/seller_service.dart';
-import '../models/product_category_model.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -26,15 +25,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
   bool _productCreatedSuccessfully = false;
 
   // Category dropdown state
+  // NOTE: These IDs must match the actual top-level categories in the database:
+  //       223=Vegetable, 274=Fruit, 322=Livestock, 391=Poultry, 392=Seeds,
+  //       393=Fertilizers, 394=Feeds, 395=Medicines
   final Map<String, Map<String, dynamic>> _categoryMap = {
     'VEGETABLE': {'label': 'Vegetables', 'icon': Icons.eco, 'color': const Color(0xFF2E7D32), 'id': 223},
     'FRUIT': {'label': 'Fruits', 'icon': Icons.apple, 'color': const Color(0xFFD32F2F), 'id': 274},
     'LIVESTOCK': {'label': 'Livestock', 'icon': Icons.pets, 'color': const Color(0xFF8B4513), 'id': 322},
-    'POULTRY': {'label': 'Poultry', 'icon': Icons.egg_outlined, 'color': const Color(0xFFE65100), 'id': 359},
-    'SEEDS': {'label': 'Seeds', 'icon': Icons.grain, 'color': const Color(0xFF7B1FA2), 'id': 360},
-    'FERTILIZERS': {'label': 'Fertilizers', 'icon': Icons.landscape, 'color': const Color(0xFF9C7C38), 'id': 361},
-    'FEEDS': {'label': 'Feeds', 'icon': Icons.food_bank, 'color': const Color(0xFF6D4C41), 'id': 362},
-    'MEDICINES': {'label': 'Medicines', 'icon': Icons.medical_services_outlined, 'color': const Color(0xFFC2185B), 'id': 363},
+    'POULTRY': {'label': 'Poultry', 'icon': Icons.egg_outlined, 'color': const Color(0xFFE65100), 'id': 391},
+    'SEEDS': {'label': 'Seeds', 'icon': Icons.grain, 'color': const Color(0xFF7B1FA2), 'id': 392},
+    'FERTILIZERS': {'label': 'Fertilizers', 'icon': Icons.landscape, 'color': const Color(0xFF9C7C38), 'id': 393},
+    'FEEDS': {'label': 'Feeds', 'icon': Icons.food_bank, 'color': const Color(0xFF6D4C41), 'id': 394},
+    'MEDICINES': {'label': 'Medicines', 'icon': Icons.medical_services_outlined, 'color': const Color(0xFFC2185B), 'id': 395},
   };
   String? _selectedCategoryKey;
   bool _categoriesLoading = false;
@@ -276,6 +278,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
       final categoryKey = _selectedCategoryKey;
       final categoryId = categoryKey != null ? _categoryMap[categoryKey]!['id'] : null;
 
+      // Convert delivery/pickup booleans to fulfillment_methods string
+      // Value should be: 'delivery', 'pickup', or 'delivery_and_pickup'
+      String fulfillmentMethods;
+      if (_isAvailableForDelivery && _isAvailableForPickup) {
+        fulfillmentMethods = 'delivery_and_pickup';
+      } else if (_isAvailableForDelivery) {
+        fulfillmentMethods = 'delivery';
+      } else {
+        fulfillmentMethods = 'pickup'; // Must be pickup since at least one is required
+      }
+
       final productData = {
         'name': name,
         'description': _descriptionController.text,
@@ -283,8 +296,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         'price': double.parse(_priceController.text),
         'stock_level': int.parse(_quantityController.text),
         'unit': _selectedUnit,
-        'is_available_for_delivery': _isAvailableForDelivery,
-        'is_available_for_pickup': _isAvailableForPickup,
+        'fulfillment_methods': fulfillmentMethods,
       };
 
       final product = await SellerService.createProduct(productData);

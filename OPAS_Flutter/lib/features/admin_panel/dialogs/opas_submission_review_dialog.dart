@@ -34,10 +34,8 @@ class _OPASSubmissionReviewDialogState
   String? _selectedDeliveryOption;
 
   static const List<String> _deliveryOptions = [
-    'Seller Pickup',
-    'OPAS Delivery',
-    'Third Party Logistics',
-    'To be arranged'
+    'To be picked up by OPAS',
+    'To be delivered to OPAS',
   ];
 
   @override
@@ -101,9 +99,10 @@ class _OPASSubmissionReviewDialogState
         // Call approve API - static method
         await AdminService.approveOPASSubmission(
           widget.submission.id.toString(),
-          quantityAccepted: int.parse(_quantityController.text),
+          quantityAccepted: double.parse(_quantityController.text).toInt(),
           finalPrice: double.parse(_finalPriceController.text),
           terms: _selectedDeliveryOption ?? 'To be arranged',
+          adminNotes: _adminNotesController.text,
         );
 
         if (mounted) {
@@ -151,6 +150,8 @@ class _OPASSubmissionReviewDialogState
 
   @override
   Widget build(BuildContext context) {
+    final isApproved = widget.submission.status.toUpperCase() == 'APPROVED';
+    
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
       child: SingleChildScrollView(
@@ -162,7 +163,7 @@ class _OPASSubmissionReviewDialogState
             children: [
               // Header
               Text(
-                'Review OPAS Submission',
+                isApproved ? 'Purchase Order' : 'Review OPAS Submission',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -175,8 +176,6 @@ class _OPASSubmissionReviewDialogState
                 [
                   ('Seller', widget.submission.sellerName),
                   ('Product', widget.submission.productName),
-                  ('Category', widget.submission.productCategory),
-                  ('Quality Grade', widget.submission.qualityGrade),
                   ('Description', widget.submission.description),
                   ('Submitted', DateFormat('MMM dd, yyyy').format(widget.submission.submittedAt)),
                 ],
@@ -189,277 +188,560 @@ class _OPASSubmissionReviewDialogState
                 'Original Offer',
                 [
                   ('Quantity', '${widget.submission.quantity.toStringAsFixed(2)} ${widget.submission.unit}'),
-                  ('Offered Price', 'PKR ${widget.submission.offeredPrice.toStringAsFixed(2)}/${widget.submission.unit}'),
-                  ('Total Value', 'PKR ${widget.submission.getTotalOfferedValue().toStringAsFixed(0)}'),
+                  ('Offered Price', 'PHP ${widget.submission.offeredPrice.toStringAsFixed(2)}/${widget.submission.unit}'),
+                  ('Total Value', 'PHP ${widget.submission.getTotalOfferedValue().toStringAsFixed(0)}'),
                 ],
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Decision Toggle
+              // Product Photos (if available)
+              if (widget.submission.getImageUrls().isNotEmpty)
+                _buildPhotoGallerySection(widget.submission.getImageUrls()),
+
+              if (widget.submission.getImageUrls().isNotEmpty)
+                const SizedBox(height: 20),
+
+              // Show different UI based on status
+              if (isApproved)
+                _buildApprovedView()
+              else
+                _buildReviewView(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApprovedView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Approval Summary
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
                 children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => setState(() => _isApproving = true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isApproving
-                            ? const Color(0xFF4CAF50)
-                            : Colors.grey.shade300,
-                        foregroundColor:
-                            _isApproving ? Colors.white : Colors.black,
-                      ),
-                      child: const Text('Approve'),
-                    ),
-                  ),
+                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 24),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => setState(() => _isApproving = false),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: !_isApproving
-                            ? Colors.red
-                            : Colors.grey.shade300,
-                        foregroundColor:
-                            !_isApproving ? Colors.white : Colors.black,
-                      ),
-                      child: const Text('Reject'),
+                  Text(
+                    'Approved',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade700,
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              _buildApprovedRow('Status', 'APPROVED'),
+              _buildApprovedRow('Quantity Accepted', '${widget.submission.quantity.toStringAsFixed(2)} ${widget.submission.unit}'),
+              _buildApprovedRow('Final Price', 'PHP ${widget.submission.offeredPrice.toStringAsFixed(2)}/${widget.submission.unit}'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        OutlinedButton(
+          onPressed: () => Navigator.pop(context),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Colors.grey),
+            minimumSize: const Size(double.infinity, 48),
+          ),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
 
-              const SizedBox(height: 24),
+  Widget _buildApprovedRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              // Conditional Fields Based on Decision
-              if (_isApproving) ...[
-                Text(
-                  'Approval Details',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+  Widget _buildReviewView() {
+    return Column(
+      children: [
+        // Decision Toggle
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => setState(() => _isApproving = true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isApproving
+                      ? const Color(0xFF4CAF50)
+                      : Colors.grey.shade300,
+                  foregroundColor:
+                      _isApproving ? Colors.white : Colors.black,
                 ),
-                const SizedBox(height: 16),
-
-                // Quantity Accepted
-                Text(
-                  'Quantity Accepted',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                child: const Text('Approve'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => setState(() => _isApproving = false),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: !_isApproving
+                      ? Colors.red
+                      : Colors.grey.shade300,
+                  foregroundColor:
+                      !_isApproving ? Colors.white : Colors.black,
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _quantityController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    hintText: 'Enter quantity to accept',
-                    suffixText: widget.submission.unit,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                child: const Text('Reject'),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // Conditional Fields Based on Decision
+        if (_isApproving) ...[
+          Text(
+            'Approval Details',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 16),
+          // Quantity Accepted
+          Text(
+            'Quantity Accepted',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _quantityController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              hintText: 'Enter quantity to accept',
+              suffixText: widget.submission.unit,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Final Price
+          Text(
+            'Final Price per ${widget.submission.unit}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _finalPriceController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              hintText: 'Enter final negotiated price',
+              prefixText: 'PHP ',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Price Comparison
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Offered',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.all(12),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Final Price
-                Text(
-                  'Final Price per ${widget.submission.unit}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                    Text(
+                      'PHP ${widget.submission.offeredPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
                       ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _finalPriceController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    hintText: 'Enter final negotiated price',
-                    prefixText: 'PKR ',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
                     ),
-                    contentPadding: const EdgeInsets.all(12),
-                  ),
+                  ],
                 ),
-
-                const SizedBox(height: 16),
-
-                // Price Comparison
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Offered',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          Text(
-                            'PKR ${widget.submission.offeredPrice.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                Icon(Icons.arrow_right, color: Colors.grey.shade400),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Final',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
                       ),
-                      Icon(Icons.arrow_right, color: Colors.grey.shade400),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Final',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          Text(
-                            _finalPriceController.text.isNotEmpty
-                                ? 'PKR ${double.parse(_finalPriceController.text).toStringAsFixed(2)}'
-                                : '—',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF4CAF50),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Delivery Terms
-                Text(
-                  'Delivery Terms',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: DropdownButton<String>(
-                    isExpanded: true,
-                    underline: const SizedBox(),
-                    value: _selectedDeliveryOption,
-                    items: _deliveryOptions
-                        .map((option) =>
-                            DropdownMenuItem(value: option, child: Text(option)))
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedDeliveryOption = value),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Additional notes
-                TextField(
-                  controller: _deliveryTermsController,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    hintText: 'Additional delivery notes (optional)',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
                     ),
-                    contentPadding: const EdgeInsets.all(12),
-                  ),
-                ),
-              ] else ...[
-                // Rejection Notes
-                Text(
-                  'Rejection Reason',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                    Text(
+                      _finalPriceController.text.isNotEmpty
+                          ? 'PHP ${double.parse(_finalPriceController.text).toStringAsFixed(2)}'
+                          : '—',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF4CAF50),
                       ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
               ],
+            ),
+          ),
 
-              const SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-              // Admin Notes (always visible)
-              Text(
-                'Admin Notes',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+          // Delivery Terms
+          Text(
+            'Delivery Terms',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButton<String>(
+              isExpanded: true,
+              underline: const SizedBox(),
+              value: _selectedDeliveryOption,
+              items: _deliveryOptions
+                  .map((option) =>
+                      DropdownMenuItem(value: option, child: Text(option)))
+                  .toList(),
+              onChanged: (value) =>
+                  setState(() => _selectedDeliveryOption = value),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Additional notes
+          TextField(
+            controller: _deliveryTermsController,
+            maxLines: 2,
+            decoration: InputDecoration(
+              hintText: 'Additional delivery notes (optional)',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _adminNotesController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: _isApproving
-                      ? 'Internal notes (e.g., quality concerns, special handling)'
-                      : 'Explain reason for rejection',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.all(12),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+        ] else ...[
+          // Rejection Notes
+          Text(
+            'Rejection Reason',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _adminNotesController,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Explain reason for rejection',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 24),
+
+        // Action Buttons
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ElevatedButton(
+              onPressed: _isLoading ? null : _handleDecision,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isApproving
+                    ? const Color(0xFF4CAF50)
+                    : Colors.red,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 48),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    )
+                  : Text(_isApproving
+                      ? 'Approve & Generate PO'
+                      : 'Reject Submission'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _isLoading ? null : () => Navigator.pop(context),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red, width: 2),
+                foregroundColor: Colors.red,
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
-              const SizedBox(height: 24),
-
-              // Action Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: _isLoading ? null : () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _handleDecision,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isApproving
-                          ? const Color(0xFF4CAF50)
-                          : Colors.red,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(Colors.white),
-                            ),
-                          )
-                        : Text(_isApproving
-                            ? 'Approve & Generate PO'
-                            : 'Reject Submission'),
-                  ),
-                ],
+  /// Helper to build photo gallery section
+  Widget _buildPhotoGallerySection(List<String> imageUrls) {
+    // Debug: Log the image URLs
+    if (imageUrls.isNotEmpty) {
+      debugPrint('🖼️ [OPAS Photos] Loaded ${imageUrls.length} images:');
+      for (int i = 0; i < imageUrls.length; i++) {
+        debugPrint('  [$i] ${{imageUrls[i]}}');
+      }
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Product Photos',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+            ),
+            padding: const EdgeInsets.all(12),
+            itemCount: imageUrls.length,
+            itemBuilder: (context, index) {
+              return _buildPhotoTile(imageUrls[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Helper to build individual photo tile
+  Widget _buildPhotoTile(String imageUrl) {
+    return GestureDetector(
+      onTap: () => _showImagePreview(imageUrl),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey.shade200,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.image_not_supported,
+                          color: Colors.grey.shade400,
+                          size: 20,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Failed',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  );
+                },
+              ),
+              // Zoom icon overlay
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(6),
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: const Icon(
+                    Icons.zoom_in,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Show full-screen image preview
+  void _showImagePreview(String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Center(
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade900,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.image_not_supported,
+                              color: Colors.grey.shade400,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Failed to load image',
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                child: const Text(
+                  'Tap to close',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),

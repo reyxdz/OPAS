@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/seller_service.dart';
 
 class OPASRequestsScreen extends StatefulWidget {
@@ -12,11 +13,19 @@ class _OPASRequestsScreenState extends State<OPASRequestsScreen> {
   late Future<List<Map<String, dynamic>>> _requestsFuture;
   String _selectedStatus = 'ALL'; // ALL, PENDING, ACCEPTED, REJECTED
   String _selectedSort = 'DATE_DESC'; // DATE_DESC, DATE_ASC, PRICE_DESC, PRICE_ASC
+  late TextEditingController _searchController;
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     _refreshRequests();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshRequests() {
@@ -43,6 +52,17 @@ class _OPASRequestsScreenState extends State<OPASRequestsScreen> {
     if (_selectedStatus != 'ALL') {
       filtered = filtered
           .where((item) => item['status'] == _selectedStatus)
+          .toList();
+    }
+
+    // Apply search filter
+    if (_searchController.text.isNotEmpty) {
+      final query = _searchController.text.toLowerCase();
+      filtered = filtered
+          .where((item) =>
+              (item['product_type'] as String? ?? '')
+                  .toLowerCase()
+                  .contains(query))
           .toList();
     }
 
@@ -75,13 +95,46 @@ class _OPASRequestsScreenState extends State<OPASRequestsScreen> {
     return filtered;
   }
 
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'ACCEPTED':
+        return Colors.green;
+      case 'REJECTED':
+        return Colors.red;
+      case 'PENDING':
+      default:
+        return Colors.orange;
+    }
+  }
+
+  String _getStatusLabel(String status) {
+    switch (status) {
+      case 'ACCEPTED':
+        return 'Approved';
+      case 'REJECTED':
+        return 'Rejected';
+      case 'PENDING':
+      default:
+        return 'Pending';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
-        title: const Text('OPAS Requests'),
+        backgroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
-        elevation: 2,
+        title: const Text(
+          'Submission Status',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _requestsFuture,
@@ -95,10 +148,9 @@ class _OPASRequestsScreenState extends State<OPASRequestsScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline,
-                      size: 64, color: Colors.red.shade400),
+                  Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
                   const SizedBox(height: 16),
-                  const Text('Failed to load OPAS requests'),
+                  const Text('Failed to load submissions'),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: () => setState(() => _refreshRequests()),
@@ -113,135 +165,331 @@ class _OPASRequestsScreenState extends State<OPASRequestsScreen> {
           final requests = snapshot.data ?? [];
           final filtered = _applyFiltersAndSort(requests);
 
-          if (filtered.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inbox_outlined,
-                      size: 64, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
-                  const Text('No OPAS requests available'),
-                ],
-              ),
-            );
-          }
+          // Count submissions by status
+          final pendingCount = requests
+              .where((r) => r['status'] == 'PENDING')
+              .length;
+          final approvedCount = requests
+              .where((r) => r['status'] == 'ACCEPTED')
+              .length;
+          final rejectedCount = requests
+              .where((r) => r['status'] == 'REJECTED')
+              .length;
 
           return RefreshIndicator(
             onRefresh: _refreshRequests,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Status Filter
-                  const Text(
-                    'Filter by Status',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildFilterChip('ALL', 'All'),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('PENDING', 'Pending'),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('ACCEPTED', 'Accepted'),
-                        const SizedBox(width: 8),
-                        _buildFilterChip('REJECTED', 'Rejected'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Sort Options
-                  const Text(
-                    'Sort by',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  SegmentedButton<String>(
-                    segments: const <ButtonSegment<String>>[
-                      ButtonSegment<String>(
-                        value: 'DATE_DESC',
-                        label: Text('Newest'),
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                // ===== STATS SECTION =====
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Submissions',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
                       ),
-                      ButtonSegment<String>(
-                        value: 'DATE_ASC',
-                        label: Text('Oldest'),
-                      ),
-                      ButtonSegment<String>(
-                        value: 'PRICE_DESC',
-                        label: Text('High Price'),
-                      ),
-                      ButtonSegment<String>(
-                        value: 'PRICE_ASC',
-                        label: Text('Low Price'),
+                      const SizedBox(height: 12),
+                      GridView.count(
+                        crossAxisCount: 3,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 1,
+                        children: [
+                          _buildStatCard(
+                            label: 'Pending',
+                            count: pendingCount,
+                            color: Colors.orange,
+                            icon: Icons.schedule,
+                          ),
+                          _buildStatCard(
+                            label: 'Approved',
+                            count: approvedCount,
+                            color: Colors.green,
+                            icon: Icons.check_circle,
+                          ),
+                          _buildStatCard(
+                            label: 'Rejected',
+                            count: rejectedCount,
+                            color: Colors.red,
+                            icon: Icons.cancel,
+                          ),
+                        ],
                       ),
                     ],
-                    selected: <String>{_selectedSort},
-                    onSelectionChanged: (Set<String> newSelection) {
-                      setState(() {
-                        _selectedSort = newSelection.first;
-                      });
-                    },
                   ),
-                  const SizedBox(height: 24),
+                ),
 
-                  // Requests List
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final request = filtered[index];
-                      return _buildRequestCard(request);
-                    },
+                const Divider(height: 1, thickness: 1),
+
+                // ===== SEARCH & FILTERS =====
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Search bar
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search product...',
+                          prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF00B464),
+                              width: 2,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        onChanged: (_) {
+                          setState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Status filter chips
+                      Wrap(
+                        spacing: 8,
+                        children: ['ALL', 'PENDING', 'ACCEPTED', 'REJECTED']
+                            .map((status) {
+                          final isSelected = _selectedStatus == status;
+                          return FilterChip(
+                            label: Text(
+                              status == 'PENDING'
+                                  ? 'Pending ($pendingCount)'
+                                  : status == 'ACCEPTED'
+                                      ? 'Approved ($approvedCount)'
+                                      : status == 'REJECTED'
+                                          ? 'Rejected ($rejectedCount)'
+                                          : 'All',
+                            ),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setState(() => _selectedStatus = status);
+                            },
+                            backgroundColor: Colors.white,
+                            selectedColor: const Color(0xFF00B464).withOpacity(0.2),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFF00B464)
+                                  : Colors.grey.shade300,
+                              width: isSelected ? 2 : 1,
+                            ),
+                            labelStyle: TextStyle(
+                              color: isSelected
+                                  ? const Color(0xFF00B464)
+                                  : Colors.grey.shade700,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Sort dropdown
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade200),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: _selectedSort,
+                          underline: Container(),
+                          items: [
+                            ('DATE_DESC', 'Sort by: Newest First'),
+                            ('DATE_ASC', 'Sort by: Oldest First'),
+                            ('PRICE_DESC', 'Sort by: Highest Price'),
+                            ('PRICE_ASC', 'Sort by: Lowest Price'),
+                          ]
+                              .map((item) => DropdownMenuItem(
+                                    value: item.$1,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Text(item.$2),
+                                    ),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedSort = value);
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.arrow_drop_down,
+                            color: Color(0xFF00B464),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+
+                // ===== REQUESTS LIST =====
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.inbox_outlined,
+                            size: 64,
+                            color: Colors.grey.shade300,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No submissions found',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Try adjusting your filters or submit a new offer',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: List.generate(
+                        filtered.length,
+                        (index) {
+                          final request = filtered[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _buildRequestCard(request),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 24),
+              ],
             ),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.pushNamed(context, 'sellerOPASSubmit'),
-        tooltip: 'Submit OPAS Offer',
-        child: const Icon(Icons.add),
+        backgroundColor: const Color(0xFF00B464),
+        icon: const Icon(Icons.add),
+        label: const Text('New Offer'),
       ),
     );
   }
 
-  Widget _buildFilterChip(String value, String label) {
-    final isSelected = _selectedStatus == value;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) {
-        setState(() => _selectedStatus = value);
-      },
-      backgroundColor: Colors.grey.shade200,
-      selectedColor: Colors.blue.shade300,
+  Widget _buildStatCard({
+    required String label,
+    required int count,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: color.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            count.toString(),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildRequestCard(Map<String, dynamic> request) {
     final status = request['status'] as String? ?? 'PENDING';
     final statusColor = _getStatusColor(status);
-    final offeredPrice = double.tryParse(
-            request['offered_price'].toString()) ??
-        0;
+    final statusLabel = _getStatusLabel(status);
+    final offeredPrice =
+        double.tryParse(request['offered_price'].toString()) ?? 0;
+    final createdAt = request['created_at'] as String? ?? '';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    DateTime? submittedDate;
+    try {
+      if (createdAt.isNotEmpty) {
+        submittedDate = DateTime.parse(createdAt);
+      }
+    } catch (e) {
+      // Invalid date format
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Header row with status
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -253,8 +501,11 @@ class _OPASRequestsScreenState extends State<OPASRequestsScreen> {
                         request['product_type'] as String? ?? 'Unknown',
                         style: const TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -268,112 +519,193 @@ class _OPASRequestsScreenState extends State<OPASRequestsScreen> {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.1),
-                    border: Border.all(color: statusColor),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    status,
+                    statusLabel,
                     style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
                       fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
                     ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Details grid
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDetailItem(
+                    label: 'Quantity',
+                    value: '${request['quantity']} kg',
+                    icon: Icons.scale,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildDetailItem(
+                    label: 'Offered Price',
+                    value: '₱${offeredPrice.toStringAsFixed(2)}/unit',
+                    icon: Icons.currency_exchange,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
 
-            // Details Row
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Quantity',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${request['quantity']} kg',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                Expanded(
+                  child: _buildDetailItem(
+                    label: 'Submitted',
+                    value: submittedDate != null
+                        ? DateFormat('MMM dd, yyyy').format(submittedDate)
+                        : 'N/A',
+                    icon: Icons.calendar_today,
+                  ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Offered Price',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₱${_formatCurrency(offeredPrice)}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildDetailItem(
+                    label: 'Total Value',
+                    value: '₱${((request['quantity'] as int) * offeredPrice).toStringAsFixed(0)}',
+                    icon: Icons.price_check,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
 
-            // Date
-            Text(
-              'Submitted: ${_formatDate(request['created_at'] as String? ?? '')}',
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade500,
+            // Status message or action button
+            if (status == 'PENDING') ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.schedule, size: 16, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Awaiting OPAS review. You will be notified when they respond.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade700,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ] else if (status == 'ACCEPTED') ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Congratulations! OPAS has approved your submission.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (status == 'REJECTED') ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cancel, size: 16, color: Colors.red),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'OPAS did not accept this offer. You can submit another.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.red,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'ACCEPTED':
-        return Colors.green;
-      case 'REJECTED':
-        return Colors.red;
-      case 'PENDING':
-      default:
-        return Colors.amber;
-    }
-  }
-
-  String _formatCurrency(double value) {
-    return value.toStringAsFixed(2);
-  }
-
-  String _formatDate(String dateStr) {
-    if (dateStr.isEmpty) return 'N/A';
-    try {
-      final date = DateTime.parse(dateStr);
-      return '${date.month}/${date.day}/${date.year}';
-    } catch (e) {
-      return dateStr;
-    }
+  Widget _buildDetailItem({
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

@@ -1004,18 +1004,78 @@ class SellToOPASViewSet(viewsets.ViewSet):
     Bulk submissions to OPAS platform.
     
     Endpoints:
-    - POST /api/seller/sell-to-opas/submit/ - Submit bulk offer to OPAS
-    - GET /api/seller/sell-to-opas/pending/ - List pending submissions
-    - GET /api/seller/sell-to-opas/history/ - Get submission history
-    - GET /api/seller/sell-to-opas/{id}/status/ - Get submission status
+    - GET /api/users/seller/sell-to-opas/ - List all submissions
+    - POST /api/users/seller/sell-to-opas/ - Submit bulk offer to OPAS
+    - GET /api/users/seller/sell-to-opas/pending/ - List pending submissions
+    - GET /api/users/seller/sell-to-opas/history/ - Get submission history
+    - GET /api/users/seller/sell-to-opas/{id}/status/ - Get submission status
     """
     permission_classes = [IsAuthenticated, IsOPASSeller]
 
+    def list(self, request):
+        """List all submissions for the current seller"""
+        try:
+            submissions = SellToOPAS.objects.filter(
+                seller=request.user
+            ).select_related(
+                'product', 'seller'
+            ).prefetch_related(
+                'product__product_images'
+            ).order_by('-created_at')
+            serializer = SellToOPASSerializer(
+                submissions, 
+                many=True,
+                context={'request': request}
+            )
+            logger.info(f'All submissions retrieved by: {request.user.email}')
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f'Error retrieving submissions: {str(e)}')
+            return Response(
+                {'error': 'Failed to retrieve submissions'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     def create(self, request):
-        """Submit bulk offer to OPAS"""
+        """Submit bulk offer to OPAS
+        
+        Accepts either:
+        1. product ID (standard flow) - Link to existing seller product
+        2. product_type (simplified flow) - Create temporary product reference
+        """
         try:
             data = request.data.copy()
             data['seller'] = request.user.id
+            
+            # If product_type provided but no product ID, create or get a temporary product
+            if 'product_type' in data and 'product' not in data:
+                product_type = data.pop('product_type')
+                
+                # Try to find a product with this type from the seller
+                # If none exists, create a temporary one for the submission
+                seller_products = SellerProduct.objects.filter(
+                    seller=request.user,
+                    product_type=product_type
+                ).order_by('-created_at')
+                
+                if seller_products.exists():
+                    # Use the most recent product of this type
+                    data['product'] = seller_products.first().id
+                else:
+                    # Create a temporary product for this submission
+                    # This allows sellers to submit without pre-creating products
+                    temp_product = SellerProduct.objects.create(
+                        seller=request.user,
+                        name=f'{product_type} - OPAS Submission',
+                        product_type=product_type,
+                        description='Created for OPAS submission',
+                        price=0,  # Will be overridden by offered_price
+                        stock_level=0,  # Will be set from quantity_offered
+                        status='DRAFT',  # Temporary status
+                    )
+                    data['product'] = temp_product.id
+                    logger.info(f'Temporary product created for OPAS submission: {temp_product.id}')
             
             serializer = SellToOPASSerializer(
                 data=data,
@@ -1026,6 +1086,9 @@ class SellToOPASViewSet(viewsets.ViewSet):
                 logger.info(f'SellToOPAS submission created by: {request.user.email}')
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             
+            # Log detailed validation errors for debugging
+            logger.error(f'SellToOPAS serializer errors: {serializer.errors}')
+            logger.error(f'Request data: {data}')
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         except Exception as e:

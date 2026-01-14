@@ -67,10 +67,17 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       final phoneNumber = prefs.getString('phone_number') ?? '';
       final email = prefs.getString('email') ?? '';
       final adminRole = prefs.getString('role') ?? 'OPAS_ADMIN';
+      
+      // user_id is stored as string in SharedPreferences
+      int? userId;
+      final userIdStr = prefs.getString('user_id');
+      if (userIdStr != null) {
+        userId = int.tryParse(userIdStr);
+      }
 
       setState(() {
         _adminProfile = AdminProfile(
-          id: prefs.getInt('user_id') ?? 0,
+          id: userId,
           firstName: firstName,
           lastName: lastName,
           email: email.isNotEmpty ? email : null,

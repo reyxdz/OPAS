@@ -584,7 +584,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: Text(
+                      child: const Text(
                         'Cancel',
                         style: TextStyle(
                           color: Colors.red,
