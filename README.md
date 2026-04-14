@@ -12,14 +12,13 @@
 **A robust mobile application and backend system designed for streamlined Order Processing and Approval.**
 
 <!-- TODO: Add live demo link if available -->
-<!-- [Live Demo](https://demo-link.com) | -->
-[Backend API Documentation](https://github.com/reyxdz/OPAS/blob/main/PHASE_5_API_DOCUMENTATION_REPORT.md)
+[Live Demo](https://opas-biliran.web.app/)
 
 </div>
 
 ## 📖 Overview
 
-OPAS (Order Processing & Approval System) is a comprehensive solution comprising a cross-platform mobile application built with Flutter and a powerful backend API developed using Django. The system is engineered to facilitate efficient management of products, orders, and organizational workflows, enabling users to create, track, and approve orders, while ensuring robust data integrity and user-specific notifications.
+OPAS (Online Platform for Agricultural Services) is a comprehensive solution comprising a cross-platform mobile application built with Flutter and a powerful backend API developed using Django. The system is engineered to facilitate efficient management of products, orders, and organizational workflows, enabling users to create, track, and approve orders, while ensuring robust data integrity and user-specific notifications.
 
 This repository represents a multi-phase development effort, focusing on critical features like user management, product lifecycle, order processing with integrated stock management, and a sophisticated notification system, all underpinned by a secure and performant API.
 
