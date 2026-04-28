@@ -9,7 +9,7 @@ class BackendConfig {
   /// Look for IPv4 Address in the format: 192.168.x.x or 10.x.x.x
   /// 
   /// Current value is a placeholder - CHANGE THIS TO YOUR ACTUAL IP
-  static const String machineIp = '10.14.217.34'; // ⬅️ UPDATE THIS LINE
+  static const String machineIp = '192.168.254.110'; // ⬅️ UPDATE THIS LINE
   
   static const int port = 8000;
   static const String apiPath = '/api';

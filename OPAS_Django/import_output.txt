@@ -1,7 +1,0 @@
-﻿python : CommandError: \u274c Error: 'charmap' codec can't encode character '\U0001f4c2' in position 0: character maps to <undefined>
-At line:1 char:1
-+ python manage.py import_historical_csv --file "..\demand_and_price_fo ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (CommandError: \... to <undefined>:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
